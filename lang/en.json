@@ -1,0 +1,73 @@
+{
+  "ARCHIVIST_SYNC": {
+    "Settings": {
+      "ApiKey": {
+        "Name": "API Key",
+        "Hint": "Enter your API key to authenticate with the Archivist API service"
+      },
+      "SelectedWorld": {
+        "Name": "Selected World ID",
+        "Hint": "The ID of the currently selected world from the Archivist API"
+      },
+      "SelectedWorldName": {
+        "Name": "Selected World",
+        "Hint": "The name of the currently selected world from the Archivist API"
+      }
+    },
+    "Menu": {
+      "SyncOptions": {
+        "Name": "Sync Options",
+        "Label": "Open Sync Manager",
+        "Hint": "Manage world selection, title sync, and character mapping with Archivist API"
+      }
+    },
+    "Tabs": {
+      "World": "World Selection",
+      "Title": "Title Sync",
+      "Characters": "Character Mapping"
+    },
+    "Dialog": {
+      "SyncOptions": {
+        "Title": "Archivist Sync Manager"
+      },
+      "ApiStatus": "API Status",
+      "Connected": "Connected",
+      "NotConfigured": "Not Configured",
+      "Loading": "Loading...",
+      "SyncWorlds": "Sync Worlds",
+      "SelectWorld": "Select World",
+      "SelectWorldOption": "-- Select a World --",
+      "SaveSelection": "Save Selection",
+      "CurrentSelection": "Current Selection",
+      "ConfigureApi": "Please configure your API key in the module settings first.",
+      "FoundryWorld": "Current Foundry World",
+      "SyncTarget": "Sync Target",
+      "SyncTitle": "Sync Title to Archivist",
+      "SyncingTitle": "Syncing Title...",
+      "SelectWorldFirst": "Please select an Archivist world first.",
+      "FoundryActors": "Foundry Actors",
+      "CharacterMappingHint": "These characters will be synchronized to your selected Archivist world.",
+      "MapCharacter": "Map Character",
+      "SyncCharacters": "Sync All Characters",
+      "SyncingCharacters": "Syncing Characters...",
+      "NoActorsFound": "No character or NPC actors found in this world."
+    },
+    "Warnings": {
+      "MissingApiKey": "Please configure your API key in the module settings first.",
+      "MissingConfig": "Please configure your API key and select a world first.",
+      "NoWorldSelected": "Please select a world from the dropdown before saving."
+    },
+    "Info": {
+      "WorldsLoaded": "Worlds loaded successfully from Archivist API",
+      "WorldSelectionSaved": "World selection saved: {worldName}",
+      "TitleSynced": "World title synchronized successfully",
+      "CharactersSynced": "Characters synchronized successfully"
+    },
+    "Errors": {
+      "FetchWorldsFailed": "Failed to fetch worlds from Archivist API",
+      "SaveWorldFailed": "Failed to save world selection",
+      "TitleSyncFailed": "Failed to sync world title",
+      "CharacterSyncFailed": "Failed to sync characters"
+    }
+  }
+}
