@@ -58,7 +58,7 @@
           <option value="">{{localize "ARCHIVIST_SYNC.options.selectWorld"}}</option>
           {{#each worlds}}
           <option value="{{this.id}}" {{#if (eq this.id ../selectedWorldId)}}selected{{/if}}>
-            {{this.title}}
+            {{this.name}}
           </option>
           {{/each}}
         </select>
@@ -90,6 +90,30 @@
           <p><strong>{{localize "ARCHIVIST_SYNC.labels.title"}}:</strong> {{foundryWorldTitle}}</p>
           <p><strong>{{localize "ARCHIVIST_SYNC.labels.description"}}:</strong> {{foundryWorldDescription}}</p>
         </div>
+      </div>
+
+      <div class="sync-section">
+        <h4>{{localize "ARCHIVIST_SYNC.labels.archivistWorld"}}</h4>
+        {{#if selectedWorldData}}
+        <div class="world-info">
+          <p><strong>{{localize "ARCHIVIST_SYNC.labels.title"}}:</strong> {{selectedWorldData.title}}</p>
+          <p><strong>{{localize "ARCHIVIST_SYNC.labels.description"}}:</strong> {{selectedWorldData.description}}</p>
+          {{#if selectedWorldData.lastUpdated}}
+          <p><strong>{{localize "ARCHIVIST_SYNC.labels.lastUpdated"}}:</strong> {{selectedWorldData.lastUpdated}}</p>
+          {{/if}}
+          {{#if selectedWorldData.createdAt}}
+          <p><strong>{{localize "ARCHIVIST_SYNC.labels.createdAt"}}:</strong> {{selectedWorldData.createdAt}}</p>
+          {{/if}}
+          {{#if selectedWorldData.characterCount}}
+          <p><strong>{{localize "ARCHIVIST_SYNC.labels.characterCount"}}:</strong> {{selectedWorldData.characterCount}}
+          </p>
+          {{/if}}
+        </div>
+        {{else}}
+        <div class="info">
+          <p>{{localize "ARCHIVIST_SYNC.messages.loadingWorldData"}}</p>
+        </div>
+        {{/if}}
       </div>
 
       <div class="sync-section">

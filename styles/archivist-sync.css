@@ -1,9 +1,9 @@
 /**
  * Archivist Sync Module Styles
- * Simple CSS for the API-focused module
+ * All styles are scoped to the module to prevent conflicts with Foundry VTT and other modules
  */
 
-/* Module dialog styling */
+/* Module dialog styling - scoped to our specific dialog */
 .archivist-sync-dialog {
   border: 2px solid #4caf50;
   border-radius: 8px;
@@ -19,30 +19,24 @@
   padding: 20px;
 }
 
-/* World data dialog specific styles */
-.archivist-sync-world-data,
-.archivist-sync-world-selector,
-.archivist-sync-options {
+/* Archivist Sync content container - all styles scoped within this */
+.archivist-sync-content {
   font-family: "Signika", sans-serif;
 }
 
-.archivist-sync-world-data .form-group,
-.archivist-sync-world-selector .form-group,
-.archivist-sync-options .form-group {
+.archivist-sync-content .form-group {
   margin-bottom: 15px;
 }
 
-.archivist-sync-world-data label,
-.archivist-sync-world-selector label,
-.archivist-sync-options label {
+.archivist-sync-content label {
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
   color: #2e7d32;
 }
 
-/* Tabbed interface */
-.archivist-sync-options .tabs {
+/* Tabbed interface - scoped to our content */
+.archivist-sync-content .tabs {
   display: flex;
   border-bottom: 2px solid #e0e0e0;
   margin-bottom: 20px;
@@ -50,7 +44,7 @@
   border-radius: 4px 4px 0 0;
 }
 
-.archivist-sync-options .tabs .item {
+.archivist-sync-content .tabs .item {
   flex: 1;
   padding: 12px 16px;
   text-align: center;
@@ -63,45 +57,40 @@
   font-weight: bold;
 }
 
-.archivist-sync-options .tabs .item:hover {
+.archivist-sync-content .tabs .item:hover {
   background: #e8f5e8;
   color: #2e7d32;
 }
 
-.archivist-sync-options .tabs .item.active {
+.archivist-sync-content .tabs .item.active {
   background: #4caf50;
   color: white;
   border-radius: 4px 4px 0 0;
 }
 
-.archivist-sync-options .content {
+.archivist-sync-content .tab-content {
   min-height: 400px;
 }
 
-.archivist-sync-options .tab {
+.archivist-sync-content .tab {
   display: none;
   padding: 20px;
   background: white;
   border-radius: 0 0 4px 4px;
 }
 
-.archivist-sync-options .tab.active,
-.archivist-sync-options .tab[data-tab="world"] {
-  display: block;
-}
-
-.archivist-sync-options .tab.active {
+.archivist-sync-content .tab.active {
   display: block !important;
 }
 
-/* API Status indicators */
-.api-status {
+/* API Status indicators - scoped */
+.archivist-sync-content .api-status {
   padding: 10px;
   border-radius: 4px;
   text-align: center;
 }
 
-.status-indicator {
+.archivist-sync-content .status-indicator {
   display: inline-block;
   padding: 6px 12px;
   border-radius: 4px;
@@ -110,21 +99,22 @@
   text-transform: uppercase;
 }
 
-.status-indicator.connected {
+.archivist-sync-content .status-indicator.connected {
   background-color: #c8e6c9;
   color: #2e7d32;
   border: 1px solid #4caf50;
 }
 
-.status-indicator.disconnected {
+.archivist-sync-content .status-indicator.disconnected {
   background-color: #ffcdd2;
   color: #d32f2f;
   border: 1px solid #f44336;
 }
 
-/* Fetch button styling */
-#fetch-world-data,
-#sync-worlds {
+/* Button styling - scoped to our content */
+.archivist-sync-content .sync-worlds-btn,
+.archivist-sync-content .sync-title-btn,
+.archivist-sync-content .sync-characters-btn {
   background: linear-gradient(135deg, #4caf50, #2e7d32);
   color: white;
   border: none;
@@ -137,46 +127,83 @@
   width: 100%;
 }
 
-#fetch-world-data:hover:not(:disabled),
-#sync-worlds:hover:not(:disabled) {
+.archivist-sync-content .sync-worlds-btn:hover:not(:disabled),
+.archivist-sync-content .sync-title-btn:hover:not(:disabled),
+.archivist-sync-content .sync-characters-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, #388e3c, #1b5e20);
   transform: translateY(-2px);
   box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
 }
 
-#fetch-world-data:disabled,
-#sync-worlds:disabled {
+.archivist-sync-content .sync-worlds-btn:disabled,
+.archivist-sync-content .sync-title-btn:disabled,
+.archivist-sync-content .sync-characters-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
 
-#fetch-world-data i,
-#sync-worlds i {
+.archivist-sync-content .sync-worlds-btn i,
+.archivist-sync-content .sync-title-btn i,
+.archivist-sync-content .sync-characters-btn i {
   margin-right: 8px;
 }
 
-/* World data display */
-.world-data-display {
-  background-color: #263238;
-  border: 1px solid #37474f;
+/* Save button styling - scoped */
+.archivist-sync-content .save-selection-btn {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+  border: none;
+  padding: 10px 20px;
   border-radius: 4px;
-  max-height: 300px;
-  overflow: auto;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  width: 100%;
 }
 
-.world-data-display pre {
-  color: #b0bec5;
-  font-family: "Courier New", monospace;
+.archivist-sync-content .save-selection-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1976d2, #1565c0);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.archivist-sync-content .save-selection-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  background: #bdbdbd;
+}
+
+.archivist-sync-content .save-selection-btn i {
+  margin-right: 8px;
+}
+
+/* Map character button styling - scoped */
+.archivist-sync-content .map-character-btn {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
   font-size: 12px;
-  padding: 15px;
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  font-weight: bold;
+  transition: all 0.3s ease;
 }
 
-/* World selector dropdown */
-.world-selector {
+.archivist-sync-content .map-character-btn:hover {
+  background: linear-gradient(135deg, #f57c00, #ef6c00);
+  transform: translateY(-1px);
+}
+
+.archivist-sync-content .map-character-btn i {
+  margin-right: 4px;
+}
+
+/* World selector dropdown - scoped */
+.archivist-sync-content #world-select {
   width: 100%;
   min-width: 300px;
   padding: 12px 16px;
@@ -192,13 +219,13 @@
   text-overflow: ellipsis;
 }
 
-.world-selector:focus {
+.archivist-sync-content #world-select:focus {
   outline: none;
   border-color: #4caf50;
   box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
-.world-selector option {
+.archivist-sync-content #world-select option {
   padding: 10px 8px;
   line-height: 1.5;
   min-height: 32px;
@@ -206,97 +233,86 @@
   word-wrap: break-word;
 }
 
-/* Save button styling */
-.save-button {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  transition: all 0.3s ease;
-  width: 100%;
-}
-
-.save-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1976d2, #1565c0);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
-}
-
-.save-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  background: #bdbdbd;
-}
-
-.save-button i {
-  margin-right: 8px;
-}
-
-/* Current selection display */
-.current-selection {
+/* Current selection display - scoped */
+.archivist-sync-content .current-selection {
   background-color: #e8f5e8;
   border: 1px solid #4caf50;
   border-radius: 4px;
   padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  margin-top: 15px;
 }
 
-.selected-world {
-  font-weight: bold;
+.archivist-sync-content .current-selection h4 {
+  margin: 0 0 8px 0;
   color: #2e7d32;
   font-size: 16px;
 }
 
-.selected-world-id {
+.archivist-sync-content .current-selection p {
+  margin: 0;
   color: #666;
-  font-size: 12px;
-  font-family: "Courier New", monospace;
 }
 
-/* World info display */
-.world-info {
+/* Sync sections - scoped */
+.archivist-sync-content .sync-section {
   background-color: #f9f9f9;
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 15px;
+  margin-bottom: 15px;
 }
 
-.world-title {
-  font-size: 18px;
-  font-weight: bold;
+.archivist-sync-content .sync-section h4 {
+  margin: 0 0 10px 0;
   color: #2e7d32;
-  margin-bottom: 8px;
+  font-size: 16px;
 }
 
-.world-description {
-  color: #666;
+.archivist-sync-content .world-info {
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.archivist-sync-content .world-info p {
+  margin: 5px 0;
+  color: #333;
+}
+
+.archivist-sync-content .world-info p:last-child {
+  margin-bottom: 0;
+}
+
+/* Warning messages - scoped */
+.archivist-sync-content .warning-message {
+  background-color: #fff3e0;
+  color: #f57c00;
+  padding: 15px;
+  border-radius: 4px;
+  border-left: 4px solid #ff9800;
+  text-align: center;
+}
+
+.archivist-sync-content .warning-message i {
+  font-size: 24px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.archivist-sync-content .warning-message p {
+  margin: 0;
   font-style: italic;
 }
 
-/* Sync target display */
-.sync-target {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background-color: #e3f2fd;
-  border: 1px solid #2196f3;
-  border-radius: 4px;
+/* Characters section - scoped */
+.archivist-sync-content .characters-section h4 {
+  margin: 0 0 15px 0;
+  color: #2e7d32;
+  font-size: 18px;
 }
 
-.sync-target i {
-  color: #2196f3;
-}
-
-/* Actors list */
-.actors-list {
+.archivist-sync-content .actors-list {
   max-height: 300px;
   overflow-y: auto;
   border: 1px solid #e0e0e0;
@@ -304,7 +320,7 @@
   margin-bottom: 15px;
 }
 
-.actor-item {
+.archivist-sync-content .actor-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -313,57 +329,64 @@
   transition: background-color 0.2s ease;
 }
 
-.actor-item:hover {
+.archivist-sync-content .actor-item:hover {
   background-color: #f5f5f5;
 }
 
-.actor-item:last-child {
+.archivist-sync-content .actor-item:last-child {
   border-bottom: none;
 }
 
-.actor-info {
+.archivist-sync-content .actor-info {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
 }
 
-.actor-name {
+.archivist-sync-content .actor-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ddd;
+}
+
+.archivist-sync-content .actor-details h5 {
+  margin: 0;
+  font-size: 14px;
   font-weight: bold;
   color: #333;
 }
 
-.actor-type {
+.archivist-sync-content .actor-details .actor-type {
+  margin: 2px 0 0 0;
   font-size: 12px;
   color: #666;
   text-transform: capitalize;
 }
 
-.map-character {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: bold;
-  transition: all 0.3s ease;
+.archivist-sync-content .no-actors {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
 }
 
-.map-character:hover {
-  background: linear-gradient(135deg, #f57c00, #ef6c00);
-  transform: translateY(-1px);
+.archivist-sync-content .bulk-actions {
+  text-align: center;
+  padding-top: 10px;
+  border-top: 1px solid #e0e0e0;
 }
 
-/* Info and hint text */
-.hint {
+/* Info and hint text - scoped */
+.archivist-sync-content .hint {
   color: #666;
   font-size: 14px;
   margin: 8px 0;
   font-style: italic;
 }
 
-.info {
+.archivist-sync-content .info {
   background-color: #e1f5fe;
   color: #0277bd;
   padding: 12px;
@@ -371,35 +394,37 @@
   border-left: 4px solid #03a9f4;
 }
 
-/* Warning message styling */
-.warning {
-  background-color: #fff3e0;
-  color: #f57c00;
-  padding: 10px;
-  border-radius: 4px;
-  border-left: 4px solid #ff9800;
-  font-style: italic;
+/* Small text styling - scoped */
+.archivist-sync-content small {
+  display: block;
+  margin-top: 5px;
+  color: #666;
+  font-size: 12px;
 }
 
-/* Responsive design */
+/* Responsive design - only affects our dialog */
 @media (max-width: 768px) {
   .archivist-sync-dialog {
     width: 95% !important;
     height: auto !important;
   }
 
-  .archivist-sync-world-data,
-  .archivist-sync-world-selector {
+  .archivist-sync-content {
     padding: 10px;
+  }
+
+  .archivist-sync-content .tabs .item {
+    padding: 8px 12px;
+    font-size: 13px;
   }
 }
 
-/* Animation for loading states */
-.fa-spinner {
-  animation: spin 1s linear infinite;
+/* Animation for loading states - scoped to our content */
+.archivist-sync-content .fa-spinner {
+  animation: archivist-sync-spin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes archivist-sync-spin {
   from {
     transform: rotate(0deg);
   }

@@ -75,6 +75,45 @@ export class ArchivistApiService {
   }
 
   /**
+   * Fetch detailed information for a specific world
+   * @param {string} apiKey - The API key for authentication
+   * @param {string} worldId - The world ID to fetch details for
+   * @returns {Promise<object>} Object with success flag and world data
+   */
+  async fetchWorldDetails(apiKey, worldId) {
+    console.log('fetchWorldDetails called with:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none', worldId });
+    
+    try {
+      const headers = this._createHeaders(apiKey);
+      const url = `${this.baseUrl}/worlds/${worldId}`;
+      console.log('Fetching world details from URL:', url);
+      console.log('Request headers:', headers);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: headers
+      });
+      
+      console.log('Fetch response status:', response.status, response.statusText);
+      console.log('Fetch response ok:', response.ok);
+      
+      const data = await this._handleResponse(response);
+      console.log('Parsed response data:', data);
+      
+      return {
+        success: true,
+        data: data
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch world details:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch world details from API'
+      };
+    }
+  }
+
+  /**
    * Sync world title to Archivist API
    * @param {string} apiKey - The API key for authentication
    * @param {string} worldId - The world ID to sync to

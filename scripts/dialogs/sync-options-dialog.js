@@ -6,46 +6,59 @@ import { Utils } from '../modules/utils.js';
 /**
  * Sync Options Dialog - Tabbed interface for world synchronization
  * Provides three main functions: World Selection, Title Sync, Character Mapping
+ * Uses Foundry VTT Application v2 API with HandlebarsApplicationMixin
  */
-export class SyncOptionsDialog extends FormApplication {
+export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2) {
   constructor() {
     super();
     this.worlds = [];
     this.actors = [];
+    this.selectedWorldData = null; // Store full data for selected world
     this.isLoading = false;
     this.syncInProgress = false;
   }
 
   /**
-   * Default configuration options
-   * @returns {Object} Default options for the dialog
+   * Application v2 configuration
+   * @returns {Object} Application configuration
    */
-  static get defaultOptions() {
-    return foundry.utils.mergeObject(super.defaultOptions, {
-      id: 'archivist-sync-options',
-      title: game.i18n.localize('ARCHIVIST_SYNC.dialog.title'),
-      template: 'modules/archivist-sync/templates/sync-options-dialog.hbs',
+  static DEFAULT_OPTIONS = {
+    id: 'archivist-sync-options',
+    tag: 'dialog',
+    window: {
+      title: 'ARCHIVIST_SYNC.dialog.title',
+      icon: 'fas fa-sync-alt',
+      resizable: true
+    },
+    position: {
       width: 600,
-      height: 500,
-      resizable: true,
-      classes: ['archivist-sync-dialog'],
-      tabs: [
-        {
-          navSelector: '.tabs',
-          contentSelector: '.tab-content',
-          initial: 'world'
-        }
-      ],
-      submitOnChange: false,
-      submitOnClose: false
-    });
-  }
+      height: 500
+    },
+    classes: ['archivist-sync-dialog'],
+    actions: {
+      syncWorlds: this._onSyncWorlds,
+      saveWorldSelection: this._onSaveWorldSelection,
+      worldSelectChange: this._onWorldSelectChange,
+      syncTitle: this._onSyncTitle,
+      mapCharacter: this._onMapCharacter,
+      syncCharacters: this._onSyncCharacters
+    }
+  };
 
   /**
-   * Get data for template rendering
+   * Template configuration for HandlebarsApplicationMixin
+   */
+  static PARTS = {
+    window: {
+      template: 'modules/archivist-sync/templates/sync-options-dialog.hbs'
+    }
+  };
+
+  /**
+   * Prepare context data for template rendering
    * @returns {Object} Template data
    */
-  getData() {
+  async _prepareContext() {
     const apiKey = settingsManager.getApiKey();
     const selectedWorldId = settingsManager.getSelectedWorldId();
     const selectedWorldName = settingsManager.getSelectedWorldName();
@@ -59,6 +72,7 @@ export class SyncOptionsDialog extends FormApplication {
       worlds: this.worlds,
       selectedWorldId,
       selectedWorldName,
+      selectedWorldData: this.selectedWorldData, // Include full world data
       actors: this.actors,
       isLoading: this.isLoading,
       syncInProgress: this.syncInProgress,
@@ -70,60 +84,92 @@ export class SyncOptionsDialog extends FormApplication {
 
 
   /**
-   * Activate event listeners after rendering
-   * @param {jQuery} html - The rendered HTML
+   * Actions performed after initial render
+   * @param {ApplicationRenderContext} context - The render context
+   * @param {RenderOptions} options - The render options
    */
-  activateListeners(html) {
-    super.activateListeners(html);
+  _onRender(context, options) {
+    const html = this.element;
     
     // Initialize tabs
     this._initializeTabs(html);
     
-    // World selection events
-    html.find('.sync-worlds-btn').click(this._onSyncWorlds.bind(this));
-    html.find('#world-select').change(this._onWorldSelectChange.bind(this));
-    html.find('.save-selection-btn').click(this._onSaveWorldSelection.bind(this));
+    // Load actors for character mapping
+    this.actors = game.actors.filter(actor => 
+      actor.type === 'character' || actor.type === 'npc'
+    ).map(actor => ({
+      id: actor.id,
+      name: actor.name,
+      type: actor.type,
+      img: actor.img || 'icons/svg/mystery-man.svg'
+    }));
     
-    // Title sync events
-    html.find('.sync-title-btn').click(this._onSyncTitle.bind(this));
+    // Load selected world data if a world is already selected
+    const selectedWorldId = settingsManager.getSelectedWorldId();
+    console.log('Dialog render - selectedWorldId:', selectedWorldId);
+    console.log('Dialog render - existing selectedWorldData:', this.selectedWorldData);
     
-    // Character mapping events
-    html.find('.map-character-btn').click(this._onMapCharacter.bind(this));
-    html.find('.sync-characters-btn').click(this._onSyncCharacters.bind(this));
+    if (selectedWorldId && !this.selectedWorldData) {
+      console.log('Loading world data on dialog render...');
+      this._loadSelectedWorldData(selectedWorldId).then(() => {
+        console.log('World data loading completed, re-rendering...');
+        // Re-render to show the loaded data
+        if (this.selectedWorldData) {
+          this.render(false);
+        }
+      });
+    }
+
+    // Attach event listeners directly to elements
+    html.querySelector('.sync-worlds-btn')?.addEventListener('click', this._onSyncWorlds.bind(this));
+    html.querySelector('#world-select')?.addEventListener('change', this._onWorldSelectChange.bind(this));
+    html.querySelector('.save-selection-btn')?.addEventListener('click', this._onSaveWorldSelection.bind(this));
+    html.querySelector('.sync-title-btn')?.addEventListener('click', this._onSyncTitle.bind(this));
+    html.querySelector('.sync-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
+    
+    // Attach event listeners to dynamically generated character map buttons
+    html.querySelectorAll('.map-character-btn').forEach(btn => {
+      btn.addEventListener('click', this._onMapCharacter.bind(this));
+    });
   }
 
   /**
    * Initialize tab functionality
-   * @param {jQuery} html - The rendered HTML
+   * @param {HTMLElement} html - The rendered HTML
    */
   _initializeTabs(html) {
     // Activate the first tab by default
-    const firstTab = html.find('.tabs .item[data-tab="world"]');
-    const firstContent = html.find('.tab[data-tab="world"]');
+    const firstTab = html.querySelector('.tabs .item[data-tab="world"]');
+    const firstContent = html.querySelector('.tab[data-tab="world"]');
     
-    firstTab.addClass('active');
-    firstContent.addClass('active');
+    if (firstTab) firstTab.classList.add('active');
+    if (firstContent) firstContent.classList.add('active');
     
     // Tab click handlers
-    html.find('.tabs .item').click((event) => {
-      const tab = event.currentTarget.dataset.tab;
-      this._activateTab(html, tab);
+    html.querySelectorAll('.tabs .item').forEach(tab => {
+      tab.addEventListener('click', (event) => {
+        const tabName = event.currentTarget.dataset.tab;
+        this._activateTab(html, tabName);
+      });
     });
   }
 
   /**
    * Activate a specific tab
-   * @param {jQuery} html - The rendered HTML
+   * @param {HTMLElement} html - The rendered HTML
    * @param {string} tabName - Name of the tab to activate
    */
   _activateTab(html, tabName) {
     // Remove active class from all tabs and content
-    html.find('.tabs .item').removeClass('active');
-    html.find('.tab').removeClass('active');
+    html.querySelectorAll('.tabs .item').forEach(tab => tab.classList.remove('active'));
+    html.querySelectorAll('.tab').forEach(content => content.classList.remove('active'));
     
     // Add active class to selected tab and content
-    html.find(`.tabs .item[data-tab="${tabName}"]`).addClass('active');
-    html.find(`.tab[data-tab="${tabName}"]`).addClass('active');
+    const selectedTab = html.querySelector(`.tabs .item[data-tab="${tabName}"]`);
+    const selectedContent = html.querySelector(`.tab[data-tab="${tabName}"]`);
+    
+    if (selectedTab) selectedTab.classList.add('active');
+    if (selectedContent) selectedContent.classList.add('active');
   }
 
   /**
@@ -147,6 +193,7 @@ export class SyncOptionsDialog extends FormApplication {
       
       if (response.success) {
         this.worlds = response.data || [];
+        console.log('Worlds loaded:', this.worlds);
         ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldsLoaded'));
       } else {
         ui.notifications.error(response.message || game.i18n.localize('ARCHIVIST_SYNC.errors.fetchFailed'));
@@ -198,12 +245,52 @@ export class SyncOptionsDialog extends FormApplication {
 
     try {
       await settingsManager.setSelectedWorld(worldId, selectedWorld.name);
+      
+      // Load detailed data for the selected world
+      await this._loadSelectedWorldData(worldId);
+      
       ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldSaved'));
       settingsManager.refreshSettingsUi();
       this.render();
     } catch (error) {
       console.error('Error saving world selection:', error);
       ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.saveFailed'));
+    }
+  }
+
+  /**
+   * Load detailed data for the selected world
+   * @param {string} worldId - The world ID to load data for
+   */
+  async _loadSelectedWorldData(worldId) {
+    console.log('_loadSelectedWorldData called with worldId:', worldId);
+    console.log('isApiConfigured:', settingsManager.isApiConfigured());
+    
+    if (!worldId || !settingsManager.isApiConfigured()) {
+      console.log('Skipping world data load: missing worldId or API not configured');
+      this.selectedWorldData = null;
+      return;
+    }
+
+    console.log('Loading world data for ID:', worldId);
+    try {
+      const apiKey = settingsManager.getApiKey();
+      console.log('Using API key:', apiKey ? '***' + apiKey.slice(-4) : 'none');
+      
+      const response = await archivistApi.fetchWorldDetails(apiKey, worldId);
+      console.log('API response:', response);
+      
+      if (response.success) {
+        this.selectedWorldData = response.data;
+        console.log('Selected world data loaded successfully:', this.selectedWorldData);
+        Utils.log('Selected world data loaded:', this.selectedWorldData);
+      } else {
+        console.warn('Failed to load world details:', response.message);
+        this.selectedWorldData = null;
+      }
+    } catch (error) {
+      console.error('Error loading world details:', error);
+      this.selectedWorldData = null;
     }
   }
 
@@ -307,20 +394,4 @@ export class SyncOptionsDialog extends FormApplication {
     }
   }
 
-  /**
-   * Load actors when dialog is rendered
-   */
-  async _onRender(force, context) {
-    await super._onRender(force, context);
-    
-    // Load actors for character mapping
-    this.actors = game.actors.filter(actor => 
-      actor.type === 'character' || actor.type === 'npc'
-    ).map(actor => ({
-      id: actor.id,
-      name: actor.name,
-      type: actor.type,
-      img: actor.img || 'icons/svg/mystery-man.svg'
-    }));
-  }
 }

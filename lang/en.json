@@ -35,9 +35,13 @@
       "selectWorld": "Select World",
       "currentSelection": "Current Selection",
       "foundryWorld": "Current Foundry World",
+      "archivistWorld": "Archivist World Data",
       "syncTarget": "Sync Target",
       "title": "Title",
       "description": "Description",
+      "lastUpdated": "Last Updated",
+      "createdAt": "Created At",
+      "characterCount": "Character Count",
       "charactersAndNpcs": "Characters & NPCs"
     },
     "status": {
@@ -68,7 +72,8 @@
       "worldSaved": "World selection saved successfully",
       "titleSynced": "World title synchronized successfully",
       "charactersSynced": "Characters synchronized successfully",
-      "noActors": "No character or NPC actors found in this world."
+      "noActors": "No character or NPC actors found in this world.",
+      "loadingWorldData": "Loading world data from Archivist API..."
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",

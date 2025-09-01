@@ -10,8 +10,8 @@ export class Utils {
    * @param {string} message - The message to log
    * @param {string} level - Log level (log, warn, error)
    */
-  static log(message, level = 'log') {
-    console[level](`${CONFIG.MODULE_TITLE} | ${message}`);
+  static log(message,) {
+    console.log(`${CONFIG.MODULE_TITLE} | ${message}`);
   }
 
   /**
