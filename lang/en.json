@@ -21,53 +21,61 @@
         "Hint": "Manage world selection, title sync, and character mapping with Archivist API"
       }
     },
-    "Tabs": {
-      "World": "World Selection",
-      "Title": "Title Sync",
-      "Characters": "Character Mapping"
+    "dialog": {
+      "title": "Archivist Sync Manager"
     },
-    "Dialog": {
-      "SyncOptions": {
-        "Title": "Archivist Sync Manager"
-      },
-      "ApiStatus": "API Status",
-      "Connected": "Connected",
-      "NotConfigured": "Not Configured",
-      "Loading": "Loading...",
-      "SyncWorlds": "Sync Worlds",
-      "SelectWorld": "Select World",
-      "SelectWorldOption": "-- Select a World --",
-      "SaveSelection": "Save Selection",
-      "CurrentSelection": "Current Selection",
-      "ConfigureApi": "Please configure your API key in the module settings first.",
-      "FoundryWorld": "Current Foundry World",
-      "SyncTarget": "Sync Target",
-      "SyncTitle": "Sync Title to Archivist",
-      "SyncingTitle": "Syncing Title...",
-      "SelectWorldFirst": "Please select an Archivist world first.",
-      "FoundryActors": "Foundry Actors",
-      "CharacterMappingHint": "These characters will be synchronized to your selected Archivist world.",
-      "MapCharacter": "Map Character",
-      "SyncCharacters": "Sync All Characters",
-      "SyncingCharacters": "Syncing Characters...",
-      "NoActorsFound": "No character or NPC actors found in this world."
+    "tabs": {
+      "world": "World Selection",
+      "title": "Title Sync",
+      "characters": "Character Mapping"
     },
-    "Warnings": {
-      "MissingApiKey": "Please configure your API key in the module settings first.",
-      "MissingConfig": "Please configure your API key and select a world first.",
-      "NoWorldSelected": "Please select a world from the dropdown before saving."
+    "labels": {
+      "apiStatus": "API Status",
+      "apiKey": "API Key",
+      "selectWorld": "Select World",
+      "currentSelection": "Current Selection",
+      "foundryWorld": "Current Foundry World",
+      "syncTarget": "Sync Target",
+      "title": "Title",
+      "description": "Description",
+      "charactersAndNpcs": "Characters & NPCs"
     },
-    "Info": {
-      "WorldsLoaded": "Worlds loaded successfully from Archivist API",
-      "WorldSelectionSaved": "World selection saved: {worldName}",
-      "TitleSynced": "World title synchronized successfully",
-      "CharactersSynced": "Characters synchronized successfully"
+    "status": {
+      "connected": "Connected",
+      "notConfigured": "Not Configured"
     },
-    "Errors": {
-      "FetchWorldsFailed": "Failed to fetch worlds from Archivist API",
-      "SaveWorldFailed": "Failed to save world selection",
-      "TitleSyncFailed": "Failed to sync world title",
-      "CharacterSyncFailed": "Failed to sync characters"
+    "buttons": {
+      "syncing": "Syncing...",
+      "syncWorlds": "Sync Worlds",
+      "saveSelection": "Save Selection",
+      "syncTitle": "Sync Title to Archivist",
+      "syncCharacters": "Sync All Characters",
+      "map": "Map"
+    },
+    "options": {
+      "selectWorld": "-- Select a World --"
+    },
+    "hints": {
+      "configureApi": "Please configure your API key in the module settings first."
+    },
+    "warnings": {
+      "apiNotConfigured": "Please configure your API key in the module settings first.",
+      "selectWorldFirst": "Please select an Archivist world first.",
+      "selectWorld": "Please select a world from the dropdown before saving."
+    },
+    "messages": {
+      "worldsLoaded": "Worlds loaded successfully from Archivist API",
+      "worldSaved": "World selection saved successfully",
+      "titleSynced": "World title synchronized successfully",
+      "charactersSynced": "Characters synchronized successfully",
+      "noActors": "No character or NPC actors found in this world."
+    },
+    "errors": {
+      "fetchFailed": "Failed to fetch worlds from Archivist API",
+      "worldNotFound": "Selected world not found",
+      "saveFailed": "Failed to save world selection",
+      "syncFailed": "Failed to sync data",
+      "actorNotFound": "Actor not found"
     }
   }
 }

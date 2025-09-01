@@ -36,28 +36,41 @@ export class ArchivistApiService {
   /**
    * Fetch worlds list from the Archivist API
    * @param {string} apiKey - The API key for authentication
-   * @returns {Promise<Array>} Array of world objects
-   * @throws {Error} If the request fails or response format is unexpected
+   * @returns {Promise<object>} Object with success flag and data array
    */
   async fetchWorldsList(apiKey) {
-    const headers = this._createHeaders(apiKey);
-    
-    const response = await fetch(`${this.baseUrl}/worlds`, {
-      method: 'GET',
-      headers: headers
-    });
-    
-    const data = await this._handleResponse(response);
-    
-    // Handle different possible response formats
-    if (Array.isArray(data)) {
-      return data;
-    } else if (data.worlds && Array.isArray(data.worlds)) {
-      return data.worlds;
-    } else if (data.data && Array.isArray(data.data)) {
-      return data.data;
-    } else {
-      throw new Error('Unexpected API response format');
+    try {
+      const headers = this._createHeaders(apiKey);
+      
+      const response = await fetch(`${this.baseUrl}/worlds`, {
+        method: 'GET',
+        headers: headers
+      });
+      
+      const data = await this._handleResponse(response);
+      
+      // Handle different possible response formats
+      let worlds = [];
+      if (Array.isArray(data)) {
+        worlds = data;
+      } else if (data.worlds && Array.isArray(data.worlds)) {
+        worlds = data.worlds;
+      } else if (data.data && Array.isArray(data.data)) {
+        worlds = data.data;
+      } else {
+        throw new Error('Unexpected API response format');
+      }
+      
+      return {
+        success: true,
+        data: worlds
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch worlds:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to fetch worlds from API'
+      };
     }
   }
 
@@ -65,26 +78,37 @@ export class ArchivistApiService {
    * Sync world title to Archivist API
    * @param {string} apiKey - The API key for authentication
    * @param {string} worldId - The world ID to sync to
-   * @param {string} title - The world title
-   * @param {string} description - The world description
-   * @returns {Promise<object>} API response
-   * @throws {Error} If the request fails
+   * @param {object} titleData - Object containing title and description
+   * @returns {Promise<object>} Object with success flag and response data
    */
-  async syncWorldTitle(apiKey, worldId, title, description) {
-    const headers = this._createHeaders(apiKey);
-    
-    const requestData = {
-      title: title,
-      description: description || ''
-    };
-    
-    const response = await fetch(`${this.baseUrl}/worlds/${worldId}/title`, {
-      method: 'PUT',
-      headers: headers,
-      body: JSON.stringify(requestData)
-    });
-    
-    return await this._handleResponse(response);
+  async syncWorldTitle(apiKey, worldId, titleData) {
+    try {
+      const headers = this._createHeaders(apiKey);
+      
+      const requestData = {
+        title: titleData.title,
+        description: titleData.description || ''
+      };
+      
+      const response = await fetch(`${this.baseUrl}/worlds/${worldId}/title`, {
+        method: 'PUT',
+        headers: headers,
+        body: JSON.stringify(requestData)
+      });
+      
+      const data = await this._handleResponse(response);
+      
+      return {
+        success: true,
+        data: data
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to sync title:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to sync world title'
+      };
+    }
   }
 
   /**
@@ -92,23 +116,35 @@ export class ArchivistApiService {
    * @param {string} apiKey - The API key for authentication
    * @param {string} worldId - The world ID to sync to
    * @param {Array} characterData - Array of character objects
-   * @returns {Promise<object>} API response
-   * @throws {Error} If the request fails
+   * @returns {Promise<object>} Object with success flag and response data
    */
   async syncCharacters(apiKey, worldId, characterData) {
-    const headers = this._createHeaders(apiKey);
-    
-    const requestData = {
-      characters: characterData
-    };
-    
-    const response = await fetch(`${this.baseUrl}/worlds/${worldId}/characters`, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify(requestData)
-    });
-    
-    return await this._handleResponse(response);
+    try {
+      const headers = this._createHeaders(apiKey);
+      
+      const requestData = {
+        characters: characterData
+      };
+      
+      const response = await fetch(`${this.baseUrl}/worlds/${worldId}/characters`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(requestData)
+      });
+      
+      const data = await this._handleResponse(response);
+      
+      return {
+        success: true,
+        data: data
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to sync characters:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to sync characters'
+      };
+    }
   }
 
   /**
