@@ -20,7 +20,12 @@
     "flags": {}
   },
   "esmodules": [
-    "scripts/archivist-sync.js"
+    "scripts/archivist-sync.js",
+    "scripts/modules/config.js",
+    "scripts/modules/settings-manager.js",
+    "scripts/modules/utils.js",
+    "scripts/services/archivist-api.js",
+    "scripts/dialogs/sync-options-dialog.js"
   ],
   "styles": [
     "styles/archivist-sync.css"
