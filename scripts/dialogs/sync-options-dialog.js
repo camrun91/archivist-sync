@@ -127,8 +127,25 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     html.querySelector('#world-select')?.addEventListener('change', this._onWorldSelectChange.bind(this));
     html.querySelector('.save-selection-btn')?.addEventListener('click', this._onSaveWorldSelection.bind(this));
     html.querySelector('.sync-title-btn')?.addEventListener('click', this._onSyncTitle.bind(this));
-    html.querySelector('.sync-to-archivist-btn')?.addEventListener('click', this._onSyncToArchivist.bind(this));
-    html.querySelector('.sync-from-archivist-btn')?.addEventListener('click', this._onSyncFromArchivist.bind(this));
+    
+    // New sync buttons with debug logging
+    const syncToBtn = html.querySelector('.sync-to-archivist-btn');
+    const syncFromBtn = html.querySelector('.sync-from-archivist-btn');
+    
+    if (syncToBtn) {
+      console.log('Found sync-to-archivist-btn, attaching listener');
+      syncToBtn.addEventListener('click', this._onSyncToArchivist.bind(this));
+    } else {
+      console.log('sync-to-archivist-btn not found in DOM');
+    }
+    
+    if (syncFromBtn) {
+      console.log('Found sync-from-archivist-btn, attaching listener');
+      syncFromBtn.addEventListener('click', this._onSyncFromArchivist.bind(this));
+    } else {
+      console.log('sync-from-archivist-btn not found in DOM');
+    }
+    
     html.querySelector('.sync-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
     
     // Attach event listeners to dynamically generated character map buttons
@@ -330,6 +347,102 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       }
     } catch (error) {
       console.error('Error syncing title:', error);
+      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
+  }
+
+  /**
+   * Handle sync to Archivist button click (Foundry -> Archivist)
+   * @param {Event} event - Click event
+   */
+  async _onSyncToArchivist(event) {
+    event.preventDefault();
+    
+    if (!settingsManager.isWorldSelected()) {
+      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      return;
+    }
+
+    console.log('Sync to Archivist button clicked!');
+    
+    this.syncInProgress = true;
+    this.render();
+
+    try {
+      const apiKey = settingsManager.getApiKey();
+      const worldId = settingsManager.getSelectedWorldId();
+      const titleData = {
+        title: game.world.title,
+        description: game.world.description || ''
+      };
+
+      console.log('Syncing to Archivist:', titleData);
+      
+      // TODO: Replace with actual API endpoint when provided
+      const response = await archivistApi.syncWorldTitle(apiKey, worldId, titleData);
+      
+      if (response.success) {
+        ui.notifications.info('World data synced to Archivist successfully');
+        // Reload the world data to show updated information
+        await this._loadSelectedWorldData(worldId);
+        this.render();
+      } else {
+        ui.notifications.error(response.message || game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      }
+    } catch (error) {
+      console.error('Error syncing to Archivist:', error);
+      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
+  }
+
+  /**
+   * Handle sync from Archivist button click (Archivist -> Foundry)
+   * @param {Event} event - Click event
+   */
+  async _onSyncFromArchivist(event) {
+    event.preventDefault();
+    
+    if (!settingsManager.isWorldSelected() || !this.selectedWorldData) {
+      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      return;
+    }
+
+    console.log('Sync from Archivist button clicked!');
+
+    // Show confirmation dialog before overwriting Foundry data
+    const confirmed = await Dialog.confirm({
+      title: 'Confirm Sync from Archivist',
+      content: '<p>This will overwrite the current Foundry world title and description with data from Archivist. Are you sure?</p>',
+      yes: () => true,
+      no: () => false
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.syncInProgress = true;
+    this.render();
+
+    try {
+      // TODO: Replace with actual API endpoint when provided
+      // For now, we'll simulate updating the world data
+      console.log('Would sync from Archivist:', this.selectedWorldData);
+      ui.notifications.info('Sync from Archivist functionality will be implemented with API endpoints');
+      
+      // This would be the structure when API is ready:
+      // const apiKey = settingsManager.getApiKey();
+      // const worldId = settingsManager.getSelectedWorldId();
+      // const response = await archivistApi.syncFromArchivist(apiKey, worldId);
+      
+    } catch (error) {
+      console.error('Error syncing from Archivist:', error);
       ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
     } finally {
       this.syncInProgress = false;
