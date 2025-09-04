@@ -129,7 +129,7 @@ export class ArchivistApiService {
         description: titleData.description || ''
       };
       
-      const response = await fetch(`${this.baseUrl}/worlds/${worldId}/title`, {
+      const response = await fetch(`${this.baseUrl}/worlds/${worldId}`, {
         method: 'PUT',
         headers: headers,
         body: JSON.stringify(requestData)
