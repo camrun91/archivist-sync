@@ -61,6 +61,19 @@ The module sends a POST request to your configured endpoint with the following d
 
 The request includes an `Authorization: Bearer {your-api-key}` header.
 
+## Documentation
+
+This repository includes comprehensive documentation for users and developers:
+
+- **[Documentation Index](DOCUMENTATION_INDEX.md)** - Complete guide to all documentation
+- **[AI Handoff Guide](AI_HANDOFF.md)** - Essential information for AI agents working with this codebase
+- **[Architecture Documentation](ARCHITECTURE.md)** - System design and component relationships
+- **[Development Guide](DEVELOPMENT.md)** - Development setup and contribution guidelines
+- **[API Integration Guide](API_INTEGRATION.md)** - Complete API integration documentation
+- **[Testing Guide](TESTING.md)** - Testing procedures and debugging techniques
+- **[Deployment Guide](DEPLOYMENT.md)** - Build processes and release management
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
+
 ## Development
 
 ### File Structure
@@ -70,11 +83,17 @@ archivist-sync/
 ├── module.json              # Module manifest
 ├── README.md               # This documentation
 ├── scripts/
-│   └── archivist-sync.js   # Main module code
+│   ├── archivist-sync.js   # Main module entry point
+│   ├── modules/            # Core module components
+│   ├── services/           # External service integrations
+│   └── dialogs/            # User interface components
 ├── styles/
 │   └── archivist-sync.css  # Module styles
-└── lang/
-    └── en.json            # English localization
+├── templates/
+│   └── sync-options-dialog.hbs # Handlebars template
+├── lang/
+│   └── en.json            # English localization
+└── docs/                  # Additional documentation
 ```
 
 ### Extending the Module
