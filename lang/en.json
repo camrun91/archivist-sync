@@ -26,7 +26,7 @@
     },
     "tabs": {
       "world": "World Selection",
-      "title": "Title Sync",
+      "title": "World Details",
       "characters": "Character Mapping"
     },
     "labels": {
@@ -53,6 +53,8 @@
       "syncWorlds": "Sync Worlds",
       "saveSelection": "Save Selection",
       "syncTitle": "Sync Title to Archivist",
+      "syncFromFoundry": "→ Sync to Archivist",
+      "syncFromArchivist": "← Sync from Archivist",
       "syncCharacters": "Sync All Characters",
       "map": "Map"
     },

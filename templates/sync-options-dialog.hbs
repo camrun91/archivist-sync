@@ -81,56 +81,103 @@
       {{/if}}
     </div>
 
-    <!-- Title Sync Tab -->
+    <!-- World Details Tab -->
     <div class="tab" data-tab="title">
       {{#if isWorldSelected}}
-      <div class="sync-section">
-        <h4>{{localize "ARCHIVIST_SYNC.labels.foundryWorld"}}</h4>
-        <div class="world-info">
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.title"}}:</strong> {{foundryWorldTitle}}</p>
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.description"}}:</strong> {{foundryWorldDescription}}</p>
+      <div class="world-details-container">
+        <!-- Foundry World Section -->
+        <div class="world-section foundry-section">
+          <div class="section-header">
+            <h4><i class="fas fa-desktop"></i> {{localize "ARCHIVIST_SYNC.labels.foundryWorld"}}</h4>
+          </div>
+          <div class="world-data-box">
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.title"}}:</label>
+              <div class="field-value">{{foundryWorldTitle}}</div>
+            </div>
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.description"}}:</label>
+              <div class="field-value description-field">{{foundryWorldDescription}}</div>
+            </div>
+          </div>
+          <div class="sync-controls">
+            <button type="button" class="sync-to-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}
+              <i class="fas fa-spinner fa-spin"></i>
+              {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
+              {{else}}
+              <i class="fas fa-arrow-right"></i>
+              {{localize "ARCHIVIST_SYNC.buttons.syncFromFoundry"}}
+              {{/if}}
+            </button>
+          </div>
+        </div>
+
+        <!-- Sync Arrow -->
+        <div class="sync-divider">
+          <div class="sync-arrows">
+            <i class="fas fa-exchange-alt"></i>
+          </div>
+        </div>
+
+        <!-- Archivist World Section -->
+        <div class="world-section archivist-section">
+          <div class="section-header">
+            <h4><i class="fas fa-cloud"></i> {{localize "ARCHIVIST_SYNC.labels.archivistWorld"}}</h4>
+          </div>
+          <div class="world-data-box">
+            {{#if selectedWorldData}}
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.title"}}:</label>
+              <div class="field-value">{{selectedWorldData.title}}</div>
+            </div>
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.description"}}:</label>
+              <div class="field-value description-field">{{selectedWorldData.description}}</div>
+            </div>
+            {{#if selectedWorldData.lastUpdated}}
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.lastUpdated"}}:</label>
+              <div class="field-value">{{selectedWorldData.lastUpdated}}</div>
+            </div>
+            {{/if}}
+            {{#if selectedWorldData.createdAt}}
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.createdAt"}}:</label>
+              <div class="field-value">{{selectedWorldData.createdAt}}</div>
+            </div>
+            {{/if}}
+            {{#if selectedWorldData.characterCount}}
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.characterCount"}}:</label>
+              <div class="field-value">{{selectedWorldData.characterCount}}</div>
+            </div>
+            {{/if}}
+            {{else}}
+            <div class="info">
+              <p>{{localize "ARCHIVIST_SYNC.messages.loadingWorldData"}}</p>
+            </div>
+            {{/if}}
+          </div>
+          <div class="sync-controls">
+            <button type="button" class="sync-from-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}
+              <i class="fas fa-spinner fa-spin"></i>
+              {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
+              {{else}}
+              <i class="fas fa-arrow-left"></i>
+              {{localize "ARCHIVIST_SYNC.buttons.syncFromArchivist"}}
+              {{/if}}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="sync-section">
-        <h4>{{localize "ARCHIVIST_SYNC.labels.archivistWorld"}}</h4>
-        {{#if selectedWorldData}}
-        <div class="world-info">
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.title"}}:</strong> {{selectedWorldData.title}}</p>
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.description"}}:</strong> {{selectedWorldData.description}}</p>
-          {{#if selectedWorldData.lastUpdated}}
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.lastUpdated"}}:</strong> {{selectedWorldData.lastUpdated}}</p>
-          {{/if}}
-          {{#if selectedWorldData.createdAt}}
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.createdAt"}}:</strong> {{selectedWorldData.createdAt}}</p>
-          {{/if}}
-          {{#if selectedWorldData.characterCount}}
-          <p><strong>{{localize "ARCHIVIST_SYNC.labels.characterCount"}}:</strong> {{selectedWorldData.characterCount}}
-          </p>
-          {{/if}}
+      <div class="sync-info">
+        <div class="current-target">
+          <h4>{{localize "ARCHIVIST_SYNC.labels.syncTarget"}}</h4>
+          <p><strong>{{selectedWorldName}}</strong> ({{selectedWorldId}})</p>
         </div>
-        {{else}}
-        <div class="info">
-          <p>{{localize "ARCHIVIST_SYNC.messages.loadingWorldData"}}</p>
-        </div>
-        {{/if}}
-      </div>
-
-      <div class="sync-section">
-        <h4>{{localize "ARCHIVIST_SYNC.labels.syncTarget"}}</h4>
-        <p><strong>{{selectedWorldName}}</strong> ({{selectedWorldId}})</p>
-      </div>
-
-      <div class="form-group">
-        <button type="button" class="sync-title-btn" {{#if syncInProgress}}disabled{{/if}}>
-          {{#if syncInProgress}}
-          <i class="fas fa-spinner fa-spin"></i>
-          {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
-          {{else}}
-          <i class="fas fa-sync"></i>
-          {{localize "ARCHIVIST_SYNC.buttons.syncTitle"}}
-          {{/if}}
-        </button>
       </div>
       {{else}}
       <div class="warning-message">

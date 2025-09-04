@@ -31,8 +31,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       resizable: true
     },
     position: {
-      width: 600,
-      height: 500
+      width: 800,
+      height: 700
     },
     classes: ['archivist-sync-dialog'],
     actions: {
@@ -40,6 +40,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       saveWorldSelection: this._onSaveWorldSelection,
       worldSelectChange: this._onWorldSelectChange,
       syncTitle: this._onSyncTitle,
+      syncToArchivist: this._onSyncToArchivist,
+      syncFromArchivist: this._onSyncFromArchivist,
       mapCharacter: this._onMapCharacter,
       syncCharacters: this._onSyncCharacters
     }
@@ -125,6 +127,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     html.querySelector('#world-select')?.addEventListener('change', this._onWorldSelectChange.bind(this));
     html.querySelector('.save-selection-btn')?.addEventListener('click', this._onSaveWorldSelection.bind(this));
     html.querySelector('.sync-title-btn')?.addEventListener('click', this._onSyncTitle.bind(this));
+    html.querySelector('.sync-to-archivist-btn')?.addEventListener('click', this._onSyncToArchivist.bind(this));
+    html.querySelector('.sync-from-archivist-btn')?.addEventListener('click', this._onSyncFromArchivist.bind(this));
     html.querySelector('.sync-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
     
     // Attach event listeners to dynamically generated character map buttons
