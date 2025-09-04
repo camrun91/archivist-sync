@@ -191,26 +191,60 @@
     <div class="tab" data-tab="characters">
       {{#if isWorldSelected}}
       <div class="characters-section">
-        <h4>{{localize "ARCHIVIST_SYNC.labels.charactersAndNpcs"}}</h4>
-        {{#if actors.length}}
-        <div class="actors-list">
-          {{#each actors}}
-          <div class="actor-item">
-            <div class="actor-info">
-              <img src="{{this.img}}" alt="{{this.name}}" class="actor-avatar">
-              <div class="actor-details">
-                <h5>{{this.name}}</h5>
-                <p class="actor-type">{{this.type}}</p>
+        <!-- Player Characters Section -->
+        <div class="character-type-section">
+          <h4><i class="fas fa-user"></i> {{localize "ARCHIVIST_SYNC.labels.playerCharacters"}}</h4>
+          {{#if playerCharacters.length}}
+          <div class="actors-list player-characters">
+            {{#each playerCharacters}}
+            <div class="actor-item">
+              <div class="actor-info">
+                <img src="{{this.img}}" alt="{{this.name}}" class="actor-avatar">
+                <div class="actor-details">
+                  <h5>{{this.name}}</h5>
+                  <p class="actor-type">{{this.type}}</p>
+                </div>
+              </div>
+              <div class="actor-actions">
+                <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
+                  <i class="fas fa-link"></i>
+                  {{localize "ARCHIVIST_SYNC.buttons.map"}}
+                </button>
               </div>
             </div>
-            <div class="actor-actions">
-              <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
-                <i class="fas fa-link"></i>
-                {{localize "ARCHIVIST_SYNC.buttons.map"}}
-              </button>
-            </div>
+            {{/each}}
           </div>
-          {{/each}}
+          {{else}}
+          <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noPlayerCharacters"}}</p>
+          {{/if}}
+        </div>
+
+        <!-- NPCs Section -->
+        <div class="character-type-section">
+          <h4><i class="fas fa-users"></i> {{localize "ARCHIVIST_SYNC.labels.npcs"}}</h4>
+          {{#if npcs.length}}
+          <div class="actors-list npcs">
+            {{#each npcs}}
+            <div class="actor-item">
+              <div class="actor-info">
+                <img src="{{this.img}}" alt="{{this.name}}" class="actor-avatar">
+                <div class="actor-details">
+                  <h5>{{this.name}}</h5>
+                  <p class="actor-type">{{this.type}}</p>
+                </div>
+              </div>
+              <div class="actor-actions">
+                <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
+                  <i class="fas fa-link"></i>
+                  {{localize "ARCHIVIST_SYNC.buttons.map"}}
+                </button>
+              </div>
+            </div>
+            {{/each}}
+          </div>
+          {{else}}
+          <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noNpcs"}}</p>
+          {{/if}}
         </div>
 
         <div class="form-group bulk-actions">
@@ -224,9 +258,6 @@
             {{/if}}
           </button>
         </div>
-        {{else}}
-        <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noActors"}}</p>
-        {{/if}}
       </div>
       {{else}}
       <div class="warning-message">

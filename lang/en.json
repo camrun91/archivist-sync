@@ -42,7 +42,9 @@
       "lastUpdated": "Last Updated",
       "createdAt": "Created At",
       "characterCount": "Character Count",
-      "charactersAndNpcs": "Characters & NPCs"
+      "charactersAndNpcs": "Characters & NPCs",
+      "playerCharacters": "Player Characters",
+      "npcs": "NPCs"
     },
     "status": {
       "connected": "Connected",
@@ -75,6 +77,8 @@
       "titleSynced": "World title synchronized successfully",
       "charactersSynced": "Characters synchronized successfully",
       "noActors": "No character or NPC actors found in this world.",
+      "noPlayerCharacters": "No player characters found in this world.",
+      "noNpcs": "No NPCs found in this world.",
       "loadingWorldData": "Loading world data from Archivist API..."
     },
     "errors": {

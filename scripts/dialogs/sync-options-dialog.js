@@ -76,6 +76,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       selectedWorldName,
       selectedWorldData: this.selectedWorldData, // Include full world data
       actors: this.actors,
+      playerCharacters: this.playerCharacters || [],
+      npcs: this.npcs || [],
       isLoading: this.isLoading,
       syncInProgress: this.syncInProgress,
       foundryWorldTitle: game.world.title,
@@ -97,6 +99,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     this._initializeTabs(html);
     
     // Load actors for character mapping
+    console.log('Loading actors for character mapping...');
+    console.log('ACTORS', game.actors)
     this.actors = game.actors.filter(actor => 
       actor.type === 'character' || actor.type === 'npc'
     ).map(actor => ({
@@ -105,6 +109,10 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       type: actor.type,
       img: actor.img || 'icons/svg/mystery-man.svg'
     }));
+    
+    // Separate actors by type for better organization
+    this.playerCharacters = this.actors.filter(actor => actor.type === 'character');
+    this.npcs = this.actors.filter(actor => actor.type === 'npc');
     
     // Load selected world data if a world is already selected
     const selectedWorldId = settingsManager.getSelectedWorldId();

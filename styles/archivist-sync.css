@@ -334,12 +334,71 @@
   font-size: 18px;
 }
 
+/* Character type sections - for splitting player characters and NPCs */
+.archivist-sync-content .character-type-section {
+  margin-bottom: 25px;
+  padding: 15px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.archivist-sync-content .character-type-section h4 {
+  margin: 0 0 15px 0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.archivist-sync-content .character-type-section h4 i {
+  width: 16px;
+  text-align: center;
+}
+
+/* Player Characters section styling */
+.archivist-sync-content .character-type-section:has(.player-characters) h4 {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #2196f3;
+}
+
+/* NPCs section styling */
+.archivist-sync-content .character-type-section:has(.npcs) h4 {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border: 1px solid #ff9800;
+}
+
+/* Fallback for browsers that don't support :has() selector */
+.archivist-sync-content .character-type-section:first-of-type h4 {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #2196f3;
+}
+
+.archivist-sync-content .character-type-section:nth-of-type(2) h4 {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border: 1px solid #ff9800;
+}
+
 .archivist-sync-content .actors-list {
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   margin-bottom: 15px;
+  background-color: white;
+}
+
+/* Adjust actors list when inside character-type-section */
+.archivist-sync-content .character-type-section .actors-list {
+  max-height: 250px;
+  margin-bottom: 0;
 }
 
 .archivist-sync-content .actor-item {
