@@ -44,7 +44,11 @@
       "characterCount": "Character Count",
       "charactersAndNpcs": "Characters & NPCs",
       "playerCharacters": "Player Characters",
-      "npcs": "NPCs"
+      "npcs": "NPCs",
+      "existsInArchivist": "Exists in Archivist",
+      "notInArchivist": "Not in Archivist",
+      "syncStatus": "Sync Status",
+      "archivistStatus": "Archivist Status"
     },
     "status": {
       "connected": "Connected",
@@ -58,7 +62,11 @@
       "syncFromFoundry": "→ Sync to Archivist",
       "syncFromArchivist": "← Sync from Archivist",
       "syncCharacters": "Sync All Characters",
-      "map": "Map"
+      "map": "Map",
+      "create": "Create",
+      "update": "Update",
+      "createCharacter": "Create in Archivist",
+      "updateCharacter": "Update in Archivist"
     },
     "options": {
       "selectWorld": "-- Select a World --"
@@ -76,17 +84,23 @@
       "worldSaved": "World selection saved successfully",
       "titleSynced": "World title synchronized successfully",
       "charactersSynced": "Characters synchronized successfully",
+      "characterCreated": "Character created in Archivist successfully",
       "noActors": "No character or NPC actors found in this world.",
       "noPlayerCharacters": "No player characters found in this world.",
       "noNpcs": "No NPCs found in this world.",
-      "loadingWorldData": "Loading world data from Archivist API..."
+      "loadingWorldData": "Loading world data from Archivist API...",
+      "loadingCharacters": "Loading characters from Archivist API...",
+      "characterExists": "Character exists in Archivist",
+      "characterNotFound": "Character not found in Archivist"
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",
       "worldNotFound": "Selected world not found",
       "saveFailed": "Failed to save world selection",
       "syncFailed": "Failed to sync data",
-      "actorNotFound": "Actor not found"
+      "actorNotFound": "Actor not found",
+      "characterCreateFailed": "Failed to create character in Archivist",
+      "characterFetchFailed": "Failed to fetch characters from Archivist"
     }
   }
 }

@@ -21,6 +21,9 @@ Hooks.once('ready', async function() {
   // Register module settings and menu
   settingsManager.registerSettings();
   
+  // Preload Handlebars templates for v2 applications
+  await SyncOptionsDialog.preloadTemplates();
+  
   // Initialize debugging interface
   initializeDebugInterface();
 });

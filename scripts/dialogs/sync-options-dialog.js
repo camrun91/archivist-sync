@@ -13,9 +13,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     super();
     this.worlds = [];
     this.actors = [];
+    this.archivistCharacters = [];
     this.selectedWorldData = null; // Store full data for selected world
     this.isLoading = false;
     this.syncInProgress = false;
+    this.charactersLoading = false;
+    this.charactersLoaded = false; // Flag to prevent repeated loading
+    this.worldDataLoaded = false; // Flag to prevent repeated world data loading
+    this.worldDataLoading = false; // Flag to prevent concurrent loading
+    this.currentWorldId = null; // Track current world to detect changes
   }
 
   /**
@@ -36,14 +42,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     },
     classes: ['archivist-sync-dialog'],
     actions: {
-      syncWorlds: this._onSyncWorlds,
-      saveWorldSelection: this._onSaveWorldSelection,
-      worldSelectChange: this._onWorldSelectChange,
-      syncTitle: this._onSyncTitle,
-      syncToArchivist: this._onSyncToArchivist,
-      syncFromArchivist: this._onSyncFromArchivist,
-      mapCharacter: this._onMapCharacter,
-      syncCharacters: this._onSyncCharacters
+      syncWorlds: SyncOptionsDialog.prototype._onSyncWorlds,
+      saveWorldSelection: SyncOptionsDialog.prototype._onSaveWorldSelection,
+      worldSelectChange: SyncOptionsDialog.prototype._onWorldSelectChange,
+      syncTitle: SyncOptionsDialog.prototype._onSyncTitle,
+      syncToArchivist: SyncOptionsDialog.prototype._onSyncToArchivist,
+      syncFromArchivist: SyncOptionsDialog.prototype._onSyncFromArchivist,
+      mapCharacter: SyncOptionsDialog.prototype._onMapCharacter,
+      createCharacter: SyncOptionsDialog.prototype._onCreateCharacter,
+      syncCharacters: SyncOptionsDialog.prototype._onSyncCharacters
     }
   };
 
@@ -55,6 +62,19 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       template: 'modules/archivist-sync/templates/sync-options-dialog.hbs'
     }
   };
+
+  /**
+   * Preload templates for the application
+   * Called during the 'ready' hook
+   * For Foundry VTT v12+ with ApplicationV2
+   */
+  static async preloadTemplates() {
+    const templatePaths = [
+      'modules/archivist-sync/templates/sync-options-dialog.hbs'
+    ];
+    
+    return foundry.applications.handlebars.loadTemplates(templatePaths);
+  }
 
   /**
    * Prepare context data for template rendering
@@ -80,6 +100,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       npcs: this.npcs || [],
       isLoading: this.isLoading,
       syncInProgress: this.syncInProgress,
+      charactersLoading: this.charactersLoading,
       foundryWorldTitle: game.world.title,
       foundryWorldDescription: game.world.description || ''
     };
@@ -98,68 +119,185 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     // Initialize tabs
     this._initializeTabs(html);
     
-    // Load actors for character mapping
-    console.log('Loading actors for character mapping...');
-    console.log('ACTORS', game.actors)
-    this.actors = game.actors.filter(actor => 
-      actor.type === 'character' || actor.type === 'npc'
-    ).map(actor => ({
-      id: actor.id,
-      name: actor.name,
-      type: actor.type,
-      img: actor.img || 'icons/svg/mystery-man.svg'
-    }));
+    // Load actors for character mapping (only once)
+    if (!this.actors.length) {
+      console.log('Loading actors for character mapping...');
+      this._processActors();
+    }
     
-    // Separate actors by type for better organization
-    this.playerCharacters = this.actors.filter(actor => actor.type === 'character');
-    this.npcs = this.actors.filter(actor => actor.type === 'npc');
-    
-    // Load selected world data if a world is already selected
+    // Load selected world data if a world is already selected (only once per world)
     const selectedWorldId = settingsManager.getSelectedWorldId();
-    console.log('Dialog render - selectedWorldId:', selectedWorldId);
-    console.log('Dialog render - existing selectedWorldData:', this.selectedWorldData);
     
-    if (selectedWorldId && !this.selectedWorldData) {
-      console.log('Loading world data on dialog render...');
-      this._loadSelectedWorldData(selectedWorldId).then(() => {
-        console.log('World data loading completed, re-rendering...');
-        // Re-render to show the loaded data
-        if (this.selectedWorldData) {
-          this.render(false);
-        }
-      });
+    // Check if world has changed
+    if (selectedWorldId !== this.currentWorldId) {
+      this.currentWorldId = selectedWorldId;
+      this.worldDataLoaded = false;
+      this.charactersLoaded = false;
+      this.selectedWorldData = null;
+      this.archivistCharacters = [];
+    }
+    
+    if (selectedWorldId && !this.worldDataLoaded && !this.worldDataLoading) {
+      this.worldDataLoaded = true;
+      this._loadSelectedWorldData(selectedWorldId);
     }
 
-    // Attach event listeners directly to elements
-    html.querySelector('.sync-worlds-btn')?.addEventListener('click', this._onSyncWorlds.bind(this));
-    html.querySelector('#world-select')?.addEventListener('change', this._onWorldSelectChange.bind(this));
-    html.querySelector('.save-selection-btn')?.addEventListener('click', this._onSaveWorldSelection.bind(this));
-    html.querySelector('.sync-title-btn')?.addEventListener('click', this._onSyncTitle.bind(this));
-    
-    // New sync buttons with debug logging
-    const syncToBtn = html.querySelector('.sync-to-archivist-btn');
-    const syncFromBtn = html.querySelector('.sync-from-archivist-btn');
-    
-    if (syncToBtn) {
-      console.log('Found sync-to-archivist-btn, attaching listener');
-      syncToBtn.addEventListener('click', this._onSyncToArchivist.bind(this));
-    } else {
-      console.log('sync-to-archivist-btn not found in DOM');
+    // Load character comparison data if world is selected (only once per world)
+    if (selectedWorldId && settingsManager.isApiConfigured() && !this.charactersLoaded) {
+      this.charactersLoaded = true;
+      this._loadCharacterComparison(selectedWorldId);
     }
-    
-    if (syncFromBtn) {
-      console.log('Found sync-from-archivist-btn, attaching listener');
-      syncFromBtn.addEventListener('click', this._onSyncFromArchivist.bind(this));
-    } else {
-      console.log('sync-from-archivist-btn not found in DOM');
-    }
-    
-    html.querySelector('.sync-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
+
+    // Note: Event listeners are automatically handled by the actions configuration in v2
+    // Manual event listener attachment is only needed for dynamic content
+    this._attachDynamicEventListeners(html);
+  }
+
+  /**
+   * Attach event listeners to dynamic DOM elements
+   * In v2, most event listeners are handled by the actions configuration,
+   * but some dynamic content still needs manual event binding
+   * @param {HTMLElement} html - The rendered HTML
+   */
+  _attachDynamicEventListeners(html) {
+    // These event listeners are for elements that may be dynamically generated
+    // or not covered by the actions configuration
     
     // Attach event listeners to dynamically generated character map buttons
     html.querySelectorAll('.map-character-btn').forEach(btn => {
       btn.addEventListener('click', this._onMapCharacter.bind(this));
     });
+
+    // Attach event listeners to create character buttons  
+    html.querySelectorAll('.create-character-btn').forEach(btn => {
+      btn.addEventListener('click', this._onCreateCharacter.bind(this));
+    });
+  }
+
+  /**
+   * Reset loading state when closing dialog
+   */
+  close(options) {
+    // Reset flags when dialog is closed
+    this.worldDataLoaded = false;
+    this.charactersLoaded = false;
+    this.worldDataLoading = false;
+    this.currentWorldId = null;
+    return super.close(options);
+  }
+
+  /**
+   * Process actors for character mapping with enhanced data
+   */
+  _processActors() {
+    this.actors = game.actors.filter(actor => 
+      actor.type === 'character' || actor.type === 'npc'
+    ).map(actor => {
+      const biography = actor.system?.details?.biography?.value || '';
+      const truncatedDescription = this._truncateText(biography, 100);
+      
+      return {
+        id: actor.id,
+        name: actor.name,
+        type: actor.type,
+        description: biography,
+        truncatedDescription: truncatedDescription,
+        img: actor.img || 'icons/svg/mystery-man.svg',
+        existsInArchivist: false, // Will be updated when we load Archivist data
+        loadingStatus: false
+      };
+    });
+    
+    // Separate actors by type for better organization
+    this.playerCharacters = this.actors.filter(actor => actor.type === 'character');
+    this.npcs = this.actors.filter(actor => actor.type === 'npc');
+  }
+
+  /**
+   * Truncate text to specified length with ellipsis
+   * @param {string} text - Text to truncate
+   * @param {number} maxLength - Maximum length before truncating
+   * @returns {string} Truncated text
+   */
+  _truncateText(text, maxLength = 100) {
+    if (!text || text.length <= maxLength) {
+      return text;
+    }
+    return text.substring(0, maxLength).trim() + '...';
+  }
+
+  /**
+   * Load character comparison data from Archivist
+   * @param {string} worldId - The world ID to load characters for
+   */
+  async _loadCharacterComparison(worldId) {
+    if (!worldId || !settingsManager.isApiConfigured() || this.charactersLoading) {
+      return;
+    }
+
+    console.log('Loading character comparison for world:', worldId);
+    this.charactersLoading = true;
+    
+    // Set all actors to loading state
+    this.actors.forEach(actor => {
+      actor.loadingStatus = true;
+      actor.existsInArchivist = false;
+    });
+    
+    this._updateCharacterLists();
+    // Don't call render here to avoid loops
+
+    try {
+      const apiKey = settingsManager.getApiKey();
+      const response = await archivistApi.fetchWorldCharacters(apiKey, worldId);
+      
+      if (response.success) {
+        this.archivistCharacters = response.data || [];
+        this._compareCharacters();
+        console.log('Archivist characters loaded:', this.archivistCharacters.length, 'characters');
+      } else {
+        console.warn('Failed to load Archivist characters:', response.message);
+        ui.notifications.warn('Failed to load characters from Archivist: ' + (response.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error loading character comparison:', error);
+      ui.notifications.error('Error loading character data: ' + error.message);
+    } finally {
+      this.charactersLoading = false;
+      
+      // Update loading status for all actors
+      this.actors.forEach(actor => {
+        actor.loadingStatus = false;
+      });
+      
+      this._updateCharacterLists();
+      // Only render if the dialog is still visible and we have data
+      if (this.rendered && this.element) {
+        this.render(false);
+      }
+    }
+  }
+
+  /**
+   * Compare Foundry actors with Archivist characters by name
+   */
+  _compareCharacters() {
+    const archivistNames = new Set(
+      this.archivistCharacters.map(char => char.name?.toLowerCase().trim())
+    );
+    
+    this.actors.forEach(actor => {
+      const actorName = actor.name?.toLowerCase().trim();
+      actor.existsInArchivist = archivistNames.has(actorName);
+    });
+  }
+
+  /**
+   * Update character lists after processing
+   */
+  _updateCharacterLists() {
+    this.playerCharacters = this.actors.filter(actor => actor.type === 'character');
+    this.npcs = this.actors.filter(actor => actor.type === 'npc');
   }
 
   /**
@@ -242,7 +380,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   _onWorldSelectChange(event) {
     const worldId = event.target.value;
-    const saveButton = event.target.closest('.tab').querySelector('.save-selection-btn');
+    const saveButton = this.element.querySelector('.save-selection-btn');
     
     if (worldId && saveButton) {
       saveButton.disabled = false;
@@ -258,7 +396,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onSaveWorldSelection(event) {
     event.preventDefault();
     
-    const worldSelect = event.target.closest('.tab').querySelector('#world-select');
+    const worldSelect = this.element.querySelector('#world-select');
     const worldId = worldSelect.value;
     
     if (!worldId) {
@@ -275,8 +413,30 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     try {
       await settingsManager.setSelectedWorld(worldId, selectedWorld.name);
       
+      // Reset loading flags for new world
+      this.worldDataLoaded = false;
+      this.charactersLoaded = false;
+      this.worldDataLoading = false;
+      this.selectedWorldData = null;
+      this.archivistCharacters = [];
+      this.currentWorldId = worldId;
+      
+      // Reset character status
+      this.actors.forEach(actor => {
+        actor.existsInArchivist = false;
+        actor.loadingStatus = false;
+      });
+      this._updateCharacterLists();
+      
       // Load detailed data for the selected world
+      this.worldDataLoaded = true;
       await this._loadSelectedWorldData(worldId);
+      
+      // Load character comparison data for the new world
+      if (settingsManager.isApiConfigured()) {
+        this.charactersLoaded = true;
+        await this._loadCharacterComparison(worldId);
+      }
       
       ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldSaved'));
       settingsManager.refreshSettingsUi();
@@ -295,13 +455,14 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     console.log('_loadSelectedWorldData called with worldId:', worldId);
     console.log('isApiConfigured:', settingsManager.isApiConfigured());
     
-    if (!worldId || !settingsManager.isApiConfigured()) {
-      console.log('Skipping world data load: missing worldId or API not configured');
-      this.selectedWorldData = null;
+    if (!worldId || !settingsManager.isApiConfigured() || this.worldDataLoading) {
+      console.log('Skipping world data load: missing worldId, API not configured, or already loading');
       return;
     }
 
+    this.worldDataLoading = true;
     console.log('Loading world data for ID:', worldId);
+    
     try {
       const apiKey = settingsManager.getApiKey();
       console.log('Using API key:', apiKey ? '***' + apiKey.slice(-4) : 'none');
@@ -313,13 +474,22 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         this.selectedWorldData = response.data;
         console.log('Selected world data loaded successfully:', this.selectedWorldData);
         Utils.log('Selected world data loaded:', this.selectedWorldData);
+        
+        // Only render if dialog is still visible
+        if (this.rendered && this.element) {
+          this.render(false);
+        }
       } else {
         console.warn('Failed to load world details:', response.message);
         this.selectedWorldData = null;
+        ui.notifications.warn('Failed to load world details: ' + (response.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error loading world details:', error);
       this.selectedWorldData = null;
+      ui.notifications.error('Error loading world details: ' + error.message);
+    } finally {
+      this.worldDataLoading = false;
     }
   }
 
@@ -394,9 +564,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       
       if (response.success) {
         ui.notifications.info('World data synced to Archivist successfully');
-        // Reload the world data to show updated information
+        // Reset the flag and reload the world data to show updated information
+        this.worldDataLoaded = false;
+        this.worldDataLoading = false;
         await this._loadSelectedWorldData(worldId);
-        this.render();
+        // Don't call render here - _loadSelectedWorldData will handle it if needed
       } else {
         ui.notifications.error(response.message || game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
       }
@@ -424,11 +596,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     console.log('Sync from Archivist button clicked!');
 
     // Show confirmation dialog before overwriting Foundry data
-    const confirmed = await Dialog.confirm({
-      title: 'Confirm Sync from Archivist',
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: {
+        title: 'Confirm Sync from Archivist'
+      },
       content: '<p>This will overwrite the current Foundry world title and description with data from Archivist. Are you sure?</p>',
-      yes: () => true,
-      no: () => false
+      modal: true,
+      rejectClose: false
     });
 
     if (!confirmed) {
@@ -455,6 +629,99 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     } finally {
       this.syncInProgress = false;
       this.render();
+    }
+  }
+
+  /**
+   * Handle create character button click
+   * @param {Event} event - Click event
+   */
+  async _onCreateCharacter(event) {
+    event.preventDefault();
+    
+    const actorId = event.target.closest('.create-character-btn').dataset.actorId;
+    const actor = game.actors.get(actorId);
+    
+    if (!actor) {
+      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.actorNotFound'));
+      return;
+    }
+
+    if (!settingsManager.isWorldSelected()) {
+      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      return;
+    }
+
+    // Show confirmation dialog
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: {
+        title: 'Create Character in Archivist'
+      },
+      content: `<p>Do you want to create the character "${actor.name}" in Archivist?</p>
+                <p><strong>Name:</strong> ${actor.name}</p>
+                <p><strong>Type:</strong> ${actor.type}</p>
+                <p><strong>Description:</strong> ${actor.system?.details?.biography?.value || 'No description'}</p>`,
+      modal: true,
+      rejectClose: false
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Set loading state for this specific character
+    const actorData = this.actors.find(a => a.id === actorId);
+    if (actorData) {
+      actorData.loadingStatus = true;
+      this._updateCharacterLists();
+      this.render(false);
+    }
+
+    try {
+      const apiKey = settingsManager.getApiKey();
+      const worldId = settingsManager.getSelectedWorldId();
+      
+      const characterData = {
+        foundryId: actor.id,
+        name: actor.name,
+        type: actor.type,
+        description: actor.system?.details?.biography?.value || '',
+        img: actor.img
+      };
+      console.log("CHAR DATA IS : ", characterData)
+      console.log("ALL PC DATA IS : ", actor)
+      // TODO: Add this data 
+      // actor.ancestory.name, actor.background.name, actor.class.name, actor.class.system.description?value?, actor.system.details
+
+      // const response = await archivistApi.createCharacter(apiKey, worldId, characterData);
+      const response = { success: true }
+      if (response.success) {
+        ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.characterCreated'));
+        
+        // Update the actor status directly instead of reloading
+        if (actorData) {
+          actorData.existsInArchivist = true;
+        }
+        
+        // Add to archivist characters list to keep data consistent
+        this.archivistCharacters.push({
+          name: actor.name,
+          foundryId: actor.id,
+          type: actor.type
+        });
+      } else {
+        ui.notifications.error(response.message || game.i18n.localize('ARCHIVIST_SYNC.errors.characterCreateFailed'));
+      }
+    } catch (error) {
+      console.error('Error creating character:', error);
+      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.characterCreateFailed'));
+    } finally {
+      // Remove loading state
+      if (actorData) {
+        actorData.loadingStatus = false;
+        this._updateCharacterLists();
+        this.render(false);
+      }
     }
   }
 

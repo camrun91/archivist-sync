@@ -40,7 +40,7 @@
 
       {{#if isApiConfigured}}
       <div class="form-group">
-        <button type="button" class="sync-worlds-btn" {{#if isLoading}}disabled{{/if}}>
+        <button type="button" class="sync-worlds-btn" data-action="syncWorlds" {{#if isLoading}}disabled{{/if}}>
           {{#if isLoading}}
           <i class="fas fa-spinner fa-spin"></i>
           {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
@@ -54,7 +54,7 @@
       {{#if worlds.length}}
       <div class="form-group">
         <label for="world-select">{{localize "ARCHIVIST_SYNC.labels.selectWorld"}}</label>
-        <select id="world-select" name="worldSelect">
+        <select id="world-select" name="worldSelect" data-action="worldSelectChange">
           <option value="">{{localize "ARCHIVIST_SYNC.options.selectWorld"}}</option>
           {{#each worlds}}
           <option value="{{this.id}}" {{#if (eq this.id ../selectedWorldId)}}selected{{/if}}>
@@ -65,7 +65,7 @@
       </div>
 
       <div class="form-group">
-        <button type="button" class="save-selection-btn" id="save-selection" disabled>
+        <button type="button" class="save-selection-btn" data-action="saveWorldSelection" id="save-selection" disabled>
           <i class="fas fa-save"></i>
           {{localize "ARCHIVIST_SYNC.buttons.saveSelection"}}
         </button>
@@ -101,7 +101,8 @@
             </div>
           </div>
           <div class="sync-controls">
-            <button type="button" class="sync-to-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+            <button type="button" class="sync-to-archivist-btn" data-action="syncToArchivist" {{#if
+              syncInProgress}}disabled{{/if}}>
               {{#if syncInProgress}}
               <i class="fas fa-spinner fa-spin"></i>
               {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
@@ -160,7 +161,8 @@
             {{/if}}
           </div>
           <div class="sync-controls">
-            <button type="button" class="sync-from-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+            <button type="button" class="sync-from-archivist-btn" data-action="syncFromArchivist" {{#if
+              syncInProgress}}disabled{{/if}}>
               {{#if syncInProgress}}
               <i class="fas fa-spinner fa-spin"></i>
               {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
@@ -203,13 +205,41 @@
                 <div class="actor-details">
                   <h5>{{this.name}}</h5>
                   <p class="actor-type">{{this.type}}</p>
+                  {{#if this.truncatedDescription}}
+                  <p class="actor-description">{{this.truncatedDescription}}</p>
+                  {{/if}}
                 </div>
               </div>
-              <div class="actor-actions">
-                <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-link"></i>
-                  {{localize "ARCHIVIST_SYNC.buttons.map"}}
-                </button>
+              <div class="actor-status">
+                {{#if this.loadingStatus}}
+                <div class="sync-status-indicator loading">
+                  <i class="fas fa-spinner fa-spin"></i>
+                  Loading...
+                </div>
+                {{else if this.existsInArchivist}}
+                <div class="sync-status-indicator exists">
+                  <i class="fas fa-check-circle"></i>
+                  {{localize "ARCHIVIST_SYNC.labels.existsInArchivist"}}
+                </div>
+                {{else}}
+                <div class="sync-status-indicator not-exists">
+                  <i class="fas fa-times-circle"></i>
+                  {{localize "ARCHIVIST_SYNC.labels.notInArchivist"}}
+                </div>
+                {{/if}}
+                <div class="actor-actions">
+                  {{#if this.existsInArchivist}}
+                  <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
+                    <i class="fas fa-link"></i>
+                    {{localize "ARCHIVIST_SYNC.buttons.map"}}
+                  </button>
+                  {{else}}
+                  <button type="button" class="create-character-btn" data-actor-id="{{this.id}}">
+                    <i class="fas fa-plus"></i>
+                    {{localize "ARCHIVIST_SYNC.buttons.create"}}
+                  </button>
+                  {{/if}}
+                </div>
               </div>
             </div>
             {{/each}}
@@ -231,13 +261,41 @@
                 <div class="actor-details">
                   <h5>{{this.name}}</h5>
                   <p class="actor-type">{{this.type}}</p>
+                  {{#if this.truncatedDescription}}
+                  <p class="actor-description">{{this.truncatedDescription}}</p>
+                  {{/if}}
                 </div>
               </div>
-              <div class="actor-actions">
-                <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-link"></i>
-                  {{localize "ARCHIVIST_SYNC.buttons.map"}}
-                </button>
+              <div class="actor-status">
+                {{#if this.loadingStatus}}
+                <div class="sync-status-indicator loading">
+                  <i class="fas fa-spinner fa-spin"></i>
+                  Loading...
+                </div>
+                {{else if this.existsInArchivist}}
+                <div class="sync-status-indicator exists">
+                  <i class="fas fa-check-circle"></i>
+                  {{localize "ARCHIVIST_SYNC.labels.existsInArchivist"}}
+                </div>
+                {{else}}
+                <div class="sync-status-indicator not-exists">
+                  <i class="fas fa-times-circle"></i>
+                  {{localize "ARCHIVIST_SYNC.labels.notInArchivist"}}
+                </div>
+                {{/if}}
+                <div class="actor-actions">
+                  {{#if this.existsInArchivist}}
+                  <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
+                    <i class="fas fa-link"></i>
+                    {{localize "ARCHIVIST_SYNC.buttons.map"}}
+                  </button>
+                  {{else}}
+                  <button type="button" class="create-character-btn" data-actor-id="{{this.id}}">
+                    <i class="fas fa-plus"></i>
+                    {{localize "ARCHIVIST_SYNC.buttons.create"}}
+                  </button>
+                  {{/if}}
+                </div>
               </div>
             </div>
             {{/each}}
@@ -248,7 +306,8 @@
         </div>
 
         <div class="form-group bulk-actions">
-          <button type="button" class="sync-characters-btn" {{#if syncInProgress}}disabled{{/if}}>
+          <button type="button" class="sync-characters-btn" data-action="syncCharacters" {{#if
+            syncInProgress}}disabled{{/if}}>
             {{#if syncInProgress}}
             <i class="fas fa-spinner fa-spin"></i>
             {{localize "ARCHIVIST_SYNC.buttons.syncing"}}

@@ -151,6 +151,92 @@ export class ArchivistApiService {
   }
 
   /**
+   * Fetch existing characters from Archivist API by world ID
+   * @param {string} apiKey - The API key for authentication
+   * @param {string} worldId - The world ID to fetch characters from
+   * @returns {Promise<object>} Object with success flag and characters data
+   */
+  async fetchWorldCharacters(apiKey, worldId) {
+    try {
+      const headers = this._createHeaders(apiKey);
+      
+      const response = await fetch(`${this.baseUrl}/characters?world_id=${worldId}&character_type=PC`, {
+        method: 'GET',
+        headers: headers
+      });
+      
+      const data = await this._handleResponse(response);
+      console.log("data is : ", data)
+      // Handle different possible response formats
+      let characters = [];
+      if (Array.isArray(data)) {
+        characters = data;
+      } else if (data.characters && Array.isArray(data.characters)) {
+        characters = data.characters;
+      } else if (data.data && Array.isArray(data.data)) {
+        characters = data.data;
+      } else {
+        // No characters exist yet - return empty array
+        characters = [];
+      }
+      
+      return {
+        success: true,
+        data: characters
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch world characters:`, error);
+      
+      let errorMessage = 'Failed to fetch world characters';
+      if (error.message.includes('CORS')) {
+        errorMessage = 'CORS error: Please check API endpoint configuration';
+      } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
+        errorMessage = 'Network error: Please check your internet connection and API endpoint';
+      } else {
+        errorMessage = error.message;
+      }
+      
+      return {
+        success: false,
+        message: errorMessage,
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Create a single character in Archivist API
+   * @param {string} apiKey - The API key for authentication
+   * @param {string} worldId - The world ID to create character in
+   * @param {object} characterData - Character object to create
+   * @returns {Promise<object>} Object with success flag and response data
+   */
+  async createCharacter(apiKey, worldId, characterData) {
+    try {
+      const headers = this._createHeaders(apiKey);
+      
+      const response = await fetch(`${this.baseUrl}/characters`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(characterData)
+      });
+      
+      const data = await this._handleResponse(response);
+      
+      return {
+        success: true,
+        data: data
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to create character'
+      };
+    }
+  }
+
+  /**
    * Sync characters to Archivist API
    * @param {string} apiKey - The API key for authentication
    * @param {string} worldId - The world ID to sync to
