@@ -27,7 +27,9 @@
     "tabs": {
       "world": "World Selection",
       "title": "World Details",
-      "characters": "Character Mapping"
+      "characters": "Character Mapping",
+      "factions": "Factions",
+      "locations": "Locations"
     },
     "labels": {
       "apiStatus": "API Status",
@@ -44,7 +46,9 @@
       "characterCount": "Character Count",
       "charactersAndNpcs": "Characters & NPCs",
       "playerCharacters": "Player Characters",
-      "npcs": "NPCs"
+      "npcs": "NPCs",
+      "factions": "Factions",
+      "locations": "Locations"
     },
     "status": {
       "connected": "Connected",
@@ -58,7 +62,9 @@
       "syncFromFoundry": "→ Sync to Archivist",
       "syncFromArchivist": "← Sync from Archivist",
       "syncCharacters": "Sync All Characters",
-      "map": "Map"
+      "map": "Map",
+      "pushToArchivist": "Push to Archivist",
+      "pullFromArchivist": "Pull from Archivist"
     },
     "options": {
       "selectWorld": "-- Select a World --"
@@ -79,7 +85,14 @@
       "noActors": "No character or NPC actors found in this world.",
       "noPlayerCharacters": "No player characters found in this world.",
       "noNpcs": "No NPCs found in this world.",
-      "loadingWorldData": "Loading world data from Archivist API..."
+      "loadingWorldData": "Loading world data from Archivist API...",
+      "noFactions": "No factions found (folder 'Factions' or flagged).",
+      "noLocations": "No locations found (folder 'Locations' or flagged).",
+      "factionsSynced": "Factions synchronized successfully",
+      "locationsSynced": "Locations synchronized successfully",
+      "factionsPulled": "Factions pulled successfully",
+      "locationsPulled": "Locations pulled successfully",
+      "charactersPulled": "Characters pulled successfully"
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",

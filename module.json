@@ -30,7 +30,15 @@
   "styles": [
     "styles/archivist-sync.css"
   ],
-
+  "flags": {
+    "hotReload": {
+      "paths": [
+        "dist",
+        "templates",
+        "lang"
+      ]
+    }
+  },
   "languages": [
     {
       "lang": "en",

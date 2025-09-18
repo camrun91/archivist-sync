@@ -4,7 +4,7 @@ import { CONFIG } from './config.js';
  * Utility functions for Archivist Sync Module
  */
 export class Utils {
-  
+
   /**
    * Log messages with module prefix
    * @param {string} message - The message to log
@@ -50,9 +50,47 @@ export class Utils {
    * @returns {Array} Array of character and NPC actors
    */
   static getCharacterActors() {
-    return game.actors.contents.filter(actor => 
+    return game.actors.contents.filter(actor =>
       actor.type === 'character' || actor.type === 'npc'
     );
+  }
+
+  /**
+   * Get journal entries that likely represent Factions (by folder name or flag)
+   * @returns {Array<JournalEntry>}
+   */
+  static getFactionJournals() {
+    const entries = game.journal?.contents || [];
+    const factionFolder = this._findFolderByNameInsensitive('Factions');
+    return entries.filter(j => {
+      const flagged = j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'faction';
+      const inFolder = factionFolder && j.folder?.id === factionFolder.id;
+      return flagged || inFolder;
+    });
+  }
+
+  /**
+   * Get journal entries that likely represent Locations (by folder name or flag)
+   * @returns {Array<JournalEntry>}
+   */
+  static getLocationJournals() {
+    const entries = game.journal?.contents || [];
+    const locationFolder = this._findFolderByNameInsensitive('Locations');
+    return entries.filter(j => {
+      const flagged = j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'location';
+      const inFolder = locationFolder && j.folder?.id === locationFolder.id;
+      return flagged || inFolder;
+    });
+  }
+
+  /**
+   * Find a folder by name (case-insensitive)
+   * @param {string} name
+   * @returns {Folder | undefined}
+   */
+  static _findFolderByNameInsensitive(name) {
+    const folders = game.folders?.contents || [];
+    return folders.find(f => f.type === 'JournalEntry' && f.name.toLowerCase() === String(name).toLowerCase());
   }
 
   /**
@@ -70,6 +108,112 @@ export class Utils {
       race: actor.system?.details?.race || '',
       class: actor.system?.details?.class || ''
     }));
+  }
+
+  /**
+   * Build Archivist Character payload from a Foundry Actor
+   * @param {Actor} actor
+   * @param {string} worldId
+   */
+  static toApiCharacterPayload(actor, worldId) {
+    const isPC = actor.type === 'character';
+    return {
+      characterName: actor.name,
+      playerName: actor?.system?.details?.player || '',
+      description: actor?.system?.details?.biography?.value || '',
+      type: isPC ? 'PC' : 'NPC',
+      worldId
+    };
+  }
+
+  /**
+   * Build Archivist Faction payload from a JournalEntry
+   * @param {JournalEntry} journal
+   * @param {string} worldId
+   */
+  static toApiFactionPayload(journal, worldId) {
+    return {
+      name: journal.name,
+      description: this._extractJournalText(journal),
+      worldId
+    };
+  }
+
+  /**
+   * Build Archivist Location payload from a JournalEntry
+   * @param {JournalEntry} journal
+   * @param {string} worldId
+   */
+  static toApiLocationPayload(journal, worldId) {
+    return {
+      name: journal.name,
+      description: this._extractJournalText(journal),
+      worldId
+    };
+  }
+
+  /**
+   * Extract text content from a JournalEntry (first text page)
+   * @param {JournalEntry} journal
+   * @returns {string}
+   */
+  static _extractJournalText(journal) {
+    const pages = journal.pages?.contents || journal.pages || [];
+    const textPage = pages.find(p => p.type === 'text');
+    // Foundry v10+ stores text in page.text.content
+    return textPage?.text?.content || journal.content || '';
+  }
+
+  /**
+   * Ensure a journal has a single primary text page with provided content.
+   * Works across Foundry versions (v10+ with pages collection).
+   * @param {JournalEntry} journal
+   * @param {string} content
+   */
+  static async ensureJournalTextPage(journal, content) {
+    // v10+ API: JournalEntryPage documents under journal.pages
+    const pagesCollection = journal.pages;
+    const safeContent = String(content ?? '');
+
+    if (pagesCollection) {
+      const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
+      let textPage = pages.find(p => p.type === 'text');
+      if (textPage) {
+        await textPage.update({ text: { content: safeContent, format: 1 } });
+      } else {
+        await journal.createEmbeddedDocuments('JournalEntryPage', [{
+          name: 'Description',
+          type: 'text',
+          text: { content: safeContent, format: 1 }
+        }]);
+      }
+      return;
+    }
+    // Fallback (older Foundry versions) — use JournalEntry content
+    await journal.update({ content: safeContent });
+  }
+
+  /**
+   * Flags helpers for mapping Archivist IDs
+   */
+  static getActorArchivistId(actor) {
+    return actor.getFlag(CONFIG.MODULE_ID, 'archivistId');
+  }
+
+  static async setActorArchivistId(actor, id) {
+    return actor.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
+  }
+
+  static getJournalArchivistMeta(journal) {
+    return {
+      id: journal.getFlag(CONFIG.MODULE_ID, 'archivistId') || null,
+      type: journal.getFlag(CONFIG.MODULE_ID, 'archivistType') || null
+    };
+  }
+
+  static async setJournalArchivistMeta(journal, id, type) {
+    await journal.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
+    if (type) await journal.setFlag(CONFIG.MODULE_ID, 'archivistType', type);
   }
 
   /**
@@ -122,6 +266,17 @@ export class Utils {
    */
   static isGM() {
     return game.user.isGM;
+  }
+
+  /**
+   * Ensure a folder exists for JournalEntries by name; returns folder id or null
+   * @param {string} name
+   */
+  static async ensureJournalFolder(name) {
+    const existing = this._findFolderByNameInsensitive(name);
+    if (existing) return existing.id;
+    const created = await Folder.create({ name, type: 'JournalEntry' });
+    return created?.id || null;
   }
 
   /**

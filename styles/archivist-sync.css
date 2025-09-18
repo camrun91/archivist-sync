@@ -5,7 +5,7 @@
 
 /* Module dialog styling - scoped to our specific dialog */
 .archivist-sync-dialog {
-  border: 2px solid #4caf50;
+  border: 1px solid var(--arch-border, rgba(255, 255, 255, 0.12));
   border-radius: 8px;
   min-width: 700px;
   min-height: 600px;
@@ -14,12 +14,13 @@
 }
 
 .archivist-sync-dialog .window-header {
-  background: linear-gradient(135deg, #4caf50, #2e7d32);
-  color: white;
+  background: var(--arch-bg-alt, transparent);
+  color: var(--arch-text, inherit);
+  border-bottom: 1px solid var(--arch-border, rgba(255, 255, 255, 0.12));
 }
 
 .archivist-sync-dialog .window-content {
-  background-color: #f5f5f5;
+  background-color: transparent;
   padding: 20px;
   overflow-y: auto;
   height: 100%;
@@ -39,15 +40,15 @@
   display: block;
   font-weight: bold;
   margin-bottom: 5px;
-  color: #2e7d32;
+  color: var(--arch-text);
 }
 
 /* Tabbed interface - scoped to our content */
 .archivist-sync-content .tabs {
   display: flex;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 1px solid var(--arch-border);
   margin-bottom: 20px;
-  background: #f5f5f5;
+  background: var(--arch-bg-alt);
   border-radius: 4px 4px 0 0;
 }
 
@@ -57,7 +58,7 @@
   text-align: center;
   border: none;
   background: transparent;
-  color: #666;
+  color: var(--arch-text-muted);
   cursor: pointer;
   transition: all 0.3s ease;
   text-decoration: none;
@@ -65,13 +66,13 @@
 }
 
 .archivist-sync-content .tabs .item:hover {
-  background: #e8f5e8;
-  color: #2e7d32;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .tabs .item.active {
-  background: #4caf50;
-  color: white;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
   border-radius: 4px 4px 0 0;
 }
 
@@ -79,15 +80,15 @@
   min-height: 500px;
   height: calc(100% - 60px);
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--arch-border);
   border-radius: 4px;
-  background: white;
+  background: var(--arch-panel);
 }
 
 .archivist-sync-content .tab {
   display: none;
   padding: 20px;
-  background: white;
+  background: var(--arch-panel);
   border-radius: 0 0 4px 4px;
   overflow-y: auto;
   height: 100%;
@@ -115,26 +116,26 @@
 }
 
 .archivist-sync-content .status-indicator.connected {
-  background-color: #c8e6c9;
-  color: #2e7d32;
-  border: 1px solid #4caf50;
+  background-color: color-mix(in srgb, var(--arch-accent-push, #47d16a), transparent 85%);
+  color: var(--arch-accent-push, #47d16a);
+  border: 1px solid var(--arch-accent-push, #47d16a);
 }
 
 .archivist-sync-content .status-indicator.disconnected {
-  background-color: #ffcdd2;
+  background-color: color-mix(in srgb, #d32f2f, transparent 85%);
   color: #d32f2f;
-  border: 1px solid #f44336;
+  border: 1px solid #d32f2f;
 }
 
 /* Button styling - scoped to our content */
 .archivist-sync-content .sync-worlds-btn,
 .archivist-sync-content .sync-title-btn,
 .archivist-sync-content .sync-characters-btn {
-  background: linear-gradient(135deg, #4caf50, #2e7d32);
-  color: white;
-  border: none;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
+  border: 1px solid var(--arch-border);
   padding: 10px 20px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
   font-weight: bold;
@@ -145,9 +146,9 @@
 .archivist-sync-content .sync-worlds-btn:hover:not(:disabled),
 .archivist-sync-content .sync-title-btn:hover:not(:disabled),
 .archivist-sync-content .sync-characters-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #388e3c, #1b5e20);
+  background: var(--arch-panel);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 4px 8px var(--arch-shadow, rgba(0, 0, 0, 0.12));
 }
 
 .archivist-sync-content .sync-worlds-btn:disabled,
@@ -166,11 +167,11 @@
 
 /* Save button styling - scoped */
 .archivist-sync-content .save-selection-btn {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
-  border: none;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
+  border: 1px solid var(--arch-border);
   padding: 10px 20px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
   font-weight: bold;
@@ -179,16 +180,16 @@
 }
 
 .archivist-sync-content .save-selection-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1976d2, #1565c0);
+  background: var(--arch-panel);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+  box-shadow: 0 4px 8px var(--arch-shadow, rgba(0, 0, 0, 0.12));
 }
 
 .archivist-sync-content .save-selection-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
-  background: #bdbdbd;
+  background: var(--arch-panel);
 }
 
 .archivist-sync-content .save-selection-btn i {
@@ -197,11 +198,11 @@
 
 /* Map character button styling - scoped */
 .archivist-sync-content .map-character-btn {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
-  color: white;
-  border: none;
+  background: color-mix(in srgb, var(--arch-accent-warn, #ffb020), transparent 80%);
+  color: var(--arch-text);
+  border: 1px solid color-mix(in srgb, var(--arch-accent-warn, #ffb020), var(--arch-border, #666) 60%);
   padding: 6px 12px;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-weight: bold;
@@ -209,7 +210,7 @@
 }
 
 .archivist-sync-content .map-character-btn:hover {
-  background: linear-gradient(135deg, #f57c00, #ef6c00);
+  background: var(--arch-bg-alt);
   transform: translateY(-1px);
 }
 
@@ -222,13 +223,14 @@
   width: 100%;
   min-width: 300px;
   padding: 12px 16px;
-  border: 2px solid #e0e0e0;
+  border: 1px solid var(--arch-border);
   border-radius: 4px;
   font-size: 14px;
   line-height: 1.5;
   min-height: 40px;
   max-height: 200px;
-  background-color: white;
+  background-color: var(--arch-panel);
+  color: var(--arch-text);
   transition: border-color 0.3s ease;
   white-space: nowrap;
   overflow: hidden;
@@ -238,8 +240,8 @@
 
 .archivist-sync-content #world-select:focus {
   outline: none;
-  border-color: #4caf50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  border-color: var(--arch-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--arch-accent-push, #47d16a), transparent 80%);
 }
 
 .archivist-sync-content #world-select option {
@@ -252,29 +254,29 @@
 
 /* Current selection display - scoped */
 .archivist-sync-content .current-selection {
-  background-color: #e8f5e8;
-  border: 1px solid #4caf50;
-  border-radius: 4px;
+  background-color: var(--arch-panel);
+  border: 1px solid var(--arch-border);
+  border-radius: 6px;
   padding: 10px;
   margin-top: 15px;
 }
 
 .archivist-sync-content .current-selection h4 {
   margin: 0 0 8px 0;
-  color: #2e7d32;
+  color: var(--arch-text);
   font-size: 16px;
 }
 
 .archivist-sync-content .current-selection p {
   margin: 0;
-  color: #666;
+  color: var(--arch-text-muted);
 }
 
 /* Sync sections - scoped */
 .archivist-sync-content .sync-section {
-  background-color: #f9f9f9;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  background-color: var(--arch-panel);
+  border: 1px solid var(--arch-border);
+  border-radius: 6px;
   padding: 15px;
   margin-bottom: 15px;
   max-height: 400px;
@@ -283,14 +285,14 @@
 
 .archivist-sync-content .sync-section h4 {
   margin: 0 0 10px 0;
-  color: #2e7d32;
+  color: var(--arch-text);
   font-size: 16px;
 }
 
 .archivist-sync-content .world-info {
-  background-color: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  background-color: var(--arch-panel);
+  border: 1px solid var(--arch-border);
+  border-radius: 6px;
   padding: 10px;
   max-height: 300px;
   overflow-y: auto;
@@ -299,7 +301,7 @@
 
 .archivist-sync-content .world-info p {
   margin: 5px 0;
-  color: #333;
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .world-info p:last-child {
@@ -308,11 +310,11 @@
 
 /* Warning messages - scoped */
 .archivist-sync-content .warning-message {
-  background-color: #fff3e0;
-  color: #f57c00;
+  background-color: var(--arch-panel);
+  color: var(--arch-text-muted);
   padding: 15px;
-  border-radius: 4px;
-  border-left: 4px solid #ff9800;
+  border-radius: 6px;
+  border-left: 4px solid var(--arch-accent-warn, #ffb020);
   text-align: center;
 }
 
@@ -330,7 +332,7 @@
 /* Characters section - scoped */
 .archivist-sync-content .characters-section h4 {
   margin: 0 0 15px 0;
-  color: #2e7d32;
+  color: var(--arch-text);
   font-size: 18px;
 }
 
@@ -338,9 +340,9 @@
 .archivist-sync-content .character-type-section {
   margin-bottom: 25px;
   padding: 15px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--arch-border);
   border-radius: 6px;
-  background-color: #fafafa;
+  background-color: var(--arch-panel);
 }
 
 .archivist-sync-content .character-type-section h4 {
@@ -352,6 +354,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  background: var(--arch-bg-alt);
+  border: 1px solid var(--arch-border);
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .character-type-section h4 i {
@@ -361,38 +366,30 @@
 
 /* Player Characters section styling */
 .archivist-sync-content .character-type-section:has(.player-characters) h4 {
-  background-color: #e3f2fd;
-  color: #1565c0;
-  border: 1px solid #2196f3;
+  border-left: 3px solid color-mix(in srgb, var(--arch-accent-pull, #3ea8ff), transparent 60%);
 }
 
 /* NPCs section styling */
 .archivist-sync-content .character-type-section:has(.npcs) h4 {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ff9800;
+  border-left: 3px solid color-mix(in srgb, var(--arch-accent-warn, #ffb020), transparent 60%);
 }
 
 /* Fallback for browsers that don't support :has() selector */
 .archivist-sync-content .character-type-section:first-of-type h4 {
-  background-color: #e3f2fd;
-  color: #1565c0;
-  border: 1px solid #2196f3;
+  border-left: 3px solid color-mix(in srgb, var(--arch-accent-pull, #3ea8ff), transparent 60%);
 }
 
 .archivist-sync-content .character-type-section:nth-of-type(2) h4 {
-  background-color: #fff3e0;
-  color: #ef6c00;
-  border: 1px solid #ff9800;
+  border-left: 3px solid color-mix(in srgb, var(--arch-accent-warn, #ffb020), transparent 60%);
 }
 
 .archivist-sync-content .actors-list {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--arch-border);
   border-radius: 4px;
   margin-bottom: 15px;
-  background-color: white;
+  background-color: var(--arch-panel);
 }
 
 /* Adjust actors list when inside character-type-section */
@@ -406,12 +403,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--arch-border);
   transition: background-color 0.2s ease;
 }
 
 .archivist-sync-content .actor-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--arch-bg-alt);
 }
 
 .archivist-sync-content .actor-item:last-child {
@@ -429,26 +426,26 @@
   height: 32px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #ddd;
+  border: 1px solid var(--arch-border);
 }
 
 .archivist-sync-content .actor-details h5 {
   margin: 0;
   font-size: 14px;
   font-weight: bold;
-  color: #333;
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .actor-details .actor-type {
   margin: 2px 0 0 0;
   font-size: 12px;
-  color: #666;
+  color: var(--arch-text-muted);
   text-transform: capitalize;
 }
 
 .archivist-sync-content .no-actors {
   text-align: center;
-  color: #666;
+  color: var(--arch-text-muted);
   font-style: italic;
   padding: 20px;
 }
@@ -456,30 +453,30 @@
 .archivist-sync-content .bulk-actions {
   text-align: center;
   padding-top: 10px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--arch-border);
 }
 
 /* Info and hint text - scoped */
 .archivist-sync-content .hint {
-  color: #666;
+  color: var(--arch-text-muted);
   font-size: 14px;
   margin: 8px 0;
   font-style: italic;
 }
 
 .archivist-sync-content .info {
-  background-color: #e1f5fe;
-  color: #0277bd;
+  background-color: var(--arch-panel);
+  color: var(--arch-text);
   padding: 12px;
-  border-radius: 4px;
-  border-left: 4px solid #03a9f4;
+  border-radius: 6px;
+  border-left: 4px solid var(--arch-accent-pull, #3ea8ff);
 }
 
 /* Small text styling - scoped */
 .archivist-sync-content small {
   display: block;
   margin-top: 5px;
-  color: #666;
+  color: var(--arch-text-muted);
   font-size: 12px;
 }
 
@@ -611,28 +608,28 @@
 }
 
 .archivist-sync-dialog *::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: color-mix(in srgb, var(--arch-bg-alt, #2a2d33), transparent 70%);
   border-radius: 4px;
 }
 
 .archivist-sync-dialog *::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: color-mix(in srgb, var(--arch-border, #808080), transparent 30%);
   border-radius: 4px;
   transition: background 0.3s ease;
 }
 
 .archivist-sync-dialog *::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: color-mix(in srgb, var(--arch-border, #808080), transparent 10%);
 }
 
 .archivist-sync-dialog *::-webkit-scrollbar-corner {
-  background: #f1f1f1;
+  background: transparent;
 }
 
 /* Firefox scrollbar styling */
 .archivist-sync-dialog * {
   scrollbar-width: thin;
-  scrollbar-color: #c1c1c1 #f1f1f1;
+  scrollbar-color: color-mix(in srgb, var(--arch-border, #808080), transparent 30%) color-mix(in srgb, var(--arch-bg-alt, #2a2d33), transparent 70%);
 }
 
 /* World Details Tab - Side by Side Layout */
@@ -647,34 +644,34 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #f9f9f9;
-  border: 2px solid #e0e0e0;
+  background: var(--arch-panel);
+  border: 1px solid var(--arch-border);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .archivist-sync-content .foundry-section {
-  border-color: #2196f3;
+  border-color: var(--arch-border);
 }
 
 .archivist-sync-content .archivist-section {
-  border-color: #4caf50;
+  border-color: var(--arch-border);
 }
 
 .archivist-sync-content .section-header {
-  background: linear-gradient(135deg, #f5f5f5, #e8e8e8);
+  background: var(--arch-bg-alt);
   padding: 12px 16px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--arch-border);
 }
 
 .archivist-sync-content .foundry-section .section-header {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .archivist-section .section-header {
-  background: linear-gradient(135deg, #4caf50, #2e7d32);
-  color: white;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .section-header h4 {
@@ -689,7 +686,7 @@
 .archivist-sync-content .world-data-box {
   flex: 1;
   padding: 16px;
-  background: white;
+  background: var(--arch-panel);
   overflow-y: auto;
 }
 
@@ -704,19 +701,19 @@
 .archivist-sync-content .world-field label {
   display: block;
   font-weight: bold;
-  color: #333;
+  color: var(--arch-text);
   margin-bottom: 4px;
   font-size: 14px;
 }
 
 .archivist-sync-content .world-field .field-value {
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 4px;
+  background: var(--arch-bg-alt);
+  border: 1px solid var(--arch-border);
+  border-radius: 6px;
   padding: 8px 12px;
   font-size: 14px;
   line-height: 1.4;
-  color: #495057;
+  color: var(--arch-text);
   min-height: 20px;
 }
 
@@ -730,15 +727,15 @@
 
 .archivist-sync-content .sync-controls {
   padding: 16px;
-  border-top: 1px solid #ddd;
-  background: #f8f9fa;
+  border-top: 1px solid var(--arch-border);
+  background: var(--arch-panel);
 }
 
 .archivist-sync-content .sync-to-archivist-btn,
 .archivist-sync-content .sync-from-archivist-btn {
   width: 100%;
   padding: 12px 16px;
-  border: none;
+  border: 1px solid var(--arch-border);
   border-radius: 6px;
   font-size: 14px;
   font-weight: bold;
@@ -751,25 +748,25 @@
 }
 
 .archivist-sync-content .sync-to-archivist-btn {
-  background: linear-gradient(135deg, #4caf50, #2e7d32);
-  color: white;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .sync-from-archivist-btn {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
+  background: var(--arch-bg-alt);
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .sync-to-archivist-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #388e3c, #1b5e20);
+  background: var(--arch-panel);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 4px 8px var(--arch-shadow, rgba(0, 0, 0, 0.12));
 }
 
 .archivist-sync-content .sync-from-archivist-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1976d2, #1565c0);
+  background: var(--arch-panel);
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+  box-shadow: 0 4px 8px var(--arch-shadow, rgba(0, 0, 0, 0.12));
 }
 
 .archivist-sync-content .sync-to-archivist-btn:disabled,
@@ -789,8 +786,8 @@
 }
 
 .archivist-sync-content .sync-arrows {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
-  color: white;
+  background: color-mix(in srgb, var(--arch-accent-warn, #ffb020), transparent 70%);
+  color: var(--arch-text);
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -798,25 +795,25 @@
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px var(--arch-shadow, rgba(0, 0, 0, 0.2));
 }
 
 .archivist-sync-content .sync-info {
   margin-top: 20px;
   padding: 16px;
-  background: #e8f5e8;
-  border: 1px solid #4caf50;
+  background: var(--arch-panel);
+  border: 1px solid var(--arch-border);
   border-radius: 6px;
 }
 
 .archivist-sync-content .current-target h4 {
   margin: 0 0 8px 0;
-  color: #2e7d32;
+  color: var(--arch-text);
   font-size: 16px;
 }
 
 .archivist-sync-content .current-target p {
   margin: 0;
-  color: #333;
+  color: var(--arch-text);
   font-size: 14px;
 }

@@ -9,6 +9,22 @@ export class ArchivistApiService {
   }
 
   /**
+   * Internal fetch helper
+   * @param {string} apiKey
+   * @param {string} path - path starting with '/'
+   * @param {RequestInit} options
+   * @returns {Promise<any>}
+   */
+  async _request(apiKey, path, options = {}) {
+    const headers = this._createHeaders(apiKey);
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers
+    });
+    return this._handleResponse(response);
+  }
+
+  /**
    * Create headers for API requests
    * @param {string} apiKey - The API key for authentication
    * @returns {object} Headers object
@@ -41,14 +57,14 @@ export class ArchivistApiService {
   async fetchWorldsList(apiKey) {
     try {
       const headers = this._createHeaders(apiKey);
-      
+
       const response = await fetch(`${this.baseUrl}/worlds`, {
         method: 'GET',
         headers: headers
       });
-      
+
       const data = await this._handleResponse(response);
-      
+
       // Handle different possible response formats
       let worlds = [];
       if (Array.isArray(data)) {
@@ -60,7 +76,7 @@ export class ArchivistApiService {
       } else {
         throw new Error('Unexpected API response format');
       }
-      
+
       return {
         success: true,
         data: worlds
@@ -82,24 +98,24 @@ export class ArchivistApiService {
    */
   async fetchWorldDetails(apiKey, worldId) {
     console.log('fetchWorldDetails called with:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none', worldId });
-    
+
     try {
       const headers = this._createHeaders(apiKey);
       const url = `${this.baseUrl}/worlds/${worldId}`;
       console.log('Fetching world details from URL:', url);
       console.log('Request headers:', headers);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: headers
       });
-      
+
       console.log('Fetch response status:', response.status, response.statusText);
       console.log('Fetch response ok:', response.ok);
-      
+
       const data = await this._handleResponse(response);
       console.log('Parsed response data:', data);
-      
+
       return {
         success: true,
         data: data
@@ -123,20 +139,20 @@ export class ArchivistApiService {
   async syncWorldTitle(apiKey, worldId, titleData) {
     try {
       const headers = this._createHeaders(apiKey);
-      
+
       const requestData = {
         title: titleData.title,
         description: titleData.description || ''
       };
-      
+
       const response = await fetch(`${this.baseUrl}/worlds/${worldId}`, {
         method: 'PUT',
         headers: headers,
         body: JSON.stringify(requestData)
       });
-      
+
       const data = await this._handleResponse(response);
-      
+
       return {
         success: true,
         data: data
@@ -151,38 +167,163 @@ export class ArchivistApiService {
   }
 
   /**
-   * Sync characters to Archivist API
-   * @param {string} apiKey - The API key for authentication
-   * @param {string} worldId - The world ID to sync to
-   * @param {Array} characterData - Array of character objects
-   * @returns {Promise<object>} Object with success flag and response data
+   * List all characters for a world (auto-paginate)
+   * @param {string} apiKey
+   * @param {string} worldId
+   * @returns {Promise<{success:boolean,data:Array}>>}
    */
-  async syncCharacters(apiKey, worldId, characterData) {
+  async listCharacters(apiKey, worldId) {
     try {
-      const headers = this._createHeaders(apiKey);
-      
-      const requestData = {
-        characters: characterData
-      };
-      
-      const response = await fetch(`${this.baseUrl}/worlds/${worldId}/characters`, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(requestData)
-      });
-      
-      const data = await this._handleResponse(response);
-      
-      return {
-        success: true,
-        data: data
-      };
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(apiKey, `/characters?world_id=${encodeURIComponent(worldId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        all.push(...items);
+        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        if (page >= totalPages || items.length < size) break;
+        page += 1;
+      }
+      return { success: true, data: all };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to sync characters:`, error);
-      return {
-        success: false,
-        message: error.message || 'Failed to sync characters'
-      };
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to list characters:`, error);
+      return { success: false, message: error.message || 'Failed to list characters' };
+    }
+  }
+
+  /**
+   * Create a character
+   * @param {string} apiKey
+   * @param {object} payload
+   */
+  async createCharacter(apiKey, payload) {
+    try {
+      const data = await this._request(apiKey, `/characters`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, error);
+      return { success: false, message: error.message || 'Failed to create character' };
+    }
+  }
+
+  /**
+   * Update a character
+   * @param {string} apiKey
+   * @param {string} characterId
+   * @param {object} payload
+   */
+  async updateCharacter(apiKey, characterId, payload) {
+    try {
+      const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update character:`, error);
+      return { success: false, message: error.message || 'Failed to update character' };
+    }
+  }
+
+  /**
+   * List all factions for a world
+   */
+  async listFactions(apiKey, worldId) {
+    try {
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(apiKey, `/factions?world_id=${encodeURIComponent(worldId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        all.push(...items);
+        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        if (page >= totalPages || items.length < size) break;
+        page += 1;
+      }
+      return { success: true, data: all };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to list factions:`, error);
+      return { success: false, message: error.message || 'Failed to list factions' };
+    }
+  }
+
+  async createFaction(apiKey, payload) {
+    try {
+      const data = await this._request(apiKey, `/factions`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create faction:`, error);
+      return { success: false, message: error.message || 'Failed to create faction' };
+    }
+  }
+
+  async updateFaction(apiKey, factionId, payload) {
+    try {
+      const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update faction:`, error);
+      return { success: false, message: error.message || 'Failed to update faction' };
+    }
+  }
+
+  /**
+   * List all locations for a world
+   */
+  async listLocations(apiKey, worldId) {
+    try {
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(apiKey, `/locations?world_id=${encodeURIComponent(worldId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        all.push(...items);
+        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        if (page >= totalPages || items.length < size) break;
+        page += 1;
+      }
+      return { success: true, data: all };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to list locations:`, error);
+      return { success: false, message: error.message || 'Failed to list locations' };
+    }
+  }
+
+  async createLocation(apiKey, payload) {
+    try {
+      const data = await this._request(apiKey, `/locations`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create location:`, error);
+      return { success: false, message: error.message || 'Failed to create location' };
+    }
+  }
+
+  async updateLocation(apiKey, locationId, payload) {
+    try {
+      const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update location:`, error);
+      return { success: false, message: error.message || 'Failed to update location' };
     }
   }
 
