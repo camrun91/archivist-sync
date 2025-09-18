@@ -611,10 +611,21 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         // Prefer combined/new/old descriptions if present
         const bio =
           (c.description ?? c.combinedDescription ?? c.newDescription ?? c.oldDescription ?? '').toString();
+        // Remote portrait image URL if provided
+        const imageUrl = (typeof c.image === 'string' && c.image.trim().length) ? c.image.trim() : null;
         const existingActor = existing.get(c.id);
         if (existingActor) {
           try {
-            await existingActor.update({ name });
+            const updateDataBase = { name };
+            if (imageUrl) updateDataBase.img = imageUrl;
+            await existingActor.update(updateDataBase);
+            if (imageUrl) {
+              try {
+                await existingActor.update({ "prototypeToken.texture.src": imageUrl });
+              } catch (et) {
+                // Ignore token texture failure; portrait already set
+              }
+            }
             // Try to set biography on common dnd5e schemas
             if (bio) {
               const updateData = {};
@@ -637,14 +648,25 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         } else {
           let created;
           try {
-            created = await Actor.create({ name, type });
+            const createData = { name, type };
+            if (imageUrl) createData.img = imageUrl;
+            created = await Actor.create(createData);
           } catch (e) {
             // Fallback to npc if the system doesn't have "character"
-            created = await Actor.create({ name, type: 'npc' });
+            const createData = { name, type: 'npc' };
+            if (imageUrl) createData.img = imageUrl;
+            created = await Actor.create(createData);
           }
           if (created) {
             createdCount++;
             await Utils.setActorArchivistId(created, c.id);
+            if (imageUrl) {
+              try {
+                await created.update({ "prototypeToken.texture.src": imageUrl });
+              } catch (ct) {
+                // ignore
+              }
+            }
             // Best-effort biography import for common systems (e.g., dnd5e)
             if (bio) {
               const updateData = {};
