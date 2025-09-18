@@ -2,6 +2,7 @@ import { CONFIG } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
 import { Utils } from '../modules/utils.js';
+import { writeBestBiography, writeBestJournalDescription } from '../modules/field-mapper.js';
 
 /**
  * Sync Options Dialog - Tabbed interface for world synchronization
@@ -626,21 +627,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
                 // Ignore token texture failure; portrait already set
               }
             }
-            // Try to set biography on common dnd5e schemas
-            if (bio) {
-              const updateData = {};
-              // dnd5e v5.1+ uses public/value fields
-              foundry.utils.setProperty(updateData, "system.details.biography.public", bio);
-              foundry.utils.setProperty(updateData, "system.details.biography.value", bio);
-              try { await existingActor.update(updateData); }
-              catch (e1) {
-                try { await existingActor.update({ "system.details.biography": bio }); }
-                catch (e2) {
-                  try { await existingActor.update({ "system.biography": bio }); }
-                  catch (e3) { /* swallow */ }
-                }
-              }
-            }
+            if (bio) { await writeBestBiography(existingActor, bio); }
             updatedCount++;
           } catch (e) {
             console.warn('Failed to update actor name', e);
@@ -667,21 +654,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
                 // ignore
               }
             }
-            // Best-effort biography import for common systems (e.g., dnd5e)
-            if (bio) {
-              const updateData = {};
-              // dnd5e v5.1+ uses public/value fields
-              foundry.utils.setProperty(updateData, "system.details.biography.public", bio);
-              foundry.utils.setProperty(updateData, "system.details.biography.value", bio);
-              try { await created.update(updateData); }
-              catch (e1) {
-                try { await created.update({ "system.details.biography": bio }); }
-                catch (e2) {
-                  try { await created.update({ "system.biography": bio }); }
-                  catch (e3) { /* ignore */ }
-                }
-              }
-            }
+            if (bio) { await writeBestBiography(created, bio); }
           }
         }
       }
@@ -765,11 +738,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         const journal = existing.get(f.id);
         if (journal) {
           await journal.update({ name, folder: folderId });
-          await Utils.ensureJournalTextPage(journal, description);
+          await writeBestJournalDescription(journal, description);
         } else {
           const created = await JournalEntry.create({ name, folder: folderId });
           if (created) {
-            await Utils.ensureJournalTextPage(created, description);
+            await writeBestJournalDescription(created, description);
             await Utils.setJournalArchivistMeta(created, f.id, 'faction');
           }
         }
@@ -851,11 +824,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         const journal = existing.get(l.id);
         if (journal) {
           await journal.update({ name, folder: folderId });
-          await Utils.ensureJournalTextPage(journal, description);
+          await writeBestJournalDescription(journal, description);
         } else {
           const created = await JournalEntry.create({ name, folder: folderId });
           if (created) {
-            await Utils.ensureJournalTextPage(created, description);
+            await writeBestJournalDescription(created, description);
             await Utils.setJournalArchivistMeta(created, l.id, 'location');
           }
         }

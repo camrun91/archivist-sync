@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { readBestBiography } from './field-mapper.js';
 
 /**
  * Utility functions for Archivist Sync Module
@@ -120,7 +121,7 @@ export class Utils {
     return {
       characterName: actor.name,
       playerName: actor?.system?.details?.player || '',
-      description: actor?.system?.details?.biography?.value || '',
+      description: readBestBiography(actor) || '',
       type: isPC ? 'PC' : 'NPC',
       worldId
     };
