@@ -5,6 +5,10 @@
         "Name": "API Key",
         "Hint": "Enter your API key to authenticate with the Archivist API service"
       },
+      "SemanticMappingEnabled": {
+        "Name": "Enable semantic field mapping",
+        "Hint": "Use a small local embeddings model to improve field detection"
+      },
       "SelectedWorld": {
         "Name": "Selected World ID",
         "Hint": "The ID of the currently selected world from the Archivist API"
@@ -14,11 +18,28 @@
         "Hint": "The name of the currently selected world from the Archivist API"
       }
     },
+    "chat": {
+      "title": "Archivist Chat",
+      "placeholder": "Ask a question about your campaign...",
+      "send": "Send",
+      "streaming": "Streaming...",
+      "stop": "Stop",
+      "me": "Me",
+      "assistant": "Archivist",
+      "noWorld": "Please select an Archivist world first.",
+      "noApi": "Please configure your API key in module settings.",
+      "error": "Chat error"
+    },
     "Menu": {
       "SyncOptions": {
         "Name": "Sync Options",
         "Label": "Open Sync Manager",
         "Hint": "Manage world selection, title sync, and character mapping with Archivist API"
+      },
+      "AskChat": {
+        "Name": "Archivist Chat",
+        "Label": "Archivist Chat",
+        "Hint": "Ask questions about your campaign with RAG"
       }
     },
     "dialog": {
@@ -26,8 +47,10 @@
     },
     "tabs": {
       "world": "World Selection",
-      "title": "World Details",
-      "characters": "Character Mapping"
+      "importer": "Importer",
+      "characters": "Characters",
+      "factions": "Factions",
+      "locations": "Locations",
     },
     "labels": {
       "apiStatus": "API Status",
@@ -36,6 +59,10 @@
       "currentSelection": "Current Selection",
       "foundryWorld": "Current Foundry World",
       "archivistWorld": "Archivist World Data",
+      "importer": "Importer Wizard",
+      "thresholdA": "Auto-import threshold (A)",
+      "thresholdB": "Needs review threshold (B)",
+      "samplePreview": "Sample preview",
       "syncTarget": "Sync Target",
       "title": "Title",
       "description": "Description",
@@ -44,11 +71,14 @@
       "characterCount": "Character Count",
       "charactersAndNpcs": "Characters & NPCs",
       "playerCharacters": "Player Characters",
-      "npcs": "NPCs"
+      "npcs": "NPCs",
+      "factions": "Factions",
+      "locations": "Locations",
+      "mappingOverride": "Mapping Override (JSON)"
     },
     "status": {
       "connected": "Connected",
-      "notConfigured": "Not Configured"
+      "notConfigured": "Not Configured",
     },
     "buttons": {
       "syncing": "Syncing...",
@@ -58,18 +88,26 @@
       "syncFromFoundry": "→ Sync to Archivist",
       "syncFromArchivist": "← Sync from Archivist",
       "syncCharacters": "Sync All Characters",
-      "map": "Map"
+      "map": "Map",
+      "pushToArchivist": "Push to Archivist",
+      "pullFromArchivist": "Pull from Archivist",
+      "sample": "Sample",
+      "runImport": "Run Import",
+      "createWorld": "Create World",
+      "loadMapping": "Load",
+      "saveMapping": "Save"
     },
     "options": {
       "selectWorld": "-- Select a World --"
     },
     "hints": {
-      "configureApi": "Please configure your API key in the module settings first."
+      "configureApi": "Please configure your API key in the module settings first.",
     },
     "warnings": {
       "apiNotConfigured": "Please configure your API key in the module settings first.",
       "selectWorldFirst": "Please select an Archivist world first.",
-      "selectWorld": "Please select a world from the dropdown before saving."
+      "selectWorld": "Please select a world from the dropdown before saving.",
+      "noWorldsFound": "No Archivist worlds found. Create a world before continuing."
     },
     "messages": {
       "worldsLoaded": "Worlds loaded successfully from Archivist API",
@@ -79,7 +117,14 @@
       "noActors": "No character or NPC actors found in this world.",
       "noPlayerCharacters": "No player characters found in this world.",
       "noNpcs": "No NPCs found in this world.",
-      "loadingWorldData": "Loading world data from Archivist API..."
+      "loadingWorldData": "Loading world data from Archivist API...",
+      "noFactions": "No factions found (folder 'Factions' or flagged).",
+      "noLocations": "No locations found (folder 'Locations' or flagged).",
+      "factionsSynced": "Factions synchronized successfully",
+      "locationsSynced": "Locations synchronized successfully",
+      "factionsPulled": "Factions pulled successfully",
+      "locationsPulled": "Locations pulled successfully",
+      "charactersPulled": "Characters pulled successfully"
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",

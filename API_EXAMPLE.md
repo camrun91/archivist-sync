@@ -113,6 +113,13 @@ app.listen(3000, () => {
 });
 ```
 
+## Game Sessions (Read-Only)
+
+The Archivist API treats game sessions as read-only objects for clients of this module:
+
+- There are no supported POST or DELETE endpoints for creating or deleting sessions.
+- Session data (e.g., counts, last activity) may appear in GET responses but must not be mutated by clients.
+
 ## Error Handling
 
 Your API should return appropriate HTTP status codes:

@@ -11,16 +11,17 @@ import { settingsManager } from './modules/settings-manager.js';
 import { archivistApi } from './services/archivist-api.js';
 import { Utils } from './modules/utils.js';
 import { SyncOptionsDialog } from './dialogs/sync-options-dialog.js';
+import { AskChatWindow } from './dialogs/ask-chat-window.js';
 
 /**
  * Initialize the module when Foundry VTT is ready
  */
-Hooks.once('ready', async function() {
+Hooks.once('ready', async function () {
   Utils.log('Module initialized');
-  
+
   // Register module settings and menu
   settingsManager.registerSettings();
-  
+
   // Initialize debugging interface
   initializeDebugInterface();
 });
@@ -35,9 +36,10 @@ function initializeDebugInterface() {
     settingsManager,
     archivistApi,
     Utils,
-    SyncOptionsDialog
+    SyncOptionsDialog,
+    AskChatWindow
   };
-  
+
   Utils.log('Debug interface initialized. Use window.ARCHIVIST_SYNC to access module components.');
 }
 

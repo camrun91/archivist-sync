@@ -1,0 +1,67 @@
+<div class="archivist-chat">
+    <style>
+        .archivist-chat {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            gap: 8px;
+        }
+
+        .messages {
+            flex: 1;
+            overflow: auto;
+            border: 1px solid var(--arch-border, rgba(255, 255, 255, .12));
+            border-radius: 8px;
+            padding: 8px;
+            background: var(--arch-panel, rgba(255, 255, 255, .03));
+        }
+
+        .msg {
+            margin-bottom: 8px;
+            display: grid;
+            grid-template-columns: 80px 1fr;
+            gap: 8px;
+            align-items: start;
+        }
+
+        .msg .from {
+            font-weight: 600;
+            color: var(--arch-text-muted, #b9b9b9);
+        }
+
+        .msg .bubble {
+            background: var(--arch-bg-alt, rgba(255, 255, 255, .04));
+            border: 1px solid var(--arch-border, rgba(255, 255, 255, .12));
+            border-radius: 8px;
+            padding: 8px;
+            color: var(--arch-text, #e8e8e8);
+            white-space: pre-wrap;
+        }
+
+        .composer {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .composer .ask-input {
+            flex: 1;
+        }
+    </style>
+    <div class="messages">
+        {{#each messages}}
+        <div class="msg">
+            <div class="from">{{#if (eq this.role 'user')}}{{localize 'ARCHIVIST_SYNC.chat.me'}}{{else}}{{localize
+                'ARCHIVIST_SYNC.chat.assistant'}}{{/if}}</div>
+            <div class="bubble">{{this.content}}</div>
+        </div>
+        {{/each}}
+    </div>
+    <form class="composer ask-form">
+        <input class="ask-input" type="text" placeholder="{{placeholder}}" />
+        <button type="submit" class="btn">{{localize 'ARCHIVIST_SYNC.chat.send'}}</button>
+        <button type="button" class="btn ask-stop" {{#unless isStreaming}}disabled{{/unless}}>{{#if
+            isStreaming}}{{localize 'ARCHIVIST_SYNC.chat.stop'}}{{else}}{{localize
+            'ARCHIVIST_SYNC.chat.streaming'}}{{/if}}</button>
+    </form>
+</div>
