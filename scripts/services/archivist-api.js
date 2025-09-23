@@ -17,11 +17,16 @@ export class ArchivistApiService {
    */
   async _request(apiKey, path, options = {}) {
     const headers = this._createHeaders(apiKey);
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers
-    });
-    return this._handleResponse(response);
+    const url = `${this.baseUrl}${path}`;
+    let attempt = 0;
+    while (true) {
+      const response = await fetch(url, { ...options, headers });
+      if (response.status !== 429) return this._handleResponse(response);
+      attempt += 1;
+      const retryAfter = Number(response.headers.get('Retry-After')) || (attempt * 500);
+      if (attempt > 3) throw new Error(`API request failed: 429 rate limited`);
+      await new Promise(r => setTimeout(r, retryAfter));
+    }
   }
 
   /**
@@ -32,6 +37,7 @@ export class ArchivistApiService {
   _createHeaders(apiKey) {
     return {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       'x-api-key': apiKey
     };
   }
@@ -47,6 +53,15 @@ export class ArchivistApiService {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
     return await response.json();
+  }
+
+  /**
+   * Derive root API base (without version path like /v1) for non-versioned endpoints
+   * @returns {string}
+   */
+  _rootBase() {
+    // Strip trailing /v1 or /v1/ from API_BASE_URL
+    return this.baseUrl.replace(/\/?v1\/?$/, '');
   }
 
   /**
@@ -87,6 +102,24 @@ export class ArchivistApiService {
         success: false,
         message: error.message || 'Failed to fetch worlds from API'
       };
+    }
+  }
+
+  /**
+   * Create a new world in Archivist
+   * @param {string} apiKey
+   * @param {{title:string, description?:string}} payload
+   */
+  async createWorld(apiKey, payload) {
+    try {
+      const data = await this._request(apiKey, `/worlds`, {
+        method: 'POST',
+        body: JSON.stringify({ title: payload.title, description: payload.description || '' })
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create world:`, error);
+      return { success: false, message: error.message || 'Failed to create world' };
     }
   }
 
@@ -325,6 +358,87 @@ export class ArchivistApiService {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to update location:`, error);
       return { success: false, message: error.message || 'Failed to update location' };
     }
+  }
+
+  /**
+   * Ask (RAG chat) — non-streaming
+   * @param {string} apiKey
+   * @param {string} worldId
+   * @param {Array<{role:'user'|'assistant',content:string}>} messages
+   * @returns {Promise<{success:boolean, answer?:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number, message?:string}>}
+   */
+  async ask(apiKey, worldId, messages) {
+    try {
+      const url = `${this._rootBase()}/ask`;
+      const headers = { ...this._createHeaders(apiKey) };
+      const r = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ worldId, messages })
+      });
+      const data = await this._handleResponse(r);
+      return {
+        success: true,
+        answer: data?.answer ?? '',
+        monthlyTokensRemaining: data?.monthlyTokensRemaining,
+        hourlyTokensRemaining: data?.hourlyTokensRemaining
+      };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | /ask failed:`, error);
+      return { success: false, message: error.message || 'Ask failed' };
+    }
+  }
+
+  /**
+   * Ask (RAG chat) — streaming
+   * @param {string} apiKey
+   * @param {string} worldId
+   * @param {Array<{role:'user'|'assistant',content:string}>} messages
+   * @param {(chunk:string)=>void} onChunk
+   * @param {(final:{text:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number})=>void} onDone
+   * @param {AbortSignal} [signal]
+   */
+  async askStream(apiKey, worldId, messages, onChunk, onDone, signal) {
+    const url = `${this._rootBase()}/ask`;
+    const headers = { ...this._createHeaders(apiKey) };
+    // Accept any stream; some servers send text/plain for streaming
+    headers['Accept'] = '*/*';
+    const body = JSON.stringify({ worldId, messages, stream: true });
+    const resp = await fetch(url, { method: 'POST', headers, body, signal });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`Ask stream failed: ${resp.status} ${resp.statusText}${text ? ` — ${text}` : ''}`);
+    }
+    const monthly = Number(resp.headers.get('X-Monthly-Remaining-Tokens') || '') || undefined;
+    const hourly = Number(resp.headers.get('X-Hourly-Remaining-Tokens') || '') || undefined;
+    const reader = resp.body?.getReader?.();
+    if (!reader) {
+      // Fallback: try parse as JSON answer
+      try {
+        const data = await resp.clone().json();
+        const answer = data?.answer || '';
+        if (answer) onChunk?.(answer);
+        onDone?.({ text: answer, monthlyTokensRemaining: monthly, hourlyTokensRemaining: hourly });
+        return;
+      } catch (_) {
+        const text = await resp.text();
+        if (text) onChunk?.(text);
+        onDone?.({ text, monthlyTokensRemaining: monthly, hourlyTokensRemaining: hourly });
+        return;
+      }
+    }
+    const decoder = new TextDecoder();
+    let fullText = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      if (chunk) {
+        fullText += chunk;
+        onChunk?.(chunk);
+      }
+    }
+    onDone?.({ text: fullText, monthlyTokensRemaining: monthly, hourlyTokensRemaining: hourly });
   }
 
   /**

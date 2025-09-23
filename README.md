@@ -94,6 +94,10 @@ The module is designed to work with RESTful APIs that:
 - Return JSON responses
 - Handle CORS if accessing from a browser context
 
+#### Game Sessions (Read-Only)
+
+Developers cannot create or delete game session objects via the Archivist API. There are no POST or DELETE endpoints for sessions; any session-related information is read-only and may only be retrieved as part of GET responses.
+
 ## Compatibility
 
 - **Foundry VTT**: Version 12+ (verified for v13)

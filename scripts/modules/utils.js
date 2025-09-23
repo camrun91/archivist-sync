@@ -136,6 +136,7 @@ export class Utils {
     return {
       name: journal.name,
       description: this._extractJournalText(journal),
+      image: journal.img || undefined,
       worldId
     };
   }
@@ -149,6 +150,7 @@ export class Utils {
     return {
       name: journal.name,
       description: this._extractJournalText(journal),
+      image: journal.img || undefined,
       worldId
     };
   }
@@ -195,26 +197,83 @@ export class Utils {
   }
 
   /**
+   * Ensure a journal displays a lead image. For v10+ we upsert an Image page; for legacy we inline an <img> tag.
+   * Also updates the journal's thumbnail (img) to the provided URL.
+   * @param {JournalEntry} journal
+   * @param {string} imageUrl
+   */
+  static async ensureJournalLeadImage(journal, imageUrl) {
+    try {
+      const url = String(imageUrl || '').trim();
+      if (!url) return;
+      console.debug('[Archivist Sync] ensureJournalLeadImage()', { journalId: journal?.id, url });
+      // Always set the journal thumbnail so it shows in lists
+      try { await journal.update({ img: url }); } catch (e) { console.debug('[Archivist Sync] journal img update failed', e); }
+
+      const pagesCollection = journal.pages;
+      if (pagesCollection) {
+        const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
+        const textPage = pages.find(p => p.type === 'text');
+        if (textPage) {
+          const current = String(textPage?.text?.content ?? '');
+          if (!current.includes(url)) {
+            const safeUrl = url.replace(/"/g, '&quot;');
+            const imgHtml = `<p><img src="${safeUrl}" style="max-width:100%"/></p>`;
+            console.debug('[Archivist Sync] Prepending image HTML to journal text page');
+            await textPage.update({ text: { content: imgHtml + current, format: 1 } });
+          } else {
+            console.debug('[Archivist Sync] Text page already contains image URL; skipping prepend');
+          }
+        } else {
+          // Fall back to an image page if no text page exists
+          let imagePage = pages.find(p => p.type === 'image');
+          if (imagePage) {
+            const update = imagePage?.image?.src !== undefined ? { image: { src: url } } : { src: url };
+            console.debug('[Archivist Sync] Updating existing image page', { pageId: imagePage.id });
+            await imagePage.update(update);
+          } else {
+            console.debug('[Archivist Sync] Creating image page for journal');
+            await journal.createEmbeddedDocuments('JournalEntryPage', [{ name: 'Cover', type: 'image', src: url, image: { src: url } }]);
+          }
+        }
+        return;
+      }
+      // Legacy fallback: inline the image at the top of the content
+      const safeUrl = url.replace(/"/g, '&quot;');
+      const existing = String(journal.content || '');
+      const imgHtml = `<p><img src="${safeUrl}" style="max-width:100%"/></p>`;
+      console.debug('[Archivist Sync] Prepending inline image to legacy journal content');
+      await journal.update({ content: imgHtml + existing });
+    } catch (e) {
+      console.warn('[Archivist Sync] Failed to set journal lead image:', e);
+    }
+  }
+
+  /**
    * Flags helpers for mapping Archivist IDs
    */
   static getActorArchivistId(actor) {
     return actor.getFlag(CONFIG.MODULE_ID, 'archivistId');
   }
 
-  static async setActorArchivistId(actor, id) {
-    return actor.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
+  static async setActorArchivistId(actor, id, worldId) {
+    await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
+    if (worldId) await actor.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+    return true;
   }
 
   static getJournalArchivistMeta(journal) {
     return {
       id: journal.getFlag(CONFIG.MODULE_ID, 'archivistId') || null,
-      type: journal.getFlag(CONFIG.MODULE_ID, 'archivistType') || null
+      type: journal.getFlag(CONFIG.MODULE_ID, 'archivistType') || null,
+      worldId: journal.getFlag(CONFIG.MODULE_ID, 'archivistWorldId') || null
     };
   }
 
-  static async setJournalArchivistMeta(journal, id, type) {
+  static async setJournalArchivistMeta(journal, id, type, worldId) {
     await journal.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
     if (type) await journal.setFlag(CONFIG.MODULE_ID, 'archivistType', type);
+    if (worldId) await journal.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
   }
 
   /**

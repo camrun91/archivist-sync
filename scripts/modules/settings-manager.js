@@ -16,8 +16,11 @@ export class SettingsManager {
    */
   registerSettings() {
     this._registerApiKey();
+    this._registerSemanticToggle();
+    this._registerMappingOverride();
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
+    this._registerChatHistory();
     this._registerMenu();
   }
 
@@ -37,6 +40,48 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | API Key updated`);
       }
+    });
+  }
+
+  /**
+   * Register AI enablement toggles
+   * @private
+   */
+  _registerSemanticToggle() {
+    const semantic = SETTINGS.SEMANTIC_MAPPING_ENABLED;
+    game.settings.register(this.moduleId, semantic.key, {
+      name: game.i18n.localize(semantic.name),
+      hint: game.i18n.localize(semantic.hint),
+      scope: semantic.scope,
+      config: semantic.config,
+      type: semantic.type,
+      default: semantic.default
+    });
+  }
+
+  /**
+   * Register AI provider API keys
+   * @private
+   */
+  // AI provider settings removed
+
+  /**
+   * Register default MCP scopes
+   * @private
+   */
+  // MCP scopes setting removed
+
+  /**
+   * Mapping override JSON (per-world adjustable DSL tweaks)
+   */
+  _registerMappingOverride() {
+    game.settings.register(this.moduleId, 'mappingOverride', {
+      name: 'ARCHIVIST_SYNC.Settings.MappingOverride.Name',
+      hint: 'ARCHIVIST_SYNC.Settings.MappingOverride.Hint',
+      scope: 'world',
+      config: false,
+      type: String,
+      default: '{}'
     });
   }
 
@@ -80,14 +125,31 @@ export class SettingsManager {
    * @private
    */
   _registerMenu() {
-    const menu = MENU_CONFIG.SYNC_OPTIONS;
-    game.settings.registerMenu(this.moduleId, menu.key, {
-      name: game.i18n.localize(menu.name),
-      label: game.i18n.localize(menu.label),
-      hint: game.i18n.localize(menu.hint),
-      icon: menu.icon,
+    const sync = MENU_CONFIG.SYNC_OPTIONS;
+    game.settings.registerMenu(this.moduleId, sync.key, {
+      name: game.i18n.localize(sync.name),
+      label: game.i18n.localize(sync.label),
+      hint: game.i18n.localize(sync.hint),
+      icon: sync.icon,
       type: SyncOptionsDialog,
-      restricted: menu.restricted
+      restricted: sync.restricted
+    });
+
+    // Register Ask chat menu (UI class is registered at runtime)
+    const chat = MENU_CONFIG.ASK_CHAT;
+    game.settings.registerMenu(this.moduleId, chat.key, {
+      name: game.i18n.localize(chat.name),
+      label: game.i18n.localize(chat.label),
+      hint: game.i18n.localize(chat.hint),
+      icon: chat.icon,
+      type: null,
+      restricted: chat.restricted,
+      onClick: () => {
+        // Defer require to avoid circular imports
+        const w = window.ARCHIVIST_SYNC?.AskChatWindow;
+        if (w) new w().render(true);
+        else ui.notifications?.warn('Chat window not available yet.');
+      }
     });
   }
 
@@ -116,6 +178,22 @@ export class SettingsManager {
    */
   getApiKey() {
     return this.getSetting(SETTINGS.API_KEY.key);
+  }
+
+  /**
+   * AI settings getters
+   */
+  getSemanticMappingEnabled() {
+    return !!this.getSetting(SETTINGS.SEMANTIC_MAPPING_ENABLED.key);
+  }
+  // AI provider getters and MCP scopes getter removed
+
+  getMappingOverride() {
+    return game.settings.get(this.moduleId, 'mappingOverride');
+  }
+
+  async setMappingOverride(json) {
+    return await game.settings.set(this.moduleId, 'mappingOverride', json);
   }
 
   /**
@@ -170,6 +248,18 @@ export class SettingsManager {
     if (ui.settings && ui.settings.rendered) {
       ui.settings.render();
     }
+  }
+
+  _registerChatHistory() {
+    const setting = SETTINGS.CHAT_HISTORY;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default
+    });
   }
 }
 

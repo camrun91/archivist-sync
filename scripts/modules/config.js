@@ -20,7 +20,27 @@ export const SETTINGS = {
     type: String,
     default: ''
   },
-  
+
+  CHAT_HISTORY: {
+    key: 'chatHistory',
+    name: 'ARCHIVIST_SYNC.Settings.ChatHistory.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ChatHistory.Hint',
+    scope: 'client',
+    config: false,
+    type: String,
+    default: '{}'
+  },
+
+  SEMANTIC_MAPPING_ENABLED: {
+    key: 'semanticMappingEnabled',
+    name: 'ARCHIVIST_SYNC.Settings.SemanticMappingEnabled.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.SemanticMappingEnabled.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: false
+  },
+
   SELECTED_WORLD_ID: {
     key: 'selectedWorldId',
     name: 'ARCHIVIST_SYNC.Settings.SelectedWorld.Name',
@@ -30,7 +50,7 @@ export const SETTINGS = {
     type: String,
     default: ''
   },
-  
+
   SELECTED_WORLD_NAME: {
     key: 'selectedWorldName',
     name: 'ARCHIVIST_SYNC.Settings.SelectedWorldName.Name',
@@ -53,6 +73,14 @@ export const MENU_CONFIG = {
     hint: 'ARCHIVIST_SYNC.Menu.SyncOptions.Hint',
     icon: 'fas fa-sync-alt',
     restricted: true
+  },
+  ASK_CHAT: {
+    key: 'askChatMenu',
+    name: 'ARCHIVIST_SYNC.Menu.AskChat.Name',
+    label: 'ARCHIVIST_SYNC.Menu.AskChat.Label',
+    hint: 'ARCHIVIST_SYNC.Menu.AskChat.Hint',
+    icon: 'fas fa-robot',
+    restricted: false
   }
 };
 
@@ -67,7 +95,7 @@ export const DIALOG_CONFIG = {
     height: 600,
     resizable: true,
     classes: ['archivist-sync-dialog'],
-    tabs: [{navSelector: ".tabs", contentSelector: ".content", initial: "world"}]
+    tabs: [{ navSelector: ".tabs", contentSelector: ".content", initial: "world" }]
   }
 };
 

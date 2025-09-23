@@ -152,9 +152,10 @@
 
     .world-field {
       display: grid;
-      grid-template-columns: 120px 1fr;
+      grid-template-columns: 180px 1fr;
       gap: 8px;
-      align-items: baseline;
+      align-items: center;
+      min-height: 32px;
     }
 
     .world-field label {
@@ -168,11 +169,12 @@
     }
 
     .world-field .description-field {
-      max-height: 120px;
+      max-height: 200px;
       overflow: auto;
       padding: 8px;
       border: 1px dashed var(--arch-border);
       border-radius: 6px;
+      background: rgba(0, 0, 0, 0.04);
     }
 
     .sync-controls {
@@ -263,6 +265,27 @@
       padding: 8px 12px;
       border-bottom: 1px solid var(--arch-border-soft);
       color: var(--arch-text);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .entity-actions {
+      margin-left: auto;
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    .entity-actions .btn {
+      padding: 4px 8px;
+    }
+
+    .entity-thumb {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      object-fit: cover;
+      flex: 0 0 28px;
     }
 
     .entity-list li:last-child {
@@ -303,6 +326,20 @@
     .form-group {
       display: grid;
       gap: 6px;
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: 180px 1fr;
+      gap: 8px;
+      align-items: center;
+      min-height: 32px;
+    }
+
+    .ai-instruction {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
     }
 
     select,
@@ -401,9 +438,9 @@
       <i class="fas fa-globe"></i>
       {{localize "ARCHIVIST_SYNC.tabs.world"}}
     </a>
-    <a class="item" data-tab="title">
-      <i class="fas fa-edit"></i>
-      {{localize "ARCHIVIST_SYNC.tabs.title"}}
+    <a class="item" data-tab="importer">
+      <i class="fas fa-file-import"></i>
+      {{localize "ARCHIVIST_SYNC.tabs.importer"}}
     </a>
     <a class="item" data-tab="characters">
       <i class="fas fa-users"></i>
@@ -417,6 +454,14 @@
       <i class="fas fa-map-marker-alt"></i>
       {{localize "ARCHIVIST_SYNC.tabs.locations"}}
     </a>
+
+    <!-- Optional: quick access button to open Ask Chat window -->
+    <a class="item"
+      onclick="(function(){ const W=window.ARCHIVIST_SYNC?.AskChatWindow; if(W) new W().render(true); else ui.notifications?.warn('Chat unavailable'); })()">
+      <i class="fas fa-robot"></i>
+      {{localize "ARCHIVIST_SYNC.Menu.AskChat.Label"}}
+    </a>
+
   </nav>
 
   <!-- Tab Content -->
@@ -462,7 +507,7 @@
           <option value="">{{localize "ARCHIVIST_SYNC.options.selectWorld"}}</option>
           {{#each worlds}}
           <option value="{{this.id}}" {{#if (eq this.id ../selectedWorldId)}}selected{{/if}}>
-            {{this.name}}
+            {{#if this.name}}{{this.name}}{{else}}{{this.title}}{{/if}}
           </option>
           {{/each}}
         </select>
@@ -485,102 +530,64 @@
       {{/if}}
     </div>
 
-    <!-- World Details Tab -->
-    <div class="tab" data-tab="title">
+    <!-- Importer Wizard Tab -->
+    <div class="tab" data-tab="importer">
       {{#if isWorldSelected}}
-      <div class="world-details-container">
-        <!-- Foundry World Section -->
-        <div class="world-section foundry-section">
-          <div class="section-header">
-            <h4><i class="fas fa-desktop"></i> {{localize "ARCHIVIST_SYNC.labels.foundryWorld"}}</h4>
-          </div>
-          <div class="world-data-box">
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.title"}}:</label>
-              <div class="field-value">{{foundryWorldTitle}}</div>
-            </div>
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.description"}}:</label>
-              <div class="field-value description-field">{{foundryWorldDescription}}</div>
-            </div>
-          </div>
-          <div class="sync-controls">
-            <button type="button" class="sync-to-archivist-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
-              {{#if syncInProgress}}
-              <i class="fas fa-spinner fa-spin"></i>
-              {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
-              {{else}}
-              <i class="fas fa-arrow-right"></i>
-              {{localize "ARCHIVIST_SYNC.buttons.syncFromFoundry"}}
-              {{/if}}
+      <div class="entities-section">
+        <div class="section-header">
+          <h4><i class="fas fa-file-import"></i> {{localize "ARCHIVIST_SYNC.labels.importer"}}</h4>
+          <div class="actions">
+            <button type="button" class="importer-create-world-btn btn" {{#if syncInProgress}}disabled{{/if}}>
+              <i class="fas fa-plus"></i>
+              {{localize "ARCHIVIST_SYNC.buttons.createWorld"}}
+            </button>
+            <button type="button" class="importer-sample-btn btn" {{#if syncInProgress}}disabled{{/if}}>
+              <i class="fas fa-eye"></i>
+              {{localize "ARCHIVIST_SYNC.buttons.sample"}}
+            </button>
+            <button type="button" class="importer-run-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-play"></i>{{/if}}
+              {{localize "ARCHIVIST_SYNC.buttons.runImport"}}
             </button>
           </div>
         </div>
 
-        <!-- Sync Arrow -->
-        <div class="sync-divider">
-          <div class="sync-arrows">
-            <i class="fas fa-exchange-alt"></i>
-          </div>
-        </div>
-
-        <!-- Archivist World Section -->
-        <div class="world-section archivist-section">
-          <div class="section-header">
-            <h4><i class="fas fa-cloud"></i> {{localize "ARCHIVIST_SYNC.labels.archivistWorld"}}</h4>
-          </div>
+        <div class="world-section">
           <div class="world-data-box">
-            {{#if selectedWorldData}}
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.title"}}:</label>
-              <div class="field-value">{{selectedWorldData.title}}</div>
+            <div class="input-row">
+              <label>{{localize "ARCHIVIST_SYNC.labels.thresholdA"}}</label>
+              <input type="number" class="import-threshold-a" step="0.05" min="0" max="1" value="{{thresholdA}}" />
+            </div>
+            <div class="input-row">
+              <label>{{localize "ARCHIVIST_SYNC.labels.thresholdB"}}</label>
+              <input type="number" class="import-threshold-b" step="0.05" min="0" max="1" value="{{thresholdB}}" />
             </div>
             <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.description"}}:</label>
-              <div class="field-value description-field">{{selectedWorldData.description}}</div>
+              <label>{{localize "ARCHIVIST_SYNC.labels.mappingOverride"}}</label>
+              <div>
+                <textarea class="mapping-override-json" style="width:100%;min-height:140px" placeholder="{\n  \"
+                  rules\": []\n}">{{mappingOverrideJson}}</textarea>
+                <div style="margin-top:6px;display:flex;gap:6px">
+                  <button type="button" class="mapping-load-btn btn" {{#if syncInProgress}}disabled{{/if}}><i
+                      class="fas fa-upload"></i> {{localize "ARCHIVIST_SYNC.buttons.loadMapping"}}</button>
+                  <button type="button" class="mapping-save-btn btn" {{#if syncInProgress}}disabled{{/if}}><i
+                      class="fas fa-save"></i> {{localize "ARCHIVIST_SYNC.buttons.saveMapping"}}</button>
+                </div>
+              </div>
             </div>
-            {{#if selectedWorldData.lastUpdated}}
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.lastUpdated"}}:</label>
-              <div class="field-value">{{selectedWorldData.lastUpdated}}</div>
-            </div>
-            {{/if}}
-            {{#if selectedWorldData.createdAt}}
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.createdAt"}}:</label>
-              <div class="field-value">{{selectedWorldData.createdAt}}</div>
-            </div>
-            {{/if}}
-            {{#if selectedWorldData.characterCount}}
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.characterCount"}}:</label>
-              <div class="field-value">{{selectedWorldData.characterCount}}</div>
-            </div>
-            {{/if}}
-            {{else}}
-            <div class="info">
-              <p>{{localize "ARCHIVIST_SYNC.messages.loadingWorldData"}}</p>
-            </div>
-            {{/if}}
-          </div>
-          <div class="sync-controls">
-            <button type="button" class="sync-from-archivist-btn btn pull" {{#if syncInProgress}}disabled{{/if}}>
-              {{#if syncInProgress}}
-              <i class="fas fa-spinner fa-spin"></i>
-              {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
-              {{else}}
-              <i class="fas fa-arrow-left"></i>
-              {{localize "ARCHIVIST_SYNC.buttons.syncFromArchivist"}}
-              {{/if}}
-            </button>
           </div>
         </div>
-      </div>
 
-      <div class="sync-info">
-        <div class="current-target">
-          <h4>{{localize "ARCHIVIST_SYNC.labels.syncTarget"}}</h4>
-          <p><strong>{{selectedWorldName}}</strong> ({{selectedWorldId}})</p>
+        <div class="world-section">
+          <div class="world-data-box">
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.samplePreview"}}</label>
+              <div class="description-field">
+                <pre class="importer-sample-output"
+                  style="white-space: pre-wrap; word-break: break-word; margin: 0;">{{importerSampleJson}}</pre>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       {{else}}
@@ -591,18 +598,18 @@
       {{/if}}
     </div>
 
-    <!-- Character Mapping Tab -->
+    <!-- Characters Tab -->
     <div class="tab" data-tab="characters">
       {{#if isWorldSelected}}
       <div class="characters-section">
         <div class="section-header">
-          <h4><i class="fas fa-users"></i> {{localize "ARCHIVIST_SYNC.labels.characters"}}</h4>
+          <h4><i class="fas fa-users"></i> {{localize "ARCHIVIST_SYNC.labels.charactersAndNpcs"}}</h4>
           <div class="actions">
             <button type="button" class="pull-characters-btn btn pull" {{#if syncInProgress}}disabled{{/if}}>
               {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
               {{localize "ARCHIVIST_SYNC.buttons.pullFromArchivist"}}
             </button>
-            <button type="button" class="sync-characters-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
+            <button type="button" class="push-characters-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
               {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-upload"></i>{{/if}}
               {{localize "ARCHIVIST_SYNC.buttons.pushToArchivist"}}
             </button>
@@ -612,25 +619,22 @@
         <div class="character-type-section">
           <h4><i class="fas fa-user"></i> {{localize "ARCHIVIST_SYNC.labels.playerCharacters"}}</h4>
           {{#if playerCharacters.length}}
-          <div class="actors-list player-characters">
+          <ul class="entity-list player-characters">
             {{#each playerCharacters}}
-            <div class="actor-item">
-              <div class="actor-info">
-                <img src="{{this.img}}" alt="{{this.name}}" class="actor-avatar">
-                <div class="actor-details">
-                  <h5>{{this.name}}</h5>
-                  <p class="actor-type">{{this.type}}</p>
-                </div>
-              </div>
-              <div class="actor-actions">
-                <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-link"></i>
-                  {{localize "ARCHIVIST_SYNC.buttons.map"}}
+            <li>
+              <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+              <span>{{this.name}}</span>
+              <div class="entity-actions">
+                <button type="button" class="btn pull actor-pull-btn" data-actor-id="{{this.id}}">
+                  <i class="fas fa-download"></i>
+                </button>
+                <button type="button" class="btn push actor-push-btn" data-actor-id="{{this.id}}">
+                  <i class="fas fa-upload"></i>
                 </button>
               </div>
-            </div>
+            </li>
             {{/each}}
-          </div>
+          </ul>
           {{else}}
           <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noPlayerCharacters"}}</p>
           {{/if}}
@@ -640,25 +644,22 @@
         <div class="character-type-section">
           <h4><i class="fas fa-users"></i> {{localize "ARCHIVIST_SYNC.labels.npcs"}}</h4>
           {{#if npcs.length}}
-          <div class="actors-list npcs">
+          <ul class="entity-list npcs">
             {{#each npcs}}
-            <div class="actor-item">
-              <div class="actor-info">
-                <img src="{{this.img}}" alt="{{this.name}}" class="actor-avatar">
-                <div class="actor-details">
-                  <h5>{{this.name}}</h5>
-                  <p class="actor-type">{{this.type}}</p>
-                </div>
-              </div>
-              <div class="actor-actions">
-                <button type="button" class="map-character-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-link"></i>
-                  {{localize "ARCHIVIST_SYNC.buttons.map"}}
+            <li>
+              <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+              <span>{{this.name}}</span>
+              <div class="entity-actions">
+                <button type="button" class="btn pull actor-pull-btn" data-actor-id="{{this.id}}">
+                  <i class="fas fa-download"></i>
+                </button>
+                <button type="button" class="btn push actor-push-btn" data-actor-id="{{this.id}}">
+                  <i class="fas fa-upload"></i>
                 </button>
               </div>
-            </div>
+            </li>
             {{/each}}
-          </div>
+          </ul>
           {{else}}
           <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noNpcs"}}</p>
           {{/if}}
@@ -697,7 +698,20 @@
         {{#if factionJournals.length}}
         <ul class="entity-list">
           {{#each factionJournals}}
-          <li>{{this.name}}</li>
+          <li>
+            <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+            <span>{{this.name}}</span>
+            <div class="entity-actions">
+              <button type="button" class="btn pull faction-pull-btn" data-journal-id="{{this.id}}"
+                data-archivist-id="{{this.archivistId}}">
+                <i class="fas fa-download"></i>
+              </button>
+              <button type="button" class="btn push faction-push-btn" data-journal-id="{{this.id}}"
+                data-archivist-id="{{this.archivistId}}">
+                <i class="fas fa-upload"></i>
+              </button>
+            </div>
+          </li>
           {{/each}}
         </ul>
         {{else}}
@@ -732,7 +746,20 @@
         {{#if locationJournals.length}}
         <ul class="entity-list">
           {{#each locationJournals}}
-          <li>{{this.name}}</li>
+          <li>
+            <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+            <span>{{this.name}}</span>
+            <div class="entity-actions">
+              <button type="button" class="btn pull location-pull-btn" data-journal-id="{{this.id}}"
+                data-archivist-id="{{this.archivistId}}">
+                <i class="fas fa-download"></i>
+              </button>
+              <button type="button" class="btn push location-push-btn" data-journal-id="{{this.id}}"
+                data-archivist-id="{{this.archivistId}}">
+                <i class="fas fa-upload"></i>
+              </button>
+            </div>
+          </li>
           {{/each}}
         </ul>
         {{else}}
@@ -746,5 +773,7 @@
       </div>
       {{/if}}
     </div>
+
+
   </div>
 </div>
