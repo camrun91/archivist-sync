@@ -45,13 +45,15 @@ export class ImporterService {
     /**
      * Run an import pass across all entities with thresholds
      */
-    async runImport({ thresholdA = 0.75, thresholdB = 0.4 } = {}) {
+    async runImport({ thresholdA = 0.75, thresholdB = 0.4, onProgress } = {}) {
         const apiKey = settingsManager.getApiKey();
         const worldId = settingsManager.getSelectedWorldId();
         if (!apiKey || !worldId) throw new Error('API key or world selection missing');
         const corrections = this.getCorrections();
         const entities = extractGenericEntities();
         const summary = { total: entities.length, autoImported: 0, queued: 0, dropped: 0, errors: 0 };
+        onProgress?.({ ...summary, completed: 0 });
+        let completed = 0;
         for (const e of entities) {
             try {
                 const proposed = mapEntityToArchivist(e);
@@ -59,10 +61,17 @@ export class ImporterService {
                 const score = Number(corrected.score || 0);
                 if (score >= thresholdA) {
                     const srcDoc = await fromUuid(e.sourcePath);
-                    await upsertMappedEntity(apiKey, worldId, srcDoc, corrected);
-                    const fp = await computeEntityFingerprint(e);
-                    try { await srcDoc?.setFlag?.(settingsManager.moduleId, 'archivistFingerprint', fp); } catch (_) { }
-                    summary.autoImported += 1;
+                    // Force-create: ignore any existing Archivist IDs/flags during import
+                    srcDoc?.unsetFlag?.(settingsManager.moduleId, 'archivistId');
+                    srcDoc?.unsetFlag?.(settingsManager.moduleId, 'archivistWorldId');
+                    const res = await upsertMappedEntity(apiKey, worldId, srcDoc, { ...corrected, forceCreate: true });
+                    if (res && res.success) {
+                        const fp = await computeEntityFingerprint(e);
+                        try { await srcDoc?.setFlag?.(settingsManager.moduleId, 'archivistFingerprint', fp); } catch (_) { }
+                        summary.autoImported += 1;
+                    } else {
+                        summary.errors += 1;
+                    }
                 } else if (score >= thresholdB) {
                     summary.queued += 1;
                 } else {
@@ -71,6 +80,8 @@ export class ImporterService {
             } catch (_) {
                 summary.errors += 1;
             }
+            completed += 1;
+            onProgress?.({ ...summary, completed });
         }
         return summary;
     }
@@ -93,8 +104,12 @@ export class ImporterService {
             if (filter?.targetType && corrected.targetType !== filter.targetType) continue;
             if (filter?.folderMatch && e.folderName && !new RegExp(filter.folderMatch, 'i').test(e.folderName)) continue;
             const srcDoc = await fromUuid(e.sourcePath);
-            await upsertMappedEntity(apiKey, worldId, srcDoc, corrected);
-            createdOrUpdated += 1;
+            try {
+                const res = await upsertMappedEntity(apiKey, worldId, srcDoc, corrected);
+                if (res && res.success) createdOrUpdated += 1;
+            } catch (_) {
+                // ignore failures here; count only successes
+            }
         }
         return { success: true, count: createdOrUpdated };
     }

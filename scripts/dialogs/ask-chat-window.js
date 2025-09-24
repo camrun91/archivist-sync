@@ -51,9 +51,19 @@ export class AskChatWindow extends Application {
         return `${uid}:${wid}`;
     }
 
-    getData() {
+    async getData() {
+        // Pre-enrich assistant messages to support markdown/basic HTML
+        const enriched = [];
+        for (const m of this._messages) {
+            if (m.role === 'assistant') {
+                const html = await TextEditor.enrichHTML(String(m.content ?? ''), { async: true });
+                enriched.push({ ...m, html });
+            } else {
+                enriched.push(m);
+            }
+        }
         return {
-            messages: this._messages,
+            messages: enriched,
             isStreaming: this._isStreaming,
             placeholder: game.i18n.localize('ARCHIVIST_SYNC.chat.placeholder')
         };
@@ -61,11 +71,29 @@ export class AskChatWindow extends Application {
 
     activateListeners(html) {
         super.activateListeners(html);
-        const form = html.querySelector('.ask-form');
-        const input = html.querySelector('.ask-input');
-        const stopBtn = html.querySelector('.ask-stop');
-        form?.addEventListener('submit', (e) => { e.preventDefault(); const text = input?.value?.trim(); if (text) this._onSend(text); });
-        stopBtn?.addEventListener('click', () => this._stopStream());
+        const root = html?.[0] ?? html; // support jQuery or HTMLElement
+        const form = root?.querySelector?.('.ask-form');
+        const input = root?.querySelector?.('.ask-input');
+        const clearBtn = root?.querySelector?.('.chat-clear-btn');
+        form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = input?.value?.trim();
+            if (text) {
+                this._onSend(text);
+                if (input) input.value = '';
+            }
+        });
+
+        clearBtn?.addEventListener('click', async () => {
+            const ok = await Dialog.confirm({
+                title: game.i18n.localize('ARCHIVIST_SYNC.chat.clear'),
+                content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.chat.clearConfirm')}</p>`
+            });
+            if (!ok) return;
+            this._messages = [];
+            this._saveHistory();
+            this.render(false);
+        });
     }
 
     async _onSend(text) {
@@ -78,8 +106,8 @@ export class AskChatWindow extends Application {
 
         const userMsg = { role: 'user', content: text, from: 'me', at: Date.now() };
         this._messages.push(userMsg);
-        // Append a placeholder assistant message for streaming
-        const assistantMsg = { role: 'assistant', content: '', from: 'assistant', at: Date.now() };
+        // Append a placeholder assistant message for streaming; typing indicator inline
+        const assistantMsg = { role: 'assistant', content: '', from: 'assistant', at: Date.now(), typing: true };
         this._messages.push(assistantMsg);
         this.render(false);
         this._saveHistory();
@@ -101,14 +129,30 @@ export class AskChatWindow extends Application {
                 worldId,
                 recent,
                 (chunk) => {
+                    if (assistantMsg.typing) assistantMsg.typing = false;
                     assistantMsg.content += chunk;
-                    this.render(false);
+                    // Try incremental DOM update to avoid full re-render jank
+                    let updated = false;
+                    try {
+                        const container = this.element?.querySelector?.('.messages') || this.element?.[0]?.querySelector?.('.messages');
+                        const rows = container?.querySelectorAll?.('.msg');
+                        const lastRow = rows?.[rows.length - 1];
+                        const bubble = lastRow?.querySelector?.('.bubble');
+                        if (bubble) {
+                            bubble.textContent = String(assistantMsg.content);
+                            container.scrollTop = container.scrollHeight;
+                            updated = true;
+                        }
+                    } catch (_) { }
+                    if (!updated) {
+                        this.render(false);
+                    }
                 },
                 () => {
                     this._isStreaming = false;
                     this._streamAbort = null;
                     this._saveHistory();
-                    this.render(false);
+                    this.render(false); // final render to enrich markdown
                 },
                 controller.signal
             );

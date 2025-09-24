@@ -6,6 +6,8 @@ import { CONFIG } from '../modules/config.js';
 export class ArchivistApiService {
   constructor() {
     this.baseUrl = CONFIG.API_BASE_URL;
+    /** @type {number} */
+    this._lastWriteAtMs = 0;
   }
 
   /**
@@ -19,13 +21,32 @@ export class ArchivistApiService {
     const headers = this._createHeaders(apiKey);
     const url = `${this.baseUrl}${path}`;
     let attempt = 0;
+    // Simple client-side throttle for write-heavy operations
+    const method = String(options?.method || 'GET').toUpperCase();
+    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    if (isWrite) {
+      const now = Date.now();
+      const minSpacingMs = 900; // ~1 write/sec to further reduce 429s
+      const waitMs = Math.max(0, (this._lastWriteAtMs + minSpacingMs) - now);
+      if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+    }
     while (true) {
       const response = await fetch(url, { ...options, headers });
       if (response.status !== 429) return this._handleResponse(response);
+      // 429 handling with exponential backoff and jitter; respect Retry-After
       attempt += 1;
-      const retryAfter = Number(response.headers.get('Retry-After')) || (attempt * 500);
-      if (attempt > 3) throw new Error(`API request failed: 429 rate limited`);
-      await new Promise(r => setTimeout(r, retryAfter));
+      if (attempt > 8) throw new Error(`API request failed: 429 rate limited`);
+      const ra = response.headers.get('Retry-After');
+      let retryMs = 0;
+      if (ra) {
+        const n = Number(ra);
+        // If small value, assume seconds; if large, assume milliseconds
+        if (isFinite(n)) retryMs = n < 100 ? Math.max(1000, n * 1000) : n;
+      }
+      const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
+      const jitter = Math.floor(Math.random() * 250);
+      const delay = Math.max(retryMs || 0, base + jitter);
+      await new Promise(r => setTimeout(r, delay));
     }
   }
 
@@ -50,7 +71,15 @@ export class ArchivistApiService {
    */
   async _handleResponse(response) {
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      let detail = '';
+      try {
+        const data = await response.clone().json();
+        detail = data?.detail || data?.message || '';
+      } catch (_) {
+        try { detail = await response.clone().text(); } catch (_) { /* ignore */ }
+      }
+      const suffix = detail ? ` — ${String(detail).slice(0, 300)}` : '';
+      throw new Error(`API request failed: ${response.status} ${response.statusText}${suffix}`);
     }
     return await response.json();
   }
@@ -71,14 +100,7 @@ export class ArchivistApiService {
    */
   async fetchWorldsList(apiKey) {
     try {
-      const headers = this._createHeaders(apiKey);
-
-      const response = await fetch(`${this.baseUrl}/worlds`, {
-        method: 'GET',
-        headers: headers
-      });
-
-      const data = await this._handleResponse(response);
+      const data = await this._request(apiKey, `/worlds`, { method: 'GET' });
 
       // Handle different possible response formats
       let worlds = [];
@@ -131,28 +153,9 @@ export class ArchivistApiService {
    */
   async fetchWorldDetails(apiKey, worldId) {
     console.log('fetchWorldDetails called with:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none', worldId });
-
     try {
-      const headers = this._createHeaders(apiKey);
-      const url = `${this.baseUrl}/worlds/${worldId}`;
-      console.log('Fetching world details from URL:', url);
-      console.log('Request headers:', headers);
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: headers
-      });
-
-      console.log('Fetch response status:', response.status, response.statusText);
-      console.log('Fetch response ok:', response.ok);
-
-      const data = await this._handleResponse(response);
-      console.log('Parsed response data:', data);
-
-      return {
-        success: true,
-        data: data
-      };
+      const data = await this._request(apiKey, `/worlds/${encodeURIComponent(worldId)}`, { method: 'GET' });
+      return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch world details:`, error);
       return {
@@ -171,25 +174,12 @@ export class ArchivistApiService {
    */
   async syncWorldTitle(apiKey, worldId, titleData) {
     try {
-      const headers = this._createHeaders(apiKey);
-
-      const requestData = {
-        title: titleData.title,
-        description: titleData.description || ''
-      };
-
-      const response = await fetch(`${this.baseUrl}/worlds/${worldId}`, {
-        method: 'PUT',
-        headers: headers,
+      const requestData = { title: titleData.title, description: titleData.description || '' };
+      const data = await this._request(apiKey, `/worlds/${encodeURIComponent(worldId)}`, {
+        method: 'PATCH',
         body: JSON.stringify(requestData)
       });
-
-      const data = await this._handleResponse(response);
-
-      return {
-        success: true,
-        data: data
-      };
+      return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to sync title:`, error);
       return {
@@ -252,7 +242,7 @@ export class ArchivistApiService {
   async updateCharacter(apiKey, characterId, payload) {
     try {
       const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
       return { success: true, data };
@@ -301,7 +291,7 @@ export class ArchivistApiService {
   async updateFaction(apiKey, factionId, payload) {
     try {
       const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
       return { success: true, data };
@@ -350,7 +340,7 @@ export class ArchivistApiService {
   async updateLocation(apiKey, locationId, payload) {
     try {
       const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
       return { success: true, data };

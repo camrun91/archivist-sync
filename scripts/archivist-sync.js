@@ -24,6 +24,20 @@ Hooks.once('ready', async function () {
 
   // Initialize debugging interface
   initializeDebugInterface();
+
+  // Add a Scene Controls button for quick access (visible to all users)
+  Hooks.on('getSceneControlButtons', (controls) => {
+    const tools = controls.find(c => c.name === 'token')?.tools;
+    if (!tools) return;
+    tools.push({
+      name: 'archivist-chat',
+      title: game.i18n.localize('ARCHIVIST_SYNC.Menu.AskChat.Label'),
+      icon: 'fas fa-robot',
+      visible: true,
+      onClick: () => new AskChatWindow().render(true),
+      button: true
+    });
+  });
 });
 
 /**

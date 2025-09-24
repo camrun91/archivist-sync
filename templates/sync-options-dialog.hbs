@@ -456,8 +456,7 @@
     </a>
 
     <!-- Optional: quick access button to open Ask Chat window -->
-    <a class="item"
-      onclick="(function(){ const W=window.ARCHIVIST_SYNC?.AskChatWindow; if(W) new W().render(true); else ui.notifications?.warn('Chat unavailable'); })()">
+    <a class="item ask-chat-btn">
       <i class="fas fa-robot"></i>
       {{localize "ARCHIVIST_SYNC.Menu.AskChat.Label"}}
     </a>
@@ -526,6 +525,16 @@
         <h4>{{localize "ARCHIVIST_SYNC.labels.currentSelection"}}</h4>
         <p><strong>{{selectedWorldName}}</strong> (ID: {{selectedWorldId}})</p>
       </div>
+      <div class="sync-controls">
+        <button type="button" class="btn pull sync-from-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+          {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
+          {{localize "ARCHIVIST_SYNC.buttons.syncFromArchivist"}}
+        </button>
+        <button type="button" class="btn push sync-to-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+          {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-upload"></i>{{/if}}
+          {{localize "ARCHIVIST_SYNC.buttons.syncFromFoundry"}}
+        </button>
+      </div>
       {{/if}}
       {{/if}}
     </div>
@@ -580,6 +589,13 @@
 
         <div class="world-section">
           <div class="world-data-box">
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.importProgress"}}</label>
+              <div style="display:grid;gap:6px">
+                <progress class="import-progress-bar" max="100" value="0" style="width:100%"></progress>
+                <small class="import-progress-text">0 / 0</small>
+              </div>
+            </div>
             <div class="world-field">
               <label>{{localize "ARCHIVIST_SYNC.labels.samplePreview"}}</label>
               <div class="description-field">

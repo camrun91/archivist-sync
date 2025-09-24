@@ -2,6 +2,7 @@ import { CONFIG } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
 import { Utils } from '../modules/utils.js';
+import { AskChatWindow } from './ask-chat-window.js';
 import { writeBestBiography, writeBestJournalDescription } from '../modules/field-mapper.js';
 import { importerService } from '../services/importer-service.js';
 
@@ -164,6 +165,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     // New sync buttons with debug logging
     const syncToBtn = html.querySelector('.sync-to-archivist-btn');
     const syncFromBtn = html.querySelector('.sync-from-archivist-btn');
+    const askChatBtn = html.querySelector('.ask-chat-btn');
 
     if (syncToBtn) {
       console.log('Found sync-to-archivist-btn, attaching listener');
@@ -177,6 +179,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       syncFromBtn.addEventListener('click', this._onSyncFromArchivist.bind(this));
     } else {
       console.log('sync-from-archivist-btn not found in DOM');
+    }
+
+    if (askChatBtn) {
+      console.log('Found ask-chat-btn, attaching listener');
+      askChatBtn.addEventListener('click', () => new AskChatWindow().render(true));
+    } else {
+      console.log('ask-chat-btn not found in DOM');
     }
 
     html.querySelector('.push-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
@@ -360,6 +369,14 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
         return;
       }
+      // Confirmation: importer will create new records and ignores existing IDs
+      const confirmed = await Dialog.confirm({
+        title: 'Create New Records in Archivist?',
+        content: '<p>This importer will CREATE NEW records in Archivist and ignores any Archivist IDs found on Actors/Journals/Scenes. This may create duplicates if your world has been synced before.</p><p>If you want to update existing records instead, cancel and use the Sync tabs (Characters/Factions/Locations).</p>',
+        yes: () => true,
+        no: () => false
+      });
+      if (!confirmed) return;
       const root = this.element;
       const aEl = root.querySelector('.import-threshold-a');
       const bEl = root.querySelector('.import-threshold-b');
@@ -368,7 +385,24 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       this.thresholdA = isFinite(a) ? a : this.thresholdA;
       this.thresholdB = isFinite(b) ? b : this.thresholdB;
       this.syncInProgress = true; this.render();
-      const result = await importerService.runImport({ thresholdA: this.thresholdA, thresholdB: this.thresholdB });
+      // Wire progress updates to UI
+      const el = this.element;
+      const bar = el.querySelector('.import-progress-bar');
+      const text = el.querySelector('.import-progress-text');
+      const updateUi = (p) => {
+        if (!bar || !text || !p) return;
+        const total = Math.max(1, Number(p.total || 0));
+        const completed = Number(p.completed || 0);
+        const percent = Math.round((completed / total) * 100);
+        bar.max = 100; bar.value = isFinite(percent) ? percent : 0;
+        text.textContent = `${completed} / ${total}  —  ${percent}%  (auto:${p.autoImported}|q:${p.queued}|drop:${p.dropped}|err:${p.errors})`;
+      };
+      const result = await importerService.runImport({
+        thresholdA: this.thresholdA,
+        thresholdB: this.thresholdB,
+        onProgress: updateUi
+      });
+      updateUi({ ...result, completed: result.total });
       ui.notifications.info(`Import complete: ${result.autoImported} auto, ${result.queued} queued, ${result.dropped} dropped, ${result.errors} errors.`);
     } catch (e) {
       console.error(e); ui.notifications.error(Utils.formatError(e));
@@ -421,13 +455,16 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       this.syncInProgress = true; this.render();
       const res = await archivistApi.createWorld(settingsManager.getApiKey(), { title, description });
       if (!res.success) throw new Error(res.message || 'Create failed');
-      // Refresh worlds list and pre-select
-      const worlds = await archivistApi.fetchWorldsList(settingsManager.getApiKey());
-      if (worlds.success) {
-        this.worlds = worlds.data || [];
-        const created = (Array.isArray(this.worlds) ? this.worlds : []).find(w => (w.title || w.name) === title);
-        if (created) await settingsManager.setSelectedWorld(created.id, created.name || created.title || 'World');
+      // Prefer selecting using returned id immediately
+      const createdId = res?.data?.id;
+      const createdName = res?.data?.name || res?.data?.title || title || 'World';
+      if (createdId) {
+        await settingsManager.setSelectedWorld(createdId, createdName);
+        await this._loadSelectedWorldData(createdId);
       }
+      // Refresh worlds list for UI dropdown
+      const worlds = await archivistApi.fetchWorldsList(settingsManager.getApiKey());
+      if (worlds.success) this.worlds = worlds.data || [];
       ui.notifications.info('Archivist world created');
       this.render();
     } catch (e) {
@@ -459,6 +496,12 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       if (response.success) {
         this.worlds = response.data || [];
         console.log('Worlds loaded:', this.worlds);
+        // Validate currently selected world still exists
+        const selectedId = settingsManager.getSelectedWorldId();
+        if (selectedId && !this.worlds.find(w => w.id === selectedId)) {
+          await settingsManager.setSelectedWorld('', '');
+          this.selectedWorldData = null;
+        }
         if ((this.worlds?.length || 0) === 0) {
           await settingsManager.setSelectedWorld('', '');
           this.selectedWorldData = null;

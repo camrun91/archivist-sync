@@ -34,7 +34,8 @@
     "scripts/services/importer-service.js",
     "scripts/services/archivist-api.js",
     "scripts/dialogs/sync-options-dialog.js",
-    "scripts/dialogs/ask-chat-window.js"
+    "scripts/dialogs/ask-chat-window.js",
+    "scripts/dialogs/ask-chat-launcher.js"
   ],
   "styles": [
     "styles/archivist-sync.css"
