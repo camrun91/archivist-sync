@@ -79,7 +79,7 @@ export const MENU_CONFIG = {
     name: 'ARCHIVIST_SYNC.Menu.AskChat.Name',
     label: 'ARCHIVIST_SYNC.Menu.AskChat.Label',
     hint: 'ARCHIVIST_SYNC.Menu.AskChat.Hint',
-    icon: 'fas fa-robot',
+    icon: 'archivist-icon',
     restricted: false
   }
 };

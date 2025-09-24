@@ -119,11 +119,11 @@ export class Utils {
   static toApiCharacterPayload(actor, worldId) {
     const isPC = actor.type === 'character';
     return {
-      characterName: actor.name,
-      playerName: actor?.system?.details?.player || '',
+      character_name: actor.name,
+      player_name: actor?.system?.details?.player || '',
       description: readBestBiography(actor) || '',
       type: isPC ? 'PC' : 'NPC',
-      worldId
+      campaign_id: worldId
     };
   }
 
@@ -137,7 +137,7 @@ export class Utils {
       name: journal.name,
       description: this._extractJournalText(journal),
       image: journal.img || undefined,
-      worldId
+      campaign_id: worldId
     };
   }
 
@@ -151,7 +151,7 @@ export class Utils {
       name: journal.name,
       description: this._extractJournalText(journal),
       image: journal.img || undefined,
-      worldId
+      campaign_id: worldId
     };
   }
 

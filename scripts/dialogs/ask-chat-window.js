@@ -6,24 +6,12 @@ import { archivistApi } from '../services/archivist-api.js';
  * Standalone Archivist Chat window (per-user)
  * Maintains local chat history (client-scoped setting), trims to last 10 turns when sending.
  */
-export class AskChatWindow extends Application {
-    static get defaultOptions() {
-        return foundry.utils.mergeObject(super.defaultOptions, {
-            id: 'archivist-ask-chat',
-            title: game.i18n.localize('ARCHIVIST_SYNC.chat.title'),
-            template: 'modules/archivist-sync/templates/ask-chat-window.hbs',
-            classes: ['archivist-sync-chat'],
-            width: 520,
-            height: 620,
-            resizable: true
-        });
-    }
-
+export class AskChatWindow {
     constructor(options = {}) {
-        super(options);
         this._messages = this._loadHistory();
         this._streamAbort = null;
         this._isStreaming = false;
+        this._mountEl = null; // optional host element when embedding in sidebar
     }
 
     _loadHistory() {
@@ -56,7 +44,8 @@ export class AskChatWindow extends Application {
         const enriched = [];
         for (const m of this._messages) {
             if (m.role === 'assistant') {
-                const html = await TextEditor.enrichHTML(String(m.content ?? ''), { async: true });
+                const TextEditorImpl = (foundry?.applications?.ux?.TextEditor?.implementation) || globalThis.TextEditor;
+                const html = await TextEditorImpl.enrichHTML(String(m.content ?? ''), { async: true });
                 enriched.push({ ...m, html });
             } else {
                 enriched.push(m);
@@ -70,8 +59,7 @@ export class AskChatWindow extends Application {
     }
 
     activateListeners(html) {
-        super.activateListeners(html);
-        const root = html?.[0] ?? html; // support jQuery or HTMLElement
+        const root = html?.[0] ?? html ?? this._mountEl; // support jQuery or HTMLElement or mounted host
         const form = root?.querySelector?.('.ask-form');
         const input = root?.querySelector?.('.ask-input');
         const clearBtn = root?.querySelector?.('.chat-clear-btn');
@@ -94,6 +82,18 @@ export class AskChatWindow extends Application {
             this._saveHistory();
             this.render(false);
         });
+    }
+
+    async render(_force) {
+        if (!this._mountEl) return;
+        const data = await this.getData();
+        const html = await foundry.applications.handlebars.renderTemplate('modules/archivist-sync/templates/ask-chat-window.hbs', data);
+        this._mountEl.innerHTML = html;
+        this.activateListeners(this._mountEl);
+        try {
+            const msgList = this._mountEl.querySelector?.('.messages');
+            if (msgList) msgList.scrollTop = msgList.scrollHeight;
+        } catch (_) { }
     }
 
     async _onSend(text) {
@@ -134,7 +134,8 @@ export class AskChatWindow extends Application {
                     // Try incremental DOM update to avoid full re-render jank
                     let updated = false;
                     try {
-                        const container = this.element?.querySelector?.('.messages') || this.element?.[0]?.querySelector?.('.messages');
+                        const host = this._mountEl || this.element || this.element?.[0];
+                        const container = host?.querySelector?.('.messages');
                         const rows = container?.querySelectorAll?.('.msg');
                         const lastRow = rows?.[rows.length - 1];
                         const bubble = lastRow?.querySelector?.('.bubble');

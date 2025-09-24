@@ -35,7 +35,7 @@
       "streaming": "Streaming...",
       "stop": "Stop",
       "me": "Me",
-      "assistant": "Archivist",
+      "assistant": "",
       "noWorld": "Please select an Archivist world first.",
       "noApi": "Please configure your API key in module settings.",
       "error": "Chat error"
@@ -107,7 +107,7 @@
       "map": "Map",
       "pushToArchivist": "Push to Archivist",
       "pullFromArchivist": "Pull from Archivist",
-      "sample": "Sample",
+      "loadData": "Load Data",
       "runImport": "Run Import",
       "createWorld": "Create World",
       "loadMapping": "Load",

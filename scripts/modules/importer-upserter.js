@@ -31,32 +31,32 @@ function normalizeText(value) {
 function buildApiPayload(worldId, srcDoc, mapped) {
     const p = mapped?.payload || {};
     if (mapped?.targetType === 'Character') {
-        const characterName = coalesce(p.title, p.name, srcDoc?.name, 'Character');
+        const characterName = coalesce(p.character_name, p.title, p.name, srcDoc?.name, 'Character');
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.portraitUrl, p.imageUrl, p.image);
         const type = resolveCharacterType(srcDoc, mapped?.labels);
-        const payload = { characterName, description, type, worldId };
+        const payload = { character_name: characterName, description, type, campaign_id: worldId };
         if (image) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Faction') {
-        const name = coalesce(p.title, p.name, srcDoc?.name, 'Faction');
+        const name = coalesce(p.name, p.title, srcDoc?.name, 'Faction');
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
-        const payload = { name, description, worldId };
+        const payload = { name, description, campaign_id: worldId };
         if (image) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Location') {
-        const name = coalesce(p.title, p.name, srcDoc?.name, 'Location');
+        const name = coalesce(p.name, p.title, srcDoc?.name, 'Location');
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
-        const payload = { name, description, worldId };
+        const payload = { name, description, campaign_id: worldId };
         if (image) payload.image = image;
         return payload;
     }
     // Default passthrough for unsupported types
-    return { ...p, worldId };
+    return { ...p, campaign_id: worldId };
 }
 
 function setFlagForSource(doc, id, type, fingerprint, worldId) {

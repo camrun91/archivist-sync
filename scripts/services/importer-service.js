@@ -5,12 +5,43 @@ import { computeEntityFingerprint } from '../modules/importer-fingerprint.js';
 import { upsertMappedEntity } from '../modules/importer-upserter.js';
 import { getPresetForSystemId } from '../modules/mapping-presets.js';
 
+function safeGet(obj, path) {
+    try {
+        const p = String(path || '').replace(/^\$\./, '').split('.');
+        return p.reduce((o, k) => (o == null ? undefined : o[k]), obj);
+    } catch (_) { return undefined; }
+}
+
+function buildCorrectionKey(entity) {
+    return `${entity.kind}|${entity.subtype || ''}|${(entity.folderName || '').toLowerCase()}`;
+}
+
 function applyCorrections(entity, proposed, corrections) {
-    const key = `${entity.kind}|${entity.subtype || ''}|${(entity.folderName || '').toLowerCase()}`;
-    const fixed = corrections?.byKey?.[key];
-    if (!fixed) return proposed;
-    // Override only the target type; payload left as-is for simplicity
-    return { ...proposed, targetType: fixed.targetType, score: Math.max(proposed.score, 0.8) };
+    const byKey = corrections?.byKey || {};
+    const byUuid = corrections?.byUuid || {};
+    const key = buildCorrectionKey(entity);
+    const uuidFix = byUuid?.[entity.sourcePath] || {};
+    const keyFix = byKey?.[key] || {};
+
+    let out = { ...proposed };
+
+    // Target type overrides: per-UUID takes precedence over per-key
+    if (keyFix?.targetType) out.targetType = keyFix.targetType;
+    if (uuidFix?.targetType) out.targetType = uuidFix.targetType;
+
+    // Field overrides: evaluate JSONPath-like references against the source entity
+    const fieldPaths = { ...(keyFix?.fieldPaths || {}), ...(uuidFix?.fieldPaths || {}) };
+    if (fieldPaths && Object.keys(fieldPaths).length) {
+        const newPayload = { ...(out.payload || {}) };
+        for (const [field, path] of Object.entries(fieldPaths)) {
+            if (!path) continue;
+            const value = safeGet(entity, path);
+            if (value != null) newPayload[field] = value;
+        }
+        out.payload = newPayload;
+    }
+
+    return out;
 }
 
 export class ImporterService {
@@ -21,11 +52,16 @@ export class ImporterService {
     }
 
     getCorrections() {
-        try { return JSON.parse(settingsManager.getMappingOverride() || '{}') || {}; } catch (_) { return {}; }
+        try {
+            const raw = JSON.parse(settingsManager.getMappingOverride() || '{}') || {};
+            // Normalize shape
+            return { byKey: raw.byKey || {}, byUuid: raw.byUuid || {} };
+        } catch (_) { return { byKey: {}, byUuid: {} }; }
     }
 
     async saveCorrections(corrections) {
-        await settingsManager.setMappingOverride(JSON.stringify(corrections || {}));
+        const normalized = corrections || {};
+        await settingsManager.setMappingOverride(JSON.stringify({ byKey: normalized.byKey || {}, byUuid: normalized.byUuid || {} }));
         return true;
     }
 
@@ -38,7 +74,8 @@ export class ImporterService {
         return entities.map(e => {
             const proposed = mapEntityToArchivist(e);
             const corrected = applyCorrections(e, proposed, corrections);
-            return { entity: e, proposal: corrected };
+            const include = corrections?.byUuid?.[e.sourcePath]?.include !== false; // default include
+            return { entity: e, proposal: corrected, include };
         });
     }
 
@@ -56,6 +93,9 @@ export class ImporterService {
         let completed = 0;
         for (const e of entities) {
             try {
+                // Respect include/exclude selection
+                const inc = corrections?.byUuid?.[e.sourcePath]?.include;
+                if (inc === false) { summary.dropped += 1; completed += 1; onProgress?.({ ...summary, completed }); continue; }
                 const proposed = mapEntityToArchivist(e);
                 const corrected = applyCorrections(e, proposed, corrections);
                 const score = Number(corrected.score || 0);
