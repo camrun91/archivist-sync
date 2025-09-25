@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Enhanced Biography Field Processing**: Auto-discovery and concatenation of biography-related fields
+- **Biography Field Auto-Matching**: Intelligent detection of biographical information across multiple actor fields
+- **HTML to Markdown Conversion**: Automatic conversion of concatenated biography HTML to clean markdown
+- **Field Priority Sorting**: Smart ordering of biography fields by importance and relevance
+- **Visibility Awareness**: Respect for Foundry's field visibility settings during processing
+- **New Functions**: 
+  - `discoverBiographyFields()` - Auto-discover biography fields in actor data
+  - `concatenateBiographyFields()` - Concatenate fields into structured HTML
+  - `processBiographyFields()` - Complete processing pipeline with markdown conversion
+  - `writeBestBiographyEnhanced()` - Enhanced biography writing with auto-processing
+- **Comprehensive Documentation**: Added usage examples and API documentation for new features
+- **Backward Compatibility**: All new features work alongside existing biography functions
+
+### Enhanced
+- **Field Mapper Module**: Significantly expanded with biography field intelligence
+- **Documentation**: Added detailed examples and usage patterns in API_EXAMPLE.md
+- **Field Discovery**: Supports 20+ biography-related field types including appearance, backstory, allies, enemies, beliefs, etc.
+
+### Technical Details
+- Maintains full backward compatibility with existing `writeBestBiography()` function
+- Integrates with existing HTML to markdown conversion utilities
+- Uses semantic field matching for intelligent biography field detection
+- Supports nested object scanning for complex actor data structures
+
 ## [1.0.0] - 2024-08-31
 
 ### Added
