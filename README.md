@@ -1,159 +1,381 @@
-# Archivist Sync
+# Archivist Sync - Semantic Search & Matching Module
 
-A simple Foundry Virtual Tabletop module for connecting to the Archivist API and selecting worlds for synchronization.
+A sophisticated Foundry Virtual Tabletop module that provides intelligent semantic search and matching capabilities using AI embeddings. This module automatically maps Foundry VTT entities (actors, journals, scenes) to Archivist API entities using semantic similarity and rule-based heuristics.
 
-## Features
+## 🧠 What is Semantic Search?
 
-- **API Key Authentication**: Securely store your Archivist API key in module settings
-- **World Discovery**: Sync with the Archivist API to fetch available worlds
-- **World Selection**: Choose and persistently save which world to sync with
-- **Simple Interface**: Easy-to-use dialog for world management
-- **Real-time Status**: Visual indicators showing API connection status
-- **Persistent Settings**: Selected world is saved and remembered across sessions
-- **GM Only Access**: Restricted to Game Master users for security
-- **Foundry VTT v13 Compatible**: Built specifically for Foundry VTT version 13
+Semantic search goes beyond simple keyword matching by understanding the **meaning** and **context** of content. Instead of looking for exact word matches, it uses AI embeddings to find conceptually similar content, even when different words are used.
 
-## Installation
+### Example:
+- **Traditional Search**: "sword" only finds documents containing the word "sword"
+- **Semantic Search**: "sword" also finds documents about "blade", "weapon", "katana", "rapier", etc.
 
-### Manual Installation
+## 🔄 How the Semantic Matching Works
 
-1. Download the module files
-2. Extract them to your Foundry VTT modules directory: `Data/modules/archivist-sync/`
-3. Restart Foundry VTT
-4. Enable the module in your world's module settings
+### 1. **Entity Extraction** (`importer-extractor.js`)
+The module scans your Foundry world and extracts entities into a standardized format:
 
-### Automatic Installation
-
-1. In Foundry VTT, go to the "Add-on Modules" tab
-2. Click "Install Module"
-3. Paste the manifest URL: `https://github.com/yourusername/archivist-sync/releases/latest/download/module.json`
-4. Click "Install"
-
-## Usage
-
-### Initial Setup
-
-1. Navigate to **Game Settings > Module Settings > Archivist Sync**
-2. Configure the following settings:
-   - **API Key**: Enter your authentication key for the world data service
-   - **API Endpoint**: Set the URL for your world data API (e.g., `https://api.example.com/world-data`)
-
-### Fetching World Data
-
-1. Go to **Game Settings > Module Settings**
-2. Click on **"Fetch World Data"** button in the Archivist Sync section
-3. In the dialog that opens:
-   - Check the API status indicator
-   - Click **"Fetch World Data"** to retrieve data from your configured endpoint
-   - View the JSON response in the formatted display area
-
-### API Request Format
-
-The module sends a POST request to your configured endpoint with the following data:
-
-```json
+```javascript
+// Example extracted entity
 {
-  "worldId": "your-foundry-world-id",
-  "worldTitle": "Your World Name",
-  "timestamp": "2024-08-31T12:00:00.000Z"
+  kind: 'Actor',
+  subtype: 'character', 
+  name: 'Aragorn',
+  body: 'Ranger from the North...',
+  tags: ['ranger', 'noble'],
+  images: ['path/to/portrait.jpg'],
+  metadata: { system: actor.system }
 }
 ```
 
-The request includes an `Authorization: Bearer {your-api-key}` header.
+**Supported Entity Types:**
+- **Actors** (Characters, NPCs, Monsters)
+- **Journal Entries** (Lore, Notes, Stories)
+- **Scenes** (Maps, Locations)
 
-## Development
+### 2. **Semantic Mapping** (`semantic-mapper.js`)
+Uses AI embeddings to intelligently map Foundry entities to Archivist types:
 
-### File Structure
+```javascript
+// The module uses Xenova/all-MiniLM-L6-v2 model for embeddings
+const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
 
-```
-archivist-sync/
-├── module.json              # Module manifest
-├── README.md               # This documentation
-├── scripts/
-│   └── archivist-sync.js   # Main module code
-├── styles/
-│   └── archivist-sync.css  # Module styles
-└── lang/
-    └── en.json            # English localization
+// Calculates semantic similarity between concepts
+const similarity = cosineSimilarity(conceptVector, candidateVector);
 ```
 
-### Extending the Module
+**Mapping Process:**
+1. **Rule-Based Matching**: Applies predefined rules based on entity type, folder names, tags
+2. **Semantic Analysis**: Uses AI embeddings to find semantically similar content
+3. **Confidence Scoring**: Combines rule-based and semantic scores for final mapping
 
-Key areas for customization:
+### 3. **Intelligent Field Mapping** (`importer-mapper.js`)
+Maps Foundry data fields to Archivist fields using JSONPath expressions:
 
-1. **API Request Format**: Modify the `fetchWorldData()` function to change what data is sent
-2. **Response Handling**: Update the response processing in the dialog
-3. **Authentication**: Modify headers or authentication method as needed
-4. **UI Elements**: Customize the dialog template and styling
+```javascript
+// Example mapping rules
+{
+  if: { kind: 'Actor', path: 'metadata.type', eq: 'character' },
+  mapTo: 'Character',
+  fields: {
+    title: '$.name',                    // Actor name → Character title
+    description: '$.metadata.system.details.biography', // Bio → Description
+    portraitUrl: '$.images[0]'         // First image → Portrait
+  },
+  labels: ['PC'],
+  confidenceBoost: 0.2
+}
+```
 
-### API Integration
+### 4. **Content Normalization** (`importer-normalizer.js`)
+Cleans and standardizes content for better semantic matching:
 
-The module is designed to work with RESTful APIs that:
-- Accept POST requests
-- Use Bearer token authentication
-- Return JSON responses
-- Handle CORS if accessing from a browser context
+- **HTML to Markdown**: Converts Foundry's rich text to clean markdown
+- **Tag Extraction**: Finds hashtags and creates semantic tags
+- **Link Resolution**: Processes Foundry UUID links
+- **Boilerplate Removal**: Strips Foundry-specific formatting
 
-#### Game Sessions (Read-Only)
+## 🎯 Semantic Search Features
 
-Developers cannot create or delete game session objects via the Archivist API. There are no POST or DELETE endpoints for sessions; any session-related information is read-only and may only be retrieved as part of GET responses.
+### **Automatic Entity Classification**
+The module intelligently categorizes your Foundry entities:
 
-## Compatibility
+- **Characters** → Archivist Characters (PCs, NPCs)
+- **Journal Entries** → Archivist Factions (organizations, guilds)
+- **Scenes** → Archivist Locations (maps, places)
 
-- **Foundry VTT**: Version 12+ (verified for v13)
-- **Systems**: Compatible with all game systems
-- **Modules**: No known conflicts
-- **Browsers**: Modern browsers with fetch API support
+### **Smart Field Detection**
+Uses semantic similarity to suggest the best field mappings:
 
-## Security Considerations
+```javascript
+// Example: Finding the best field for character description
+const candidates = [
+  { path: 'system.details.biography', label: 'Biography' },
+  { path: 'system.details.background', label: 'Background' },
+  { path: 'system.details.description', label: 'Description' }
+];
 
-- API keys are stored in Foundry's world settings (encrypted)
-- Only Game Masters can access the module functionality
-- HTTPS endpoints are recommended for API communication
-- Consider implementing rate limiting on your API endpoint
+const concepts = ['character description', 'biography', 'background'];
+const bestMatch = await suggestBestStringPath(candidates, concepts);
+// Returns: { path: 'system.details.biography', score: 0.89 }
+```
 
-## Troubleshooting
+### **Confidence-Based Import**
+The module uses confidence thresholds to determine import strategy:
 
-### Common Issues
+- **High Confidence (≥75%)**: Automatically imports
+- **Medium Confidence (40-74%)**: Queues for review
+- **Low Confidence (<40%)**: Excludes from import
 
-1. **"Not Configured" Status**: Ensure both API key and endpoint are set in module settings
-2. **Fetch Failed**: Check console for detailed error messages
-3. **CORS Errors**: Your API endpoint may need to allow requests from your Foundry domain
-4. **Authentication Errors**: Verify your API key is correct and active
+## 🔧 Technical Architecture
 
-### Debug Information
+### **Core Components**
 
-The module logs detailed information to the browser console. Enable developer tools to view:
-- API request details
-- Response data
-- Error messages
+1. **ImporterService** (`importer-service.js`)
+   - Orchestrates the entire import process
+   - Manages confidence thresholds and corrections
+   - Handles batch processing and progress tracking
 
-## Changelog
+2. **ArchivistApiService** (`archivist-api.js`)
+   - Manages all API communications
+   - Handles rate limiting and retry logic
+   - Supports both streaming and non-streaming responses
 
-### Version 1.0.0
-- Initial release
-- Basic API key and endpoint configuration
-- Simple world data fetching interface
-- Status indicators and error handling
-- JSON response viewer
+3. **SemanticMapper** (`semantic-mapper.js`)
+   - Provides AI-powered semantic matching
+   - Uses browser-based embeddings (no server required)
+   - Caches models in IndexedDB for performance
 
-## License
+### **Data Flow**
 
-This project is licensed under the MIT License.
+```
+Foundry Entities → Extraction → Normalization → Semantic Mapping → API Upload
+     ↓              ↓            ↓              ↓                ↓
+  Actors/        Generic      Clean Text    AI Embeddings    Archivist
+  Journals/      Entities     + Tags        + Rules         Characters/
+  Scenes                                        ↓            Factions/
+                                                Confidence    Locations
+                                                Scoring
+```
 
-## Support
+## 🚀 Usage Examples
 
-- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/yourusername/archivist-sync/issues)
-- **Documentation**: Check this README and the module settings help text
+### **Basic Import Process**
+```javascript
+// 1. Extract entities from Foundry
+const entities = extractGenericEntities();
 
-## Contributing
+// 2. Map to Archivist format using semantic analysis
+const mapped = entities.map(entity => mapEntityToArchivist(entity));
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Commit your changes: `git commit -am 'Add some feature'`
-4. Push to the branch: `git push origin feature-name`
-5. Submit a pull request
+// 3. Import with confidence thresholds
+await importerService.runImport({
+  thresholdA: 0.75,  // Auto-import high confidence
+  thresholdB: 0.40,  // Queue medium confidence
+  onProgress: (status) => console.log(`Progress: ${status.completed}/${status.total}`)
+});
+```
+
+### **Semantic Field Mapping**
+```javascript
+// Find the best field for character descriptions
+const candidates = discoverStringPaths(actor.system, /(bio|descr|name|notes)/i);
+const concepts = ['character description', 'biography', 'background'];
+const bestField = await suggestBestStringPath(candidates, concepts);
+
+console.log(`Best field: ${bestField.path} (confidence: ${bestField.score})`);
+```
+
+## 🎨 Advanced Features
+
+### **Custom Mapping Rules**
+You can define custom mapping rules for specific game systems:
+
+```javascript
+const customPreset = {
+  rules: [
+    {
+      if: { kind: 'Actor', path: 'metadata.type', eq: 'character' },
+      mapTo: 'Character',
+      fields: { title: '$.name', description: '$.body' },
+      labels: ['PC'],
+      confidenceBoost: 0.3
+    }
+  ]
+};
+```
+
+### **Correction System**
+The module supports manual corrections that override automatic mappings:
+
+```javascript
+// Override specific entity mappings
+const corrections = {
+  byUuid: {
+    'Actor.abc123': { targetType: 'Character', fieldPaths: { title: '$.name' } }
+  },
+  byKey: {
+    'Actor|npc|monsters': { targetType: 'Character' }
+  }
+};
+```
+
+### **Content Processing**
+Advanced text processing for better semantic matching:
+
+```javascript
+// Convert HTML to clean markdown
+const markdown = htmlToMarkdown(foundryHtmlContent);
+
+// Extract semantic tags from content
+const tags = collectTagsFromText("This is a #ranger #noble character");
+
+// Resolve Foundry links to Archivist links
+const resolved = resolveCrosslinks(markdown, uuidToArchivist);
+```
+
+## 🔍 Understanding the Matching Algorithm
+
+### **Step 1: Rule-Based Filtering**
+```javascript
+// Check if entity matches rule conditions
+if (entity.kind === 'Actor' && entity.metadata.type === 'character') {
+  // Apply character-specific mapping
+}
+```
+
+### **Step 2: Semantic Analysis**
+```javascript
+// Generate embeddings for concepts and candidates
+const conceptEmbeddings = await embedder(['character', 'hero', 'protagonist']);
+const candidateEmbeddings = await embedder(['Aragorn', 'Ranger', 'Noble']);
+
+// Calculate semantic similarity
+const similarity = cosineSimilarity(conceptEmbeddings, candidateEmbeddings);
+```
+
+### **Step 3: Confidence Scoring**
+```javascript
+let confidence = 0.55; // Base confidence for rule match
+
+// Boost confidence based on heuristics
+if (entity.images?.length) confidence += 0.05;
+if (entity.tags?.length) confidence += 0.05;
+if (entity.kind === 'Actor' && rule.mapTo === 'Character') confidence += 0.25;
+
+// Apply rule-specific boosts
+if (rule.confidenceBoost) confidence += rule.confidenceBoost;
+```
+
+## 🛠️ Configuration
+
+### **API Setup**
+```javascript
+// Configure API endpoint and authentication
+const config = {
+  API_BASE_URL: 'https://api.archivist.com/v1',
+  API_KEY: 'your-api-key-here'
+};
+```
+
+### **Import Settings**
+```javascript
+// Configure import behavior
+const importConfig = {
+  thresholdA: 0.75,    // Auto-import threshold
+  thresholdB: 0.40,    // Review queue threshold
+  sampleSize: 20,      // Preview sample size
+  batchSize: 100       // API batch size
+};
+```
+
+## 🔧 Development
+
+### **Adding New Entity Types**
+```javascript
+// Extend ImporterKinds
+export const ImporterKinds = {
+  // ... existing types
+  Item: 'Item',
+  Macro: 'Macro'
+};
+
+// Add extraction logic
+export function extractGenericEntities() {
+  // ... existing extraction
+  // Add new entity type extraction
+}
+```
+
+### **Custom Mapping Presets**
+```javascript
+// Create system-specific presets
+const dnd5ePreset = {
+  rules: [
+    {
+      if: { kind: 'Actor', path: 'metadata.type', eq: 'character' },
+      mapTo: 'Character',
+      fields: {
+        title: '$.name',
+        description: '$.metadata.system.details.biography',
+        portraitUrl: '$.images[0]'
+      },
+      labels: ['PC']
+    }
+  ]
+};
+```
+
+## 🎯 Best Practices
+
+### **For Content Creators**
+1. **Use Descriptive Names**: Clear, semantic names improve matching accuracy
+2. **Add Meaningful Tags**: Use hashtags and folder names that describe content
+3. **Include Rich Descriptions**: Detailed biographies and descriptions improve semantic analysis
+4. **Organize with Folders**: Use folder names that indicate content type (e.g., "NPCs", "Locations")
+
+### **For Developers**
+1. **Test with Sample Data**: Use the preview functionality to test mappings
+2. **Adjust Confidence Thresholds**: Fine-tune based on your content quality
+3. **Monitor API Usage**: The module includes rate limiting and retry logic
+4. **Use Corrections**: Override automatic mappings when needed
+
+## 🔍 Troubleshooting
+
+### **Common Issues**
+
+**Low Confidence Scores**
+- Check entity names and descriptions for clarity
+- Ensure proper folder organization
+- Add meaningful tags and metadata
+
+**Mapping Errors**
+- Review mapping rules for your game system
+- Use the correction system to override incorrect mappings
+- Check field paths in mapping presets
+
+**API Errors**
+- Verify API key and endpoint configuration
+- Check network connectivity
+- Monitor rate limiting (module includes automatic retry)
+
+### **Debug Information**
+The module provides detailed logging for troubleshooting:
+
+```javascript
+// Enable debug logging
+console.log('Entity extraction:', entities);
+console.log('Mapping results:', mappedEntities);
+console.log('Confidence scores:', confidenceScores);
+```
+
+## 📚 API Reference
+
+### **Core Functions**
+- `extractGenericEntities(sampleLimit?)` - Extract entities from Foundry
+- `mapEntityToArchivist(entity, overridePreset?)` - Map entity to Archivist format
+- `suggestBestStringPath(candidates, concepts)` - Find best field mapping
+- `htmlToMarkdown(html)` - Convert HTML to markdown
+- `resolveCrosslinks(markdown, uuidToArchivist)` - Resolve Foundry links
+
+### **Service Classes**
+- `ImporterService` - Main import orchestration
+- `ArchivistApiService` - API communication
+- `SemanticMapper` - AI-powered semantic matching
+
+## 🤝 Contributing
+
+This module is designed to be extensible. Key areas for contribution:
+
+1. **New Game System Support**: Add mapping presets for different RPG systems
+2. **Enhanced Semantic Models**: Improve AI embedding models and algorithms
+3. **Additional Entity Types**: Support for more Foundry entity types
+4. **UI Improvements**: Better user interfaces for mapping configuration
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
 
 ---
 
-**Note**: Remember to update the URLs in `module.json` to point to your actual repository and releases!
+**Note**: This module uses browser-based AI embeddings, so no external AI services are required. All semantic processing happens locally in your browser for privacy and performance.
