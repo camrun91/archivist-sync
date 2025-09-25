@@ -6,6 +6,8 @@ import { CONFIG } from '../modules/config.js';
 export class ArchivistApiService {
   constructor() {
     this.baseUrl = CONFIG.API_BASE_URL;
+    /** @type {number} */
+    this._lastWriteAtMs = 0;
   }
 
   /**
@@ -19,13 +21,32 @@ export class ArchivistApiService {
     const headers = this._createHeaders(apiKey);
     const url = `${this.baseUrl}${path}`;
     let attempt = 0;
+    // Simple client-side throttle for write-heavy operations
+    const method = String(options?.method || 'GET').toUpperCase();
+    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    if (isWrite) {
+      const now = Date.now();
+      const minSpacingMs = 900; // ~1 write/sec to further reduce 429s
+      const waitMs = Math.max(0, (this._lastWriteAtMs + minSpacingMs) - now);
+      if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
+    }
     while (true) {
       const response = await fetch(url, { ...options, headers });
       if (response.status !== 429) return this._handleResponse(response);
+      // 429 handling with exponential backoff and jitter; respect Retry-After
       attempt += 1;
-      const retryAfter = Number(response.headers.get('Retry-After')) || (attempt * 500);
-      if (attempt > 3) throw new Error(`API request failed: 429 rate limited`);
-      await new Promise(r => setTimeout(r, retryAfter));
+      if (attempt > 8) throw new Error(`API request failed: 429 rate limited`);
+      const ra = response.headers.get('Retry-After');
+      let retryMs = 0;
+      if (ra) {
+        const n = Number(ra);
+        // If small value, assume seconds; if large, assume milliseconds
+        if (isFinite(n)) retryMs = n < 100 ? Math.max(1000, n * 1000) : n;
+      }
+      const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
+      const jitter = Math.floor(Math.random() * 250);
+      const delay = Math.max(retryMs || 0, base + jitter);
+      await new Promise(r => setTimeout(r, delay));
     }
   }
 
@@ -50,7 +71,15 @@ export class ArchivistApiService {
    */
   async _handleResponse(response) {
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      let detail = '';
+      try {
+        const data = await response.clone().json();
+        detail = data?.detail || data?.message || '';
+      } catch (_) {
+        try { detail = await response.clone().text(); } catch (_) { /* ignore */ }
+      }
+      const suffix = detail ? ` — ${String(detail).slice(0, 300)}` : '';
+      throw new Error(`API request failed: ${response.status} ${response.statusText}${suffix}`);
     }
     return await response.json();
   }
@@ -65,153 +94,114 @@ export class ArchivistApiService {
   }
 
   /**
-   * Fetch worlds list from the Archivist API
+   * Fetch campaigns list from the Archivist API
    * @param {string} apiKey - The API key for authentication
    * @returns {Promise<object>} Object with success flag and data array
    */
-  async fetchWorldsList(apiKey) {
+  async fetchCampaignsList(apiKey) {
     try {
-      const headers = this._createHeaders(apiKey);
-
-      const response = await fetch(`${this.baseUrl}/worlds`, {
-        method: 'GET',
-        headers: headers
-      });
-
-      const data = await this._handleResponse(response);
+      const data = await this._request(apiKey, `/campaigns`, { method: 'GET' });
 
       // Handle different possible response formats
-      let worlds = [];
+      let campaigns = [];
       if (Array.isArray(data)) {
-        worlds = data;
-      } else if (data.worlds && Array.isArray(data.worlds)) {
-        worlds = data.worlds;
+        campaigns = data;
+      } else if (data.campaigns && Array.isArray(data.campaigns)) {
+        campaigns = data.campaigns;
       } else if (data.data && Array.isArray(data.data)) {
-        worlds = data.data;
+        campaigns = data.data;
       } else {
         throw new Error('Unexpected API response format');
       }
 
       return {
         success: true,
-        data: worlds
+        data: campaigns
       };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch worlds:`, error);
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch campaigns:`, error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch worlds from API'
+        message: error.message || 'Failed to fetch campaigns from API'
       };
     }
   }
 
   /**
-   * Create a new world in Archivist
+   * Create a new campaign in Archivist
    * @param {string} apiKey
    * @param {{title:string, description?:string}} payload
    */
-  async createWorld(apiKey, payload) {
+  async createCampaign(apiKey, payload) {
     try {
-      const data = await this._request(apiKey, `/worlds`, {
+      const data = await this._request(apiKey, `/campaigns`, {
         method: 'POST',
         body: JSON.stringify({ title: payload.title, description: payload.description || '' })
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to create world:`, error);
-      return { success: false, message: error.message || 'Failed to create world' };
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create campaign:`, error);
+      return { success: false, message: error.message || 'Failed to create campaign' };
     }
   }
 
   /**
-   * Fetch detailed information for a specific world
+   * Fetch detailed information for a specific campaign
    * @param {string} apiKey - The API key for authentication
-   * @param {string} worldId - The world ID to fetch details for
-   * @returns {Promise<object>} Object with success flag and world data
+   * @param {string} campaignId - The campaign ID to fetch details for
+   * @returns {Promise<object>} Object with success flag and campaign data
    */
-  async fetchWorldDetails(apiKey, worldId) {
-    console.log('fetchWorldDetails called with:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none', worldId });
-
+  async fetchCampaignDetails(apiKey, campaignId) {
+    console.log('fetchCampaignDetails called with:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none', campaignId });
     try {
-      const headers = this._createHeaders(apiKey);
-      const url = `${this.baseUrl}/worlds/${worldId}`;
-      console.log('Fetching world details from URL:', url);
-      console.log('Request headers:', headers);
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: headers
-      });
-
-      console.log('Fetch response status:', response.status, response.statusText);
-      console.log('Fetch response ok:', response.ok);
-
-      const data = await this._handleResponse(response);
-      console.log('Parsed response data:', data);
-
-      return {
-        success: true,
-        data: data
-      };
+      const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, { method: 'GET' });
+      return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch world details:`, error);
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch campaign details:`, error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch world details from API'
+        message: error.message || 'Failed to fetch campaign details from API'
       };
     }
   }
 
   /**
-   * Sync world title to Archivist API
+   * Sync campaign title to Archivist API
    * @param {string} apiKey - The API key for authentication
-   * @param {string} worldId - The world ID to sync to
+   * @param {string} campaignId - The campaign ID to sync to
    * @param {object} titleData - Object containing title and description
    * @returns {Promise<object>} Object with success flag and response data
    */
-  async syncWorldTitle(apiKey, worldId, titleData) {
+  async syncCampaignTitle(apiKey, campaignId, titleData) {
     try {
-      const headers = this._createHeaders(apiKey);
-
-      const requestData = {
-        title: titleData.title,
-        description: titleData.description || ''
-      };
-
-      const response = await fetch(`${this.baseUrl}/worlds/${worldId}`, {
-        method: 'PUT',
-        headers: headers,
+      const requestData = { title: titleData.title, description: titleData.description || '' };
+      const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, {
+        method: 'PATCH',
         body: JSON.stringify(requestData)
       });
-
-      const data = await this._handleResponse(response);
-
-      return {
-        success: true,
-        data: data
-      };
+      return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to sync title:`, error);
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to sync campaign title:`, error);
       return {
         success: false,
-        message: error.message || 'Failed to sync world title'
+        message: error.message || 'Failed to sync campaign title'
       };
     }
   }
 
   /**
-   * List all characters for a world (auto-paginate)
+   * List all characters for a campaign (auto-paginate)
    * @param {string} apiKey
-   * @param {string} worldId
+   * @param {string} campaignId
    * @returns {Promise<{success:boolean,data:Array}>>}
    */
-  async listCharacters(apiKey, worldId) {
+  async listCharacters(apiKey, campaignId) {
     try {
       let page = 1;
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/characters?world_id=${encodeURIComponent(worldId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const data = await this._request(apiKey, `/characters?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
         const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
         all.push(...items);
         const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
@@ -252,7 +242,7 @@ export class ArchivistApiService {
   async updateCharacter(apiKey, characterId, payload) {
     try {
       const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
       return { success: true, data };
@@ -263,15 +253,15 @@ export class ArchivistApiService {
   }
 
   /**
-   * List all factions for a world
+   * List all factions for a campaign
    */
-  async listFactions(apiKey, worldId) {
+  async listFactions(apiKey, campaignId) {
     try {
       let page = 1;
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/factions?world_id=${encodeURIComponent(worldId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const data = await this._request(apiKey, `/factions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
         const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
         all.push(...items);
         const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
@@ -301,7 +291,7 @@ export class ArchivistApiService {
   async updateFaction(apiKey, factionId, payload) {
     try {
       const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
       return { success: true, data };
@@ -314,13 +304,13 @@ export class ArchivistApiService {
   /**
    * List all locations for a world
    */
-  async listLocations(apiKey, worldId) {
+  async listLocations(apiKey, campaignId) {
     try {
       let page = 1;
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/locations?world_id=${encodeURIComponent(worldId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const data = await this._request(apiKey, `/locations?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
         const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
         all.push(...items);
         const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
@@ -350,7 +340,7 @@ export class ArchivistApiService {
   async updateLocation(apiKey, locationId, payload) {
     try {
       const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(payload)
       });
       return { success: true, data };
@@ -363,18 +353,18 @@ export class ArchivistApiService {
   /**
    * Ask (RAG chat) — non-streaming
    * @param {string} apiKey
-   * @param {string} worldId
+   * @param {string} campaignId
    * @param {Array<{role:'user'|'assistant',content:string}>} messages
    * @returns {Promise<{success:boolean, answer?:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number, message?:string}>}
    */
-  async ask(apiKey, worldId, messages) {
+  async ask(apiKey, campaignId, messages) {
     try {
       const url = `${this._rootBase()}/ask`;
       const headers = { ...this._createHeaders(apiKey) };
       const r = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ worldId, messages })
+        body: JSON.stringify({ campaign_id: campaignId, messages })
       });
       const data = await this._handleResponse(r);
       return {
@@ -392,18 +382,18 @@ export class ArchivistApiService {
   /**
    * Ask (RAG chat) — streaming
    * @param {string} apiKey
-   * @param {string} worldId
+   * @param {string} campaignId
    * @param {Array<{role:'user'|'assistant',content:string}>} messages
    * @param {(chunk:string)=>void} onChunk
    * @param {(final:{text:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number})=>void} onDone
    * @param {AbortSignal} [signal]
    */
-  async askStream(apiKey, worldId, messages, onChunk, onDone, signal) {
+  async askStream(apiKey, campaignId, messages, onChunk, onDone, signal) {
     const url = `${this._rootBase()}/ask`;
     const headers = { ...this._createHeaders(apiKey) };
     // Accept any stream; some servers send text/plain for streaming
     headers['Accept'] = '*/*';
-    const body = JSON.stringify({ worldId, messages, stream: true });
+    const body = JSON.stringify({ campaign_id: campaignId, messages, stream: true });
     const resp = await fetch(url, { method: 'POST', headers, body, signal });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -448,7 +438,7 @@ export class ArchivistApiService {
    */
   async testConnection(apiKey) {
     try {
-      await this.fetchWorldsList(apiKey);
+      await this.fetchCampaignsList(apiKey);
       return true;
     } catch (error) {
       console.warn(`${CONFIG.MODULE_TITLE} | API connection test failed:`, error);

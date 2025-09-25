@@ -2,6 +2,7 @@ import { CONFIG } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
 import { Utils } from '../modules/utils.js';
+import { AskChatWindow } from './ask-chat-window.js';
 import { writeBestBiography, writeBestJournalDescription } from '../modules/field-mapper.js';
 import { importerService } from '../services/importer-service.js';
 
@@ -22,6 +23,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     this.syncInProgress = false;
     this.activeTab = 'world';
     this.importerSampleJson = '';
+    this.importerPreview = [];
+    this.importerGroups = { Actor: [], Journal: [], Scene: [] };
+    this.importerOptions = {}; // by uuid → field options
     this.thresholdA = 0.6;
     this.thresholdB = 0.3;
   }
@@ -97,7 +101,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       syncInProgress: this.syncInProgress,
       foundryWorldTitle: game.world.title,
       foundryWorldDescription: game.world.description || '',
-      importerSampleJson: this.importerSampleJson || ''
+      importerSampleJson: this.importerSampleJson || '',
+      importerGroups: this.importerGroups || { Actor: [], Journal: [], Scene: [] },
+      importerOptions: this.importerOptions || {}
       , thresholdA: this.thresholdA
       , thresholdB: this.thresholdB
       , mappingOverrideJson: settingsManager.getMappingOverride() || '{}'
@@ -164,6 +170,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     // New sync buttons with debug logging
     const syncToBtn = html.querySelector('.sync-to-archivist-btn');
     const syncFromBtn = html.querySelector('.sync-from-archivist-btn');
+    const askChatBtn = html.querySelector('.ask-chat-btn');
 
     if (syncToBtn) {
       console.log('Found sync-to-archivist-btn, attaching listener');
@@ -177,6 +184,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       syncFromBtn.addEventListener('click', this._onSyncFromArchivist.bind(this));
     } else {
       console.log('sync-from-archivist-btn not found in DOM');
+    }
+
+    if (askChatBtn) {
+      console.log('Found ask-chat-btn, attaching listener');
+      askChatBtn.addEventListener('click', () => new AskChatWindow().render(true));
+    } else {
+      console.log('ask-chat-btn not found in DOM');
     }
 
     html.querySelector('.push-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
@@ -212,6 +226,39 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     html.querySelector('.mapping-load-btn')?.addEventListener('click', this._onMappingLoad.bind(this));
     html.querySelector('.mapping-save-btn')?.addEventListener('click', this._onMappingSave.bind(this));
     html.querySelector('.importer-create-world-btn')?.addEventListener('click', this._onCreateWorld.bind(this));
+
+    // Importer preview change handlers (delegated)
+    html.addEventListener('change', async (e) => {
+      const typeSel = e.target.closest?.('.importer-type-select');
+      const includeCb = e.target.closest?.('.importer-include');
+      const fieldSel = e.target.closest?.('.importer-field-select');
+      if (!typeSel && !includeCb && !fieldSel) return;
+      try {
+        const uuid = (typeSel || includeCb || fieldSel)?.dataset?.uuid;
+        if (!uuid) return;
+        const corrections = importerService.getCorrections();
+        corrections.byUuid = corrections.byUuid || {};
+        const current = corrections.byUuid[uuid] || {};
+        if (typeSel) {
+          current.targetType = typeSel.value;
+        }
+        if (includeCb) {
+          current.include = includeCb.checked;
+        }
+        if (fieldSel) {
+          const field = fieldSel.dataset.field;
+          const path = fieldSel.value;
+          current.fieldPaths = current.fieldPaths || {};
+          if (path) current.fieldPaths[field] = path; else delete current.fieldPaths[field];
+        }
+        corrections.byUuid[uuid] = current;
+        await importerService.saveCorrections(corrections);
+        await this._refreshImporterPreview();
+      } catch (err) {
+        console.error(err);
+        ui.notifications.error('Failed to apply change');
+      }
+    });
   }
 
   /**
@@ -334,6 +381,82 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     if (selectedContent) selectedContent.classList.add('active');
   }
 
+  _flattenEntityPaths(obj, prefix = '$', depth = 0) {
+    const entries = [];
+    if (depth > 3) return entries;
+    if (obj == null) return entries;
+    if (Array.isArray(obj)) {
+      // Surface array as joined string where possible
+      const str = obj.map(v => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') ? v : '').filter(Boolean).join(', ');
+      if (str) entries.push({ path: prefix, value: str });
+      return entries;
+    }
+    if (typeof obj !== 'object') {
+      entries.push({ path: prefix, value: obj });
+      return entries;
+    }
+    for (const [k, v] of Object.entries(obj)) {
+      const p = `${prefix}.${k}`;
+      if (v == null) continue;
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+        entries.push({ path: p, value: v });
+      } else if (Array.isArray(v)) {
+        const sub = this._flattenEntityPaths(v, p, depth + 1);
+        entries.push(...sub);
+      } else if (typeof v === 'object') {
+        const sub = this._flattenEntityPaths(v, p, depth + 1);
+        entries.push(...sub);
+      }
+    }
+    return entries;
+  }
+
+  _buildPreviewData(sample) {
+    const groups = { Actor: [], Journal: [], Scene: [] };
+    const optionsByUuid = {};
+    const corrections = importerService.getCorrections();
+    for (const r of sample) {
+      const e = r.entity; const p = r.proposal || { targetType: 'Note', payload: {} };
+      const uuid = e.sourcePath;
+      const include = r.include !== false;
+      // Field rows
+      const fields = Object.entries(p.payload || {}).map(([key, value]) => ({ key, value }));
+      // Build options list per field using flattened entity
+      const flattened = this._flattenEntityPaths(e, '$');
+      const defaultOptions = flattened.slice(0, 24).map(({ path, value }) => ({ path, label: `${path} — ${String(value).slice(0, 40)}` }));
+      const fieldOverrides = corrections?.byUuid?.[uuid]?.fieldPaths || {};
+      const fieldRows = fields.map(f => {
+        const selectedPath = fieldOverrides[f.key] || '';
+        const options = [{ path: '', label: '(auto)' }, ...defaultOptions].map(o => ({ ...o, selected: o.path === selectedPath }));
+        return { key: f.key, value: f.value, options };
+      });
+      const row = {
+        uuid,
+        name: e.name,
+        subtype: e.subtype,
+        kind: e.kind,
+        include,
+        targetType: p.targetType,
+        score: Math.round((Number(p.score || 0)) * 100),
+        fields: fieldRows
+      };
+      if (!groups[e.kind]) groups[e.kind] = [];
+      groups[e.kind].push(row);
+      optionsByUuid[uuid] = defaultOptions;
+    }
+    return { groups, optionsByUuid };
+  }
+
+  async _refreshImporterPreview() {
+    const size = Math.max(1, this.importerPreview?.length || 20);
+    const sample = importerService.sample(size);
+    this.importerPreview = sample;
+    const built = this._buildPreviewData(sample);
+    this.importerGroups = built.groups;
+    this.importerOptions = built.optionsByUuid;
+    this.render();
+  }
+
   async _onImporterSample(event) {
     event?.preventDefault?.();
     try {
@@ -342,10 +465,14 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         return;
       }
       this.syncInProgress = true; this.render();
-      const sample = importerService.sample(20);
-      this.importerSampleJson = JSON.stringify(sample, null, 2);
+      const sample = importerService.sample(30);
+      this.importerPreview = sample;
+      const built = this._buildPreviewData(sample);
+      this.importerGroups = built.groups;
+      this.importerOptions = built.optionsByUuid;
+      this.importerSampleJson = '';
       this.render();
-      ui.notifications.info('Sample generated');
+      ui.notifications.info('Data loaded');
     } catch (e) {
       console.error(e); ui.notifications.error(Utils.formatError(e));
     } finally {
@@ -360,6 +487,14 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
         return;
       }
+      // Confirmation: importer will create new records and ignores existing IDs
+      const confirmed = await Dialog.confirm({
+        title: 'Create New Records in Archivist?',
+        content: '<p>This importer will CREATE NEW records in Archivist and ignores any Archivist IDs found on Actors/Journals/Scenes. This may create duplicates if your world has been synced before.</p><p>If you want to update existing records instead, cancel and use the Sync tabs (Characters/Factions/Locations).</p>',
+        yes: () => true,
+        no: () => false
+      });
+      if (!confirmed) return;
       const root = this.element;
       const aEl = root.querySelector('.import-threshold-a');
       const bEl = root.querySelector('.import-threshold-b');
@@ -368,7 +503,24 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       this.thresholdA = isFinite(a) ? a : this.thresholdA;
       this.thresholdB = isFinite(b) ? b : this.thresholdB;
       this.syncInProgress = true; this.render();
-      const result = await importerService.runImport({ thresholdA: this.thresholdA, thresholdB: this.thresholdB });
+      // Wire progress updates to UI
+      const el = this.element;
+      const bar = el.querySelector('.import-progress-bar');
+      const text = el.querySelector('.import-progress-text');
+      const updateUi = (p) => {
+        if (!bar || !text || !p) return;
+        const total = Math.max(1, Number(p.total || 0));
+        const completed = Number(p.completed || 0);
+        const percent = Math.round((completed / total) * 100);
+        bar.max = 100; bar.value = isFinite(percent) ? percent : 0;
+        text.textContent = `${completed} / ${total}  —  ${percent}%  (auto:${p.autoImported}|q:${p.queued}|drop:${p.dropped}|err:${p.errors})`;
+      };
+      const result = await importerService.runImport({
+        thresholdA: this.thresholdA,
+        thresholdB: this.thresholdB,
+        onProgress: updateUi
+      });
+      updateUi({ ...result, completed: result.total });
       ui.notifications.info(`Import complete: ${result.autoImported} auto, ${result.queued} queued, ${result.dropped} dropped, ${result.errors} errors.`);
     } catch (e) {
       console.error(e); ui.notifications.error(Utils.formatError(e));
@@ -419,16 +571,19 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const title = game.world.title;
       const description = game.world.description || '';
       this.syncInProgress = true; this.render();
-      const res = await archivistApi.createWorld(settingsManager.getApiKey(), { title, description });
+      const res = await archivistApi.createCampaign(settingsManager.getApiKey(), { title, description });
       if (!res.success) throw new Error(res.message || 'Create failed');
-      // Refresh worlds list and pre-select
-      const worlds = await archivistApi.fetchWorldsList(settingsManager.getApiKey());
-      if (worlds.success) {
-        this.worlds = worlds.data || [];
-        const created = (Array.isArray(this.worlds) ? this.worlds : []).find(w => (w.title || w.name) === title);
-        if (created) await settingsManager.setSelectedWorld(created.id, created.name || created.title || 'World');
+      // Prefer selecting using returned id immediately
+      const createdId = res?.data?.id;
+      const createdName = res?.data?.name || res?.data?.title || title || 'World';
+      if (createdId) {
+        await settingsManager.setSelectedWorld(createdId, createdName);
+        await this._loadSelectedWorldData(createdId);
       }
-      ui.notifications.info('Archivist world created');
+      // Refresh worlds list for UI dropdown
+      const worlds = await archivistApi.fetchCampaignsList(settingsManager.getApiKey());
+      if (worlds.success) this.worlds = worlds.data || [];
+      ui.notifications.info('Archivist campaign created');
       this.render();
     } catch (e) {
       console.error(e); ui.notifications.error(Utils.formatError(e));
@@ -454,11 +609,17 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
     try {
       const apiKey = settingsManager.getApiKey();
-      const response = await archivistApi.fetchWorldsList(apiKey);
+      const response = await archivistApi.fetchCampaignsList(apiKey);
 
       if (response.success) {
         this.worlds = response.data || [];
         console.log('Worlds loaded:', this.worlds);
+        // Validate currently selected world still exists
+        const selectedId = settingsManager.getSelectedWorldId();
+        if (selectedId && !this.worlds.find(w => w.id === selectedId)) {
+          await settingsManager.setSelectedWorld('', '');
+          this.selectedWorldData = null;
+        }
         if ((this.worlds?.length || 0) === 0) {
           await settingsManager.setSelectedWorld('', '');
           this.selectedWorldData = null;
@@ -549,7 +710,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const apiKey = settingsManager.getApiKey();
       console.log('Using API key:', apiKey ? '***' + apiKey.slice(-4) : 'none');
 
-      const response = await archivistApi.fetchWorldDetails(apiKey, worldId);
+      const response = await archivistApi.fetchCampaignDetails(apiKey, worldId);
       console.log('API response:', response);
 
       if (response.success) {
@@ -589,7 +750,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         description: game.world.description || ''
       };
 
-      const response = await archivistApi.syncWorldTitle(apiKey, worldId, titleData);
+      const response = await archivistApi.syncCampaignTitle(apiKey, worldId, titleData);
 
       if (response.success) {
         ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.titleSynced'));
@@ -633,7 +794,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       console.log('Syncing to Archivist:', titleData);
 
       // TODO: Replace with actual API endpoint when provided
-      const response = await archivistApi.syncWorldTitle(apiKey, worldId, titleData);
+      const response = await archivistApi.syncCampaignTitle(apiKey, worldId, titleData);
 
       if (response.success) {
         ui.notifications.info('World data synced to Archivist successfully');
@@ -805,7 +966,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       // Debug: log first API character and resolved description so we can verify payload
       if (apiItems.length) {
         const f = apiItems[0];
-        const firstDescription = (f.description ?? f.combinedDescription ?? f.newDescription ?? f.oldDescription ?? '').toString();
+        const firstDescription = (f.description ?? f.combined_description ?? f.new_description ?? f.old_description ?? '').toString();
         console.debug('[Archivist Sync] First API character object:', f);
         console.debug('[Archivist Sync] First API character description (resolved):', firstDescription);
       }
@@ -827,11 +988,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       let updatedCount = 0;
 
       for (const c of apiItems) {
-        const name = c.characterName || c.name || 'Character';
+        const name = c.character_name || c.name || 'Character';
         const type = (c.type === 'PC') ? 'character' : 'npc';
         // Prefer combined/new/old descriptions if present
         const bio =
-          (c.description ?? c.combinedDescription ?? c.newDescription ?? c.oldDescription ?? '').toString();
+          (c.description ?? c.combined_description ?? c.new_description ?? c.old_description ?? '').toString();
         // Remote portrait image URL if provided
         const imageUrl = (typeof c.image === 'string' && c.image.trim().length) ? c.image.trim() : null;
         const existingActor = existing.get(c.id);
@@ -942,15 +1103,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       for (const f of apiItems) {
         console.debug('[Archivist Sync] Faction raw object:', f);
         const name = f.name || 'Faction';
-        const description = (f.description ?? f.combinedDescription ?? f.newDescription ?? f.oldDescription ?? '').toString();
+        const description = (f.description ?? f.combined_description ?? f.new_description ?? f.old_description ?? '').toString();
         const imageUrl = (typeof f.image === 'string' && f.image.trim().length)
           ? f.image.trim()
-          : (typeof f.coverImage === 'string' && f.coverImage.trim().length)
-            ? f.coverImage.trim()
+          : (typeof f.cover_image === 'string' && f.cover_image.trim().length)
+            ? f.cover_image.trim()
             : (typeof f.thumbnail === 'string' && f.thumbnail.trim().length)
               ? f.thumbnail.trim()
               : null;
-        console.debug('[Archivist Sync] Faction image fields:', { image: f?.image, coverImage: f?.coverImage, thumbnail: f?.thumbnail, resolved: imageUrl });
+        console.debug('[Archivist Sync] Faction image fields:', { image: f?.image, cover_image: f?.cover_image, thumbnail: f?.thumbnail, resolved: imageUrl });
         const journal = existing.get(f.id);
         if (journal) {
           const updateData = { name, folder: folderId };
@@ -1036,15 +1197,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       for (const l of apiItems) {
         console.debug('[Archivist Sync] Location raw object:', l);
         const name = l.name || 'Location';
-        const description = (l.description ?? l.combinedDescription ?? l.newDescription ?? l.oldDescription ?? '').toString();
+        const description = (l.description ?? l.combined_description ?? l.new_description ?? l.old_description ?? '').toString();
         const imageUrl = (typeof l.image === 'string' && l.image.trim().length)
           ? l.image.trim()
-          : (typeof l.coverImage === 'string' && l.coverImage.trim().length)
-            ? l.coverImage.trim()
+          : (typeof l.cover_image === 'string' && l.cover_image.trim().length)
+            ? l.cover_image.trim()
             : (typeof l.thumbnail === 'string' && l.thumbnail.trim().length)
               ? l.thumbnail.trim()
               : null;
-        console.debug('[Archivist Sync] Location image fields:', { image: l?.image, coverImage: l?.coverImage, thumbnail: l?.thumbnail, resolved: imageUrl });
+        console.debug('[Archivist Sync] Location image fields:', { image: l?.image, cover_image: l?.cover_image, thumbnail: l?.thumbnail, resolved: imageUrl });
         const journal = existing.get(l.id);
         if (journal) {
           const updateData = { name, folder: folderId };

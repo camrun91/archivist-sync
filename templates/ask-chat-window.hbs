@@ -4,64 +4,139 @@
             display: flex;
             flex-direction: column;
             height: 100%;
-            gap: 8px;
+            gap: 6px;
+            font-size: 12px;
         }
 
         .messages {
             flex: 1;
             overflow: auto;
             border: 1px solid var(--arch-border, rgba(255, 255, 255, .12));
-            border-radius: 8px;
-            padding: 8px;
+            border-radius: 6px;
+            padding: 6px;
             background: var(--arch-panel, rgba(255, 255, 255, .03));
         }
 
         .msg {
-            margin-bottom: 8px;
+            margin: 8px 0;
             display: grid;
-            grid-template-columns: 80px 1fr;
-            gap: 8px;
+            grid-template-columns: 1fr;
+            /* header on its own row, bubble below */
+            gap: 4px;
             align-items: start;
         }
 
         .msg .from {
             font-weight: 600;
-            color: var(--arch-text-muted, #b9b9b9);
+            color: rgba(255, 255, 255, 0.7);
+            /* lighter label for dark bg */
         }
 
         .msg .bubble {
-            background: var(--arch-bg-alt, rgba(255, 255, 255, .04));
-            border: 1px solid var(--arch-border, rgba(255, 255, 255, .12));
-            border-radius: 8px;
-            padding: 8px;
-            color: var(--arch-text, #e8e8e8);
+            background: rgba(255, 255, 255, .86);
+            border: 1px solid rgba(0, 0, 0, .12);
+            border-radius: 6px;
+            padding: 6px;
+            color: #1f2937;
+            /* force dark readable text */
             white-space: pre-wrap;
         }
 
         .composer {
-            display: flex;
-            gap: 8px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 6px;
             align-items: center;
         }
 
         .composer .ask-input {
             flex: 1;
+            min-height: 32px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #111827;
+            /* force dark input text */
+            font-size: 12px;
+        }
+
+        .composer .ask-input::placeholder {
+            color: #9ca3af;
+            /* neutral placeholder */
+        }
+
+        .composer .send-btn {
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #374151;
+            /* neutral icon color */
+            cursor: pointer;
+        }
+
+        .typing .dot {
+            display: inline-block;
+            animation: blink 1.2s infinite ease-in-out;
+            margin-right: 2px;
+            color: #6b7280;
+            font-size: 16px;
+        }
+
+        .typing .dot:nth-child(2) {
+            animation-delay: .2s;
+        }
+
+        .typing .dot:nth-child(3) {
+            animation-delay: .4s;
+        }
+
+        @keyframes blink {
+
+            0%,
+            80%,
+            100% {
+                opacity: 0.2;
+            }
+
+            40% {
+                opacity: 1;
+            }
         }
     </style>
     <div class="messages">
         {{#each messages}}
         <div class="msg">
-            <div class="from">{{#if (eq this.role 'user')}}{{localize 'ARCHIVIST_SYNC.chat.me'}}{{else}}{{localize
-                'ARCHIVIST_SYNC.chat.assistant'}}{{/if}}</div>
-            <div class="bubble">{{this.content}}</div>
+            <div class="from" style="display:flex; align-items:center; gap:6px; opacity:.9;">
+                {{#if (eq this.role 'assistant')}}<i class="archivist-icon" style="font-size:14px;"></i>{{/if}}
+                <span>{{#if (eq this.role 'user')}}{{localize 'ARCHIVIST_SYNC.chat.me'}}{{else}}{{localize
+                    'ARCHIVIST_SYNC.chat.assistant'}}{{/if}}</span>
+            </div>
+            <div class="bubble">
+                {{#if this.typing}}
+                <span class="typing"><span class="dot">•</span><span class="dot">•</span><span
+                        class="dot">•</span></span>
+                {{else}}
+                {{{this.html}}}{{^this.html}}{{this.content}}{{/this.html}}
+                {{/if}}
+            </div>
         </div>
         {{/each}}
     </div>
+    <div style="display:flex; justify-content:flex-end; gap:6px;">
+        <button type="button" class="btn chat-clear-btn" title="{{localize 'ARCHIVIST_SYNC.chat.clear'}}">
+            <i class="fas fa-trash"></i> {{localize 'ARCHIVIST_SYNC.chat.clear'}}
+        </button>
+    </div>
     <form class="composer ask-form">
         <input class="ask-input" type="text" placeholder="{{placeholder}}" />
-        <button type="submit" class="btn">{{localize 'ARCHIVIST_SYNC.chat.send'}}</button>
-        <button type="button" class="btn ask-stop" {{#unless isStreaming}}disabled{{/unless}}>{{#if
-            isStreaming}}{{localize 'ARCHIVIST_SYNC.chat.stop'}}{{else}}{{localize
-            'ARCHIVIST_SYNC.chat.streaming'}}{{/if}}</button>
+        <button type="submit" class="send-btn" title="{{localize 'ARCHIVIST_SYNC.chat.send'}}">
+            <i class="fas fa-paper-plane"></i>
+        </button>
     </form>
 </div>

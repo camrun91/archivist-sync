@@ -456,9 +456,8 @@
     </a>
 
     <!-- Optional: quick access button to open Ask Chat window -->
-    <a class="item"
-      onclick="(function(){ const W=window.ARCHIVIST_SYNC?.AskChatWindow; if(W) new W().render(true); else ui.notifications?.warn('Chat unavailable'); })()">
-      <i class="fas fa-robot"></i>
+    <a class="item ask-chat-btn">
+      <i class="archivist-icon"></i>
       {{localize "ARCHIVIST_SYNC.Menu.AskChat.Label"}}
     </a>
 
@@ -526,6 +525,16 @@
         <h4>{{localize "ARCHIVIST_SYNC.labels.currentSelection"}}</h4>
         <p><strong>{{selectedWorldName}}</strong> (ID: {{selectedWorldId}})</p>
       </div>
+      <div class="sync-controls">
+        <button type="button" class="btn pull sync-from-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+          {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
+          {{localize "ARCHIVIST_SYNC.buttons.syncFromArchivist"}}
+        </button>
+        <button type="button" class="btn push sync-to-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
+          {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-upload"></i>{{/if}}
+          {{localize "ARCHIVIST_SYNC.buttons.syncFromFoundry"}}
+        </button>
+      </div>
       {{/if}}
       {{/if}}
     </div>
@@ -543,11 +552,7 @@
             </button>
             <button type="button" class="importer-sample-btn btn" {{#if syncInProgress}}disabled{{/if}}>
               <i class="fas fa-eye"></i>
-              {{localize "ARCHIVIST_SYNC.buttons.sample"}}
-            </button>
-            <button type="button" class="importer-run-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
-              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-play"></i>{{/if}}
-              {{localize "ARCHIVIST_SYNC.buttons.runImport"}}
+              {{localize "ARCHIVIST_SYNC.buttons.loadData"}}
             </button>
           </div>
         </div>
@@ -581,10 +586,72 @@
         <div class="world-section">
           <div class="world-data-box">
             <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.samplePreview"}}</label>
-              <div class="description-field">
-                <pre class="importer-sample-output"
-                  style="white-space: pre-wrap; word-break: break-word; margin: 0;">{{importerSampleJson}}</pre>
+              <label>{{localize "ARCHIVIST_SYNC.labels.importPreview"}}</label>
+              <div style="display:grid;gap:8px">
+                {{#each importerGroups}}
+                {{#if this.length}}
+                <div class="preview-bucket">
+                  <h4 style="margin:0 0 6px 0; font-size:13px;">{{@key}}</h4>
+                  <table class="importer-preview-table" style="width:100%; border-collapse: collapse;">
+                    <thead>
+                      <tr>
+                        <th style="text-align:left; padding:4px 6px;">Include</th>
+                        <th style="text-align:left; padding:4px 6px;">Name</th>
+                        <th style="text-align:left; padding:4px 6px;">Type</th>
+                        <th style="text-align:left; padding:4px 6px;">Confidence</th>
+                        <th style="text-align:left; padding:4px 6px;">Fields</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {{#each this}}
+                      <tr>
+                        <td style="padding:4px 6px; vertical-align: top;">
+                          <input type="checkbox" class="importer-include" data-uuid="{{uuid}}" {{#if
+                            include}}checked{{/if}} />
+                        </td>
+                        <td style="padding:4px 6px; vertical-align: top; min-width:160px;">{{name}}</td>
+                        <td style="padding:4px 6px; vertical-align: top;">
+                          <select class="importer-type-select" data-uuid="{{uuid}}">
+                            <option value="Character" {{#if (eq targetType "Character" )}}selected{{/if}}>Character
+                            </option>
+                            <option value="Faction" {{#if (eq targetType "Faction" )}}selected{{/if}}>Faction</option>
+                            <option value="Location" {{#if (eq targetType "Location" )}}selected{{/if}}>Location
+                            </option>
+                            <option value="Note" {{#if (eq targetType "Note" )}}selected{{/if}}>Note</option>
+                          </select>
+                        </td>
+                        <td style="padding:4px 6px; vertical-align: top;">{{score}}%</td>
+                        <td style="padding:4px 6px; vertical-align: top;">
+                          <div style="display:grid; gap:4px;">
+                            {{#each fields}}
+                            <div style="display:grid; grid-template-columns: 140px 1fr; gap:6px; align-items:center;">
+                              <label style="font-size:12px; opacity:.8">{{key}}</label>
+                              <div style="display:flex; gap:6px; align-items:center;">
+                                <code style="font-size:11px; opacity:.9;">{{value}}</code>
+                                <select class="importer-field-select" data-uuid="{{../../uuid}}" data-field="{{key}}">
+                                  {{#each options}}
+                                  <option value="{{path}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                                  {{/each}}
+                                </select>
+                              </div>
+                            </div>
+                            {{/each}}
+                          </div>
+                        </td>
+                      </tr>
+                      {{/each}}
+                    </tbody>
+                  </table>
+                </div>
+                {{/if}}
+                {{/each}}
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+                  <button type="button" class="importer-run-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
+                    {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i
+                      class="fas fa-play"></i>{{/if}}
+                    {{localize "ARCHIVIST_SYNC.buttons.runImport"}}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

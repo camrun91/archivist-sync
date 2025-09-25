@@ -16,16 +16,26 @@
       "SelectedWorldName": {
         "Name": "Selected World",
         "Hint": "The name of the currently selected world from the Archivist API"
+      },
+      "ChatHistory": {
+        "Name": "Chat History",
+        "Hint": "Internal storage for Archivist Chat message history"
+      },
+      "MappingOverride": {
+        "Name": "Mapping Override (JSON)",
+        "Hint": "Optional JSON rules to customize importer field mapping"
       }
     },
     "chat": {
       "title": "Archivist Chat",
       "placeholder": "Ask a question about your campaign...",
       "send": "Send",
+      "clear": "Clear Chat",
+      "clearConfirm": "This will delete your local chat history for this world. Continue?",
       "streaming": "Streaming...",
       "stop": "Stop",
       "me": "Me",
-      "assistant": "Archivist",
+      "assistant": "",
       "noWorld": "Please select an Archivist world first.",
       "noApi": "Please configure your API key in module settings.",
       "error": "Chat error"
@@ -45,12 +55,17 @@
     "dialog": {
       "title": "Archivist Sync Manager"
     },
+    "Dialog": {
+      "SyncOptions": {
+        "Title": "Archivist Sync Manager"
+      }
+    },
     "tabs": {
       "world": "World Selection",
       "importer": "Importer",
       "characters": "Characters",
       "factions": "Factions",
-      "locations": "Locations",
+      "locations": "Locations"
     },
     "labels": {
       "apiStatus": "API Status",
@@ -74,11 +89,12 @@
       "npcs": "NPCs",
       "factions": "Factions",
       "locations": "Locations",
-      "mappingOverride": "Mapping Override (JSON)"
+      "mappingOverride": "Mapping Override (JSON)",
+      "importProgress": "Import Progress"
     },
     "status": {
       "connected": "Connected",
-      "notConfigured": "Not Configured",
+      "notConfigured": "Not Configured"
     },
     "buttons": {
       "syncing": "Syncing...",
@@ -91,7 +107,7 @@
       "map": "Map",
       "pushToArchivist": "Push to Archivist",
       "pullFromArchivist": "Pull from Archivist",
-      "sample": "Sample",
+      "loadData": "Load Data",
       "runImport": "Run Import",
       "createWorld": "Create World",
       "loadMapping": "Load",
@@ -101,13 +117,14 @@
       "selectWorld": "-- Select a World --"
     },
     "hints": {
-      "configureApi": "Please configure your API key in the module settings first.",
+      "configureApi": "Please configure your API key in the module settings first."
     },
     "warnings": {
       "apiNotConfigured": "Please configure your API key in the module settings first.",
       "selectWorldFirst": "Please select an Archivist world first.",
       "selectWorld": "Please select a world from the dropdown before saving.",
-      "noWorldsFound": "No Archivist worlds found. Create a world before continuing."
+      "noWorldsFound": "No Archivist worlds found. Create a world before continuing.",
+      "noActorsToSync": "No characters or NPCs found in this world to sync."
     },
     "messages": {
       "worldsLoaded": "Worlds loaded successfully from Archivist API",
@@ -117,6 +134,7 @@
       "noActors": "No character or NPC actors found in this world.",
       "noPlayerCharacters": "No player characters found in this world.",
       "noNpcs": "No NPCs found in this world.",
+      "noActorsHint": "Create some characters or NPCs to get started.",
       "loadingWorldData": "Loading world data from Archivist API...",
       "noFactions": "No factions found (folder 'Factions' or flagged).",
       "noLocations": "No locations found (folder 'Locations' or flagged).",

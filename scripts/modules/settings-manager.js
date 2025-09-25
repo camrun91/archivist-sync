@@ -1,5 +1,6 @@
 import { CONFIG, SETTINGS, MENU_CONFIG } from './config.js';
 import { SyncOptionsDialog } from '../dialogs/sync-options-dialog.js';
+import { AskChatMenu } from '../dialogs/ask-chat-menu.js';
 
 /**
  * Settings Manager for Archivist Sync Module
@@ -135,21 +136,15 @@ export class SettingsManager {
       restricted: sync.restricted
     });
 
-    // Register Ask chat menu (UI class is registered at runtime)
+    // Register Ask chat menu: use a tiny ApplicationV2 that opens the sidebar tab and closes
     const chat = MENU_CONFIG.ASK_CHAT;
     game.settings.registerMenu(this.moduleId, chat.key, {
       name: game.i18n.localize(chat.name),
       label: game.i18n.localize(chat.label),
       hint: game.i18n.localize(chat.hint),
       icon: chat.icon,
-      type: null,
-      restricted: chat.restricted,
-      onClick: () => {
-        // Defer require to avoid circular imports
-        const w = window.ARCHIVIST_SYNC?.AskChatWindow;
-        if (w) new w().render(true);
-        else ui.notifications?.warn('Chat window not available yet.');
-      }
+      type: AskChatMenu,
+      restricted: chat.restricted
     });
   }
 
