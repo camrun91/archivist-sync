@@ -163,3 +163,132 @@ curl -X POST https://your-api.com/world-data \\n  -H \"Content-Type: application
 ```
 
 This should help you get started with building an API that works with the Archivist Sync module!
+
+## Enhanced Biography Field Processing
+
+The module now includes advanced biography field auto-matching and concatenation functionality. This allows for intelligent processing of character biographical information across multiple fields.
+
+### Biography Field Discovery
+
+The system automatically discovers biography-related fields in actor data, including:
+
+- **Core Biography**: `biography`, `bio`, `backstory`, `appearance`
+- **Personality**: `beliefs`, `catchphrases`, `dislikes`, `likes`, `attitude`
+- **Relationships**: `allies`, `enemies`, `organizations`, `family`, `mentor`, `rival`
+- **Background**: `birthplace`, `campaignnotes`, `personality`, `traits`, `background`
+- **History**: `history`, `origin`, `motivation`, `goals`, `fears`, `secrets`
+
+### Usage Examples
+
+```javascript
+// Import the enhanced field mapper functions
+import { 
+    processBiographyFields, 
+    discoverBiographyFields,
+    concatenateBiographyFields,
+    writeBestBiographyEnhanced 
+} from './scripts/modules/field-mapper.js';
+
+// Example 1: Auto-discover and process all biography fields
+const actor = game.actors.getName("Aragorn");
+const result = processBiographyFields(actor, {
+    includeFieldLabels: true,    // Add field names as headers
+    preserveVisibility: true,    // Respect visibility settings
+    convertToMarkdown: true      // Convert final HTML to markdown
+});
+
+console.log("Concatenated HTML:", result.html);
+console.log("Markdown version:", result.markdown);
+console.log("Discovered fields:", result.fields);
+
+// Example 2: Just discover fields without processing
+const biographyFields = discoverBiographyFields(actor);
+biographyFields.forEach(field => {
+    console.log(`${field.field}: ${field.value.substring(0, 50)}...`);
+});
+
+// Example 3: Enhanced writing with auto-processing
+await writeBestBiographyEnhanced(actor, {
+    includeFieldLabels: false,
+    preserveVisibility: true,
+    convertToMarkdown: true
+});
+
+// Example 4: Custom concatenation with specific options
+const html = concatenateBiographyFields(biographyFields, {
+    includeFieldLabels: true,
+    preserveVisibility: false,  // Include hidden fields
+    actor: actor
+});
+```
+
+### Field Priority and Sorting
+
+Fields are automatically sorted by priority:
+
+1. **High Priority** (1000): `biography`, `bio`
+2. **Very High** (900): `backstory`
+3. **High** (800): `appearance`
+4. **Medium-High** (700): `description`
+5. **Medium** (600): `personality`
+6. **Medium-Low** (500): `traits`
+7. **Low** (400): `background`
+8. **Very Low** (300): `history`
+9. **Minimal** (200): `notes`
+10. **Minimal** (100): `summary`
+
+### Visibility Handling
+
+The system respects Foundry's visibility settings when `preserveVisibility: true`:
+
+```javascript
+// Example actor with visibility settings
+const actor = {
+    system: {
+        details: {
+            biography: {
+                value: "Public biography text",
+                visibility: {
+                    appearance: true,    // Visible
+                    backstory: false     // Hidden
+                }
+            }
+        }
+    }
+};
+
+// Only visible fields will be included
+const result = processBiographyFields(actor, {
+    preserveVisibility: true
+});
+```
+
+### HTML to Markdown Conversion
+
+The system automatically converts HTML content to clean markdown:
+
+```html
+<!-- Input HTML -->
+<h4>Appearance</h4>
+<p>Tall and <strong>noble</strong> with <em>piercing</em> eyes</p>
+
+<!-- Output Markdown -->
+## Appearance
+
+Tall and **noble** with _piercing_ eyes
+```
+
+### Integration with Existing Systems
+
+This enhanced functionality is backward compatible with existing biography writing functions:
+
+```javascript
+// Original function still works
+await writeBestBiography(actor, "<p>Simple biography text</p>");
+
+// New enhanced function with auto-processing
+await writeBestBiographyEnhanced(actor, {
+    includeFieldLabels: true,
+    preserveVisibility: true
+});
+```
