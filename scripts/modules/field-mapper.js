@@ -94,7 +94,8 @@ export async function writeBestBiography(actor, htmlString) {
             const discoveredCands = discoverStringPaths(actor.system, /(bio|descr|summary|notes)/i);
             const all = [...new Set([...unique, ...discoveredCands.map(c => c.path)])];
             const candidateObjs = all.map(p => ({ path: p }));
-            const concepts = ["biography", "backstory", "description", "notes"];
+            // Expanded concept set including synonyms and common sheet phrasing
+            const concepts = ["biography", "backstory", "description", "notes", "history", "public notes", "profile"];
             const best = await suggestBestStringPath(candidateObjs, concepts);
             if (best && typeof best.path === 'string') {
                 const data = {};
@@ -177,7 +178,7 @@ export function readBestBiography(actor) {
             const discoveredCands = discoverStringPaths(actor.system, /(bio|descr|summary|notes)/i);
             const all = [...new Set([...unique, ...discoveredCands.map(c => c.path)])];
             const candidateObjs = all.map(p => ({ path: p }));
-            const concepts = ["biography", "backstory", "description", "notes"];
+            const concepts = ["biography", "backstory", "description", "notes", "history", "public notes", "profile"];
             return (async () => {
                 const best = await suggestBestStringPath(candidateObjs, concepts);
                 if (best?.path) {

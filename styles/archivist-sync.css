@@ -32,6 +32,12 @@
   font-family: "Signika", sans-serif;
 }
 
+/* Ensure consistent box model inside dialog */
+.archivist-sync-dialog,
+.archivist-sync-dialog * {
+  box-sizing: border-box;
+}
+
 .archivist-sync-content .form-group {
   margin-bottom: 15px;
 }
@@ -77,8 +83,8 @@
 }
 
 .archivist-sync-content .tab-content {
-  min-height: 500px;
-  height: calc(100% - 60px);
+  min-height: 650px;
+  height: calc(100% - 40px);
   overflow-y: auto;
   border: 1px solid var(--arch-border);
   border-radius: 4px;
@@ -97,6 +103,54 @@
 
 .archivist-sync-content .tab.active {
   display: block !important;
+}
+
+/* Global control sizing and focus visibility */
+.archivist-sync-content .btn,
+.archivist-sync-content button,
+.archivist-sync-content select,
+.archivist-sync-content input[type="text"],
+.archivist-sync-content input[type="search"],
+.archivist-sync-content input[type="number"],
+.archivist-sync-content input[type="email"],
+.archivist-sync-content input[type="password"],
+.archivist-sync-content textarea {
+  min-height: 36px;
+  line-height: 1.2;
+}
+
+.archivist-sync-content .btn {
+  min-width: 44px;
+  /* accessibility hit target */
+}
+
+.archivist-sync-content select {
+  min-width: 160px;
+}
+
+.archivist-sync-content .input-row>label,
+.archivist-sync-content .world-field>label {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+}
+
+.archivist-sync-content .btn:focus-visible,
+.archivist-sync-content button:focus-visible,
+.archivist-sync-content select:focus-visible,
+.archivist-sync-content input:focus-visible,
+.archivist-sync-content textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--arch-accent-pull, #3ea8ff), transparent 70%);
+  border-color: color-mix(in srgb, var(--arch-accent-pull, #3ea8ff), var(--arch-border, #666) 70%);
+}
+
+/* Table cell robustness in previews */
+.archivist-sync-content table th,
+.archivist-sync-content table td {
+  padding: 6px 8px;
+  vertical-align: top;
+  word-break: break-word;
 }
 
 /* API Status indicators - scoped */
@@ -250,6 +304,8 @@
   min-height: 32px;
   white-space: normal;
   word-wrap: break-word;
+  color: var(--arch-text);
+  background: var(--arch-panel);
 }
 
 /* Current selection display - scoped */
@@ -302,6 +358,26 @@
 .archivist-sync-content .world-info p {
   margin: 5px 0;
   color: var(--arch-text);
+}
+
+/* Importer preview contrast helpers */
+.archivist-sync-content .field-value-chip {
+  font-size: 11px;
+  color: var(--arch-text);
+  background: color-mix(in srgb, var(--arch-bg-alt, #2a2d33), transparent 20%);
+  border: 1px solid var(--arch-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-width: 140px;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.archivist-sync-content .importer-preview select {
+  color: var(--arch-text);
+  background: var(--arch-panel);
+  border: 1px solid var(--arch-border);
 }
 
 .archivist-sync-content .world-info p:last-child {
@@ -484,9 +560,9 @@
 @media (max-width: 900px) {
   .archivist-sync-dialog {
     min-width: 600px !important;
-    width: 90vw !important;
-    height: 80vh !important;
-    max-height: 80vh !important;
+    width: 95vw !important;
+    height: 90vh !important;
+    max-height: 90vh !important;
   }
 
   .archivist-sync-dialog .window-content {
@@ -728,6 +804,20 @@
   color: var(--arch-text);
   margin-bottom: 4px;
   font-size: 14px;
+}
+
+.archivist-sync-content .world-field label .help-icon {
+  margin-left: 6px;
+  opacity: .8;
+  cursor: help;
+}
+
+/* Faux placeholder for mapping override JSON when empty */
+.archivist-sync-content .mapping-override-json[data-placeholder]:not(:focus):not(:valid):not([value]):empty::before {
+  content: attr(data-placeholder);
+  color: var(--arch-text-muted);
+  white-space: pre-wrap;
+  font-family: monospace;
 }
 
 .archivist-sync-content .world-field .field-value {

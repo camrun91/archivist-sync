@@ -34,7 +34,12 @@ function cosineSimilarity(a, b) {
 export async function suggestBestStringPath(candidates, concepts) {
     if (!Array.isArray(candidates) || !candidates.length) return null;
     const embedder = await getEmbedder();
-    const labels = concepts.concat(candidates.map(c => c.label || c.path));
+    // Normalize concept and candidate labels (lowercase tokens, collapse punctuation)
+    const normalizeLabel = (s) => String(s || '')
+        .replace(/[^a-zA-Z0-9]+/g, ' ')
+        .trim()
+        .toLowerCase();
+    const labels = concepts.map(normalizeLabel).concat(candidates.map(c => normalizeLabel(c.label || c.path)));
     const output = await embedder(labels, { pooling: 'mean', normalize: true });
     const dim = output.dim;
     const data = output.data;
@@ -52,7 +57,12 @@ export async function suggestBestStringPath(candidates, concepts) {
     for (let i = 0; i < candidates.length; i++) {
         const off = candBase + i * dim;
         const vec = data.subarray(off, off + dim);
-        const score = cosineSimilarity(agg, vec);
+        let score = cosineSimilarity(agg, vec);
+        // Small name-based priors to bias toward likely public description paths
+        const path = String(candidates[i].path || '').toLowerCase();
+        if (/(\.|^)(biography|bio|descr|description|summary|notes)(\.|$)/i.test(path)) score += 0.02;
+        if (/(public|value)/i.test(path)) score += 0.01;
+        if (/(private|gm)/i.test(path)) score -= 0.02; // negative hint for GM/private-only fields
         if (!best || score > best.score) best = { ...candidates[i], score };
     }
     return best;

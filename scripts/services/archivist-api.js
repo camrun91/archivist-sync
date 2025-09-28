@@ -18,7 +18,7 @@ export class ArchivistApiService {
    * @returns {Promise<any>}
    */
   async _request(apiKey, path, options = {}) {
-    const headers = this._createHeaders(apiKey);
+    const headers = this._createHeaders(apiKey, options);
     const url = `${this.baseUrl}${path}`;
     let attempt = 0;
     // Simple client-side throttle for write-heavy operations
@@ -55,12 +55,16 @@ export class ArchivistApiService {
    * @param {string} apiKey - The API key for authentication
    * @returns {object} Headers object
    */
-  _createHeaders(apiKey) {
-    return {
-      'Content-Type': 'application/json',
+  _createHeaders(apiKey, options = {}) {
+    const h = {
       'Accept': 'application/json',
       'x-api-key': apiKey
     };
+    // Only set Content-Type when we actually send a body (avoids preflight on simple GETs)
+    const method = String(options?.method || '').toUpperCase();
+    const hasBody = !!options?.body || method === 'POST' || method === 'PUT' || method === 'PATCH';
+    if (hasBody) h['Content-Type'] = 'application/json';
+    return h;
   }
 
   /**
@@ -351,6 +355,61 @@ export class ArchivistApiService {
   }
 
   /**
+   * List all items for a campaign
+   */
+  async listItems(apiKey, campaignId) {
+    try {
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(apiKey, `/items?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        all.push(...items);
+        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        if (page >= totalPages || items.length < size) break;
+        page += 1;
+      }
+      return { success: true, data: all };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to list items:`, error);
+      return { success: false, message: error.message || 'Failed to list items' };
+    }
+  }
+
+  /**
+   * Create an item
+   */
+  async createItem(apiKey, payload) {
+    try {
+      const data = await this._request(apiKey, `/items`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create item:`, error);
+      return { success: false, message: error.message || 'Failed to create item' };
+    }
+  }
+
+  /**
+   * Update an item
+   */
+  async updateItem(apiKey, itemId, payload) {
+    try {
+      const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update item:`, error);
+      return { success: false, message: error.message || 'Failed to update item' };
+    }
+  }
+
+  /**
    * Ask (RAG chat) — non-streaming
    * @param {string} apiKey
    * @param {string} campaignId
@@ -360,7 +419,7 @@ export class ArchivistApiService {
   async ask(apiKey, campaignId, messages) {
     try {
       const url = `${this._rootBase()}/ask`;
-      const headers = { ...this._createHeaders(apiKey) };
+      const headers = { ...this._createHeaders(apiKey, { method: 'POST', body: '1' }) };
       const r = await fetch(url, {
         method: 'POST',
         headers,
@@ -390,7 +449,7 @@ export class ArchivistApiService {
    */
   async askStream(apiKey, campaignId, messages, onChunk, onDone, signal) {
     const url = `${this._rootBase()}/ask`;
-    const headers = { ...this._createHeaders(apiKey) };
+    const headers = { ...this._createHeaders(apiKey, { method: 'POST', body: '1' }) };
     // Accept any stream; some servers send text/plain for streaming
     headers['Accept'] = '*/*';
     const body = JSON.stringify({ campaign_id: campaignId, messages, stream: true });

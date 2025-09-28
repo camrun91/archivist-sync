@@ -24,10 +24,12 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     this.activeTab = 'world';
     this.importerSampleJson = '';
     this.importerPreview = [];
-    this.importerGroups = { Actor: [], Journal: [], Scene: [] };
+    this.importerGroups = { Actor: [], Journal: [], Scene: [], Item: [] };
     this.importerOptions = {}; // by uuid → field options
     this.thresholdA = 0.6;
     this.thresholdB = 0.3;
+    this.importerViewMode = 'all'; // 'sample' | 'all'
+    this.importerActiveKind = 'All'; // 'All' | 'Actor' | 'Journal' | 'Scene' | 'Item'
   }
 
   /**
@@ -43,8 +45,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       resizable: true
     },
     position: {
-      width: 980,
-      height: 760
+      width: 1200,
+      height: 900
     },
     classes: ['archivist-sync-dialog'],
     actions: {
@@ -102,13 +104,49 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       foundryWorldTitle: game.world.title,
       foundryWorldDescription: game.world.description || '',
       importerSampleJson: this.importerSampleJson || '',
-      importerGroups: this.importerGroups || { Actor: [], Journal: [], Scene: [] },
+      importerGroups: this.importerGroups || { Actor: [], Journal: [], Scene: [], Item: [] },
       importerOptions: this.importerOptions || {}
       , thresholdA: this.thresholdA
       , thresholdB: this.thresholdB
-      , mappingOverrideJson: settingsManager.getMappingOverride() || '{}'
+      , mappingOverrideJson: settingsManager.getMappingOverride() || ''
     };
   }
+  _normalizeFieldValue(value) {
+    try {
+      if (value == null) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (Array.isArray(value)) {
+        const joined = value
+          .map(v => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') ? String(v) : '')
+          .filter(Boolean)
+          .join(', ');
+        if (joined) return joined;
+      }
+      if (typeof value === 'object') {
+        // Prefer common content-like fields
+        if (typeof value.value === 'string' && value.value.trim().length) return value.value;
+        if (typeof value.public === 'string' && value.public.trim().length) return value.public;
+        // Depth-first search up to 3 levels for first string leaf
+        const stack = [{ v: value, d: 0 }];
+        while (stack.length) {
+          const { v, d } = stack.pop();
+          if (d > 3 || v == null) continue;
+          if (typeof v === 'string' && v.trim().length) return v;
+          if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+          if (Array.isArray(v)) {
+            for (const el of v) stack.push({ v: el, d: d + 1 });
+          } else if (typeof v === 'object') {
+            for (const k of Object.keys(v)) stack.push({ v: v[k], d: d + 1 });
+          }
+        }
+      }
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
+
 
 
 
@@ -227,6 +265,16 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     html.querySelector('.mapping-save-btn')?.addEventListener('click', this._onMappingSave.bind(this));
     html.querySelector('.importer-create-world-btn')?.addEventListener('click', this._onCreateWorld.bind(this));
 
+    // Importer preview load mode (Sample vs All)
+    html.querySelector('.importer-load-sample')?.addEventListener('click', async () => {
+      this.importerViewMode = 'sample';
+      await this._refreshImporterPreview();
+    });
+    html.querySelector('.importer-load-all')?.addEventListener('click', async () => {
+      this.importerViewMode = 'all';
+      await this._refreshImporterPreview();
+    });
+
     // Importer preview change handlers (delegated)
     html.addEventListener('change', async (e) => {
       const typeSel = e.target.closest?.('.importer-type-select');
@@ -240,7 +288,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         corrections.byUuid = corrections.byUuid || {};
         const current = corrections.byUuid[uuid] || {};
         if (typeSel) {
-          current.targetType = typeSel.value;
+          // Split Character:PC / Character:NPC into a targetType and characterType flag
+          const raw = typeSel.value || '';
+          if (raw.startsWith('Character:')) {
+            current.targetType = 'Character';
+            current.characterType = raw.split(':')[1] || 'PC';
+          } else {
+            current.targetType = raw;
+            delete current.characterType;
+          }
         }
         if (includeCb) {
           current.include = includeCb.checked;
@@ -259,6 +315,27 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         ui.notifications.error('Failed to apply change');
       }
     });
+
+    // Importer kind tab switching and initial state
+    const applyKindFilter = (kind) => {
+      const buckets = html.querySelectorAll('.preview-bucket');
+      buckets.forEach(b => {
+        const bk = b.dataset.kind;
+        b.style.display = (kind === 'All' || kind === bk) ? '' : 'none';
+      });
+      html.querySelectorAll('.importer-kind-tab').forEach(x => {
+        if ((x.dataset.kind || '') === kind) x.classList.add('active'); else x.classList.remove('active');
+      });
+    };
+    html.querySelectorAll('.importer-kind-tab')?.forEach(btn => {
+      btn.addEventListener('click', (ev) => {
+        const kind = ev.currentTarget?.dataset?.kind || 'All';
+        this.importerActiveKind = kind;
+        applyKindFilter(kind);
+      });
+    });
+    // Apply initial filter on render
+    applyKindFilter(this.importerActiveKind || 'All');
   }
 
   /**
@@ -412,7 +489,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   }
 
   _buildPreviewData(sample) {
-    const groups = { Actor: [], Journal: [], Scene: [] };
+    const groups = { Actor: [], Journal: [], Scene: [], Item: [] };
     const optionsByUuid = {};
     const corrections = importerService.getCorrections();
     for (const r of sample) {
@@ -420,7 +497,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const uuid = e.sourcePath;
       const include = r.include !== false;
       // Field rows
-      const fields = Object.entries(p.payload || {}).map(([key, value]) => ({ key, value }));
+      const fields = Object.entries(p.payload || {}).map(([key, value]) => ({ key, value: this._normalizeFieldValue(value) }));
       // Build options list per field using flattened entity
       const flattened = this._flattenEntityPaths(e, '$');
       const defaultOptions = flattened.slice(0, 24).map(({ path, value }) => ({ path, label: `${path} — ${String(value).slice(0, 40)}` }));
@@ -430,6 +507,12 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         const options = [{ path: '', label: '(auto)' }, ...defaultOptions].map(o => ({ ...o, selected: o.path === selectedPath }));
         return { key: f.key, value: f.value, options };
       });
+      // Derive UI type: split Character into PC/NPC when labels reveal it or correction exists
+      let uiType = p.targetType || 'Note';
+      const corrected = corrections?.byUuid?.[uuid];
+      const labelSet = new Set((p.labels || []).map(l => String(l).toUpperCase()));
+      const charType = (corrected?.characterType || (labelSet.has('PC') ? 'PC' : (labelSet.has('NPC') ? 'NPC' : '')));
+      if (p.targetType === 'Character') uiType = charType ? `Character:${charType}` : 'Character:PC';
       const row = {
         uuid,
         name: e.name,
@@ -437,7 +520,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         kind: e.kind,
         include,
         targetType: p.targetType,
-        score: Math.round((Number(p.score || 0)) * 100),
+        uiType,
+        // Clamp percent to [0,100]
+        score: Math.max(0, Math.min(100, Math.round((Number(p.score || 0)) * 100))),
         fields: fieldRows
       };
       if (!groups[e.kind]) groups[e.kind] = [];
@@ -448,10 +533,10 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   }
 
   async _refreshImporterPreview() {
-    const size = Math.max(1, this.importerPreview?.length || 20);
-    const sample = importerService.sample(size);
-    this.importerPreview = sample;
-    const built = this._buildPreviewData(sample);
+    const sampleSize = Math.max(1, this.importerPreview?.length || 30);
+    const data = (this.importerViewMode === 'all') ? importerService.all() : importerService.sample(sampleSize);
+    this.importerPreview = data;
+    const built = this._buildPreviewData(data);
     this.importerGroups = built.groups;
     this.importerOptions = built.optionsByUuid;
     this.render();
@@ -465,9 +550,10 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         return;
       }
       this.syncInProgress = true; this.render();
-      const sample = importerService.sample(30);
-      this.importerPreview = sample;
-      const built = this._buildPreviewData(sample);
+      this.importerViewMode = 'sample';
+      const data = importerService.sample(30);
+      this.importerPreview = data;
+      const built = this._buildPreviewData(data);
       this.importerGroups = built.groups;
       this.importerOptions = built.optionsByUuid;
       this.importerSampleJson = '';

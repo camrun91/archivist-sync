@@ -1,5 +1,6 @@
 import { CONFIG } from './config.js';
 import { archivistApi } from '../services/archivist-api.js';
+import { toMarkdownIfHtml, unwrapToPlainText } from './importer-normalizer.js';
 
 function resolveCharacterType(srcDoc, labels) {
     const labelSet = new Set((labels || []).map(l => String(l).toUpperCase()));
@@ -11,21 +12,15 @@ function resolveCharacterType(srcDoc, labels) {
 
 function coalesce(...values) {
     for (const v of values) {
-        if (v != null && String(v).trim().length) return v;
+        const s = unwrapToPlainText(v);
+        if (s && s.trim().length) return s;
     }
     return undefined;
 }
 
 function normalizeText(value) {
-    if (value == null) return '';
-    if (typeof value === 'string') return value;
-    // Foundry biographies often have { value, public }
-    if (typeof value === 'object') {
-        const candidate = value.value ?? value.public ?? null;
-        if (typeof candidate === 'string') return candidate;
-        if (Array.isArray(value)) return value.map(v => normalizeText(v)).join('\n');
-    }
-    try { return String(value); } catch (_) { return ''; }
+    const s = unwrapToPlainText(value);
+    return toMarkdownIfHtml(s);
 }
 
 function buildApiPayload(worldId, srcDoc, mapped) {
@@ -36,7 +31,7 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const image = coalesce(p.portraitUrl, p.imageUrl, p.image);
         const type = resolveCharacterType(srcDoc, mapped?.labels);
         const payload = { character_name: characterName, description, type, campaign_id: worldId };
-        if (image) payload.image = image;
+        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Faction') {
@@ -44,7 +39,7 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
         const payload = { name, description, campaign_id: worldId };
-        if (image) payload.image = image;
+        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Location') {
@@ -52,7 +47,15 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
         const payload = { name, description, campaign_id: worldId };
-        if (image) payload.image = image;
+        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
+        return payload;
+    }
+    if (mapped?.targetType === 'Item') {
+        const name = coalesce(p.name, p.title, srcDoc?.name, 'Item');
+        const description = normalizeText(coalesce(p.description, ''));
+        const image = coalesce(p.imageUrl, p.image);
+        const payload = { name, description, campaign_id: worldId };
+        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     // Default passthrough for unsupported types
@@ -122,6 +125,20 @@ export async function upsertMappedEntity(apiKey, worldId, srcDoc, mapped) {
         }
         const created = await archivistApi.createLocation(apiKey, payload);
         if (created.success && created.data?.id) await setFlagForSource(srcDoc, created.data.id, 'location', undefined, worldId);
+        return created;
+    }
+    if (type === 'Item') {
+        if (existingId) {
+            try {
+                return await archivistApi.updateItem(apiKey, existingId, payload);
+            } catch (e) {
+                const created = await archivistApi.createItem(apiKey, payload);
+                if (created.success && created.data?.id) await setFlagForSource(srcDoc, created.data.id, 'item', undefined, worldId);
+                return created;
+            }
+        }
+        const created = await archivistApi.createItem(apiKey, payload);
+        if (created.success && created.data?.id) await setFlagForSource(srcDoc, created.data.id, 'item', undefined, worldId);
         return created;
     }
     // Notes and other types are not yet directly upserted

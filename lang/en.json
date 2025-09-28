@@ -75,6 +75,7 @@
       "foundryWorld": "Current Foundry World",
       "archivistWorld": "Archivist World Data",
       "importer": "Importer Wizard",
+      "importPreview": "Import Preview",
       "thresholdA": "Auto-import threshold (A)",
       "thresholdB": "Needs review threshold (B)",
       "samplePreview": "Sample preview",
@@ -118,6 +119,9 @@
     },
     "hints": {
       "configureApi": "Please configure your API key in the module settings first."
+    },
+    "help": {
+      "mappingOverride": "Advanced: Provide JSON to override importer mapping per-entity. Structure: {\n  \"byUuid\": { \"<Foundry UUID>\": { include?: boolean, targetType?: \"Character|Faction|Location|Item|Note\", characterType?: \"PC|NPC\", fieldPaths?: { <field>: '$.<path>' } } },\n  \"byKey\": { \"<kind|subtype|folderName>\": { ...same fields... } }\n}\nUse fieldPaths to force values (e.g. { imageUrl: '$.images' })."
     },
     "warnings": {
       "apiNotConfigured": "Please configure your API key in the module settings first.",
