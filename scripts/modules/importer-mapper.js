@@ -126,6 +126,7 @@ function scoreHeuristics(entity, rule) {
 /**
  * Map GenericEntity → Archivist shape proposal with confidence
  */
+// Deprecated: legacy semantic mapper retained behind feature flag only
 export function mapEntityToArchivist(entity, overridePreset) {
     const systemId = game.system?.id || 'generic';
     const { preset } = overridePreset || getPresetForSystemId(systemId);

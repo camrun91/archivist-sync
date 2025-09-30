@@ -31,7 +31,7 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const image = coalesce(p.portraitUrl, p.imageUrl, p.image);
         const type = resolveCharacterType(srcDoc, mapped?.labels);
         const payload = { character_name: characterName, description, type, campaign_id: worldId };
-        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
+        if (image && /^https:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Faction') {
@@ -39,7 +39,7 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
         const payload = { name, description, campaign_id: worldId };
-        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
+        if (image && /^https:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Location') {
@@ -47,7 +47,7 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
         const payload = { name, description, campaign_id: worldId };
-        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
+        if (image && /^https:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Item') {
@@ -55,7 +55,7 @@ function buildApiPayload(worldId, srcDoc, mapped) {
         const description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
         const payload = { name, description, campaign_id: worldId };
-        if (image && /^https?:\/\//i.test(String(image))) payload.image = image;
+        if (image && /^https:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     // Default passthrough for unsupported types

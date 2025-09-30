@@ -1,0 +1,904 @@
+<form class="archivist-world-setup" autocomplete="off">
+    <div class="archivist-world-setup-root">
+        <style>
+            .world-setup-dialog {
+                --setup-primary: #4a90e2;
+                --setup-success: #28a745;
+                --setup-warning: #ffc107;
+                --setup-danger: #dc3545;
+                --setup-bg: #f8f9fa;
+                --setup-border: #dee2e6;
+                --setup-text: #212529;
+            }
+
+            .world-setup-dialog .window-content {
+                padding: 0;
+                background: var(--setup-bg);
+            }
+
+            .setup-header {
+                background: var(--setup-primary);
+                color: white;
+                padding: 20px;
+                text-align: center;
+            }
+
+            .setup-header h2 {
+                margin: 0 0 10px 0;
+                font-size: 24px;
+                font-weight: 600;
+            }
+
+            .setup-header p {
+                margin: 0;
+                opacity: 0.9;
+                font-size: 14px;
+            }
+
+            .progress-container {
+                background: rgba(255, 255, 255, 0.2);
+                height: 4px;
+                margin-top: 15px;
+                border-radius: 2px;
+                overflow: hidden;
+            }
+
+            .progress-fill {
+                background: white;
+                height: 100%;
+                transition: width 0.3s ease;
+                border-radius: 2px;
+            }
+
+            /* Step 3: ensure campaign select has adequate height and readable options */
+            .world-setup-dialog #campaign-select {
+                min-height: 44px;
+                line-height: 1.4;
+                padding: 10px 12px;
+            }
+
+            .world-setup-dialog #campaign-select option {
+                padding: 8px 10px;
+                line-height: 1.5;
+            }
+
+            /* Step 4: ensure all select elements have adequate height and readable options */
+            .world-setup-dialog .setup-form-group select {
+                min-height: 44px;
+                line-height: 1.4;
+                padding: 10px 12px;
+            }
+
+            .world-setup-dialog .setup-form-group select option {
+                padding: 8px 10px;
+                line-height: 1.5;
+            }
+
+            .setup-content {
+                padding: 30px;
+                min-height: 300px;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .step-indicator {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 30px;
+            }
+
+            .step-number {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 600;
+                font-size: 14px;
+                background: var(--setup-border);
+                color: var(--setup-text);
+            }
+
+            .step-number.active {
+                background: var(--setup-primary);
+                color: white;
+            }
+
+            .step-number.completed {
+                background: var(--setup-success);
+                color: white;
+            }
+
+            .step-content {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .step-title {
+                font-size: 20px;
+                font-weight: 600;
+                color: var(--setup-text);
+                margin: 0 0 10px 0;
+            }
+
+            .step-description {
+                color: #6c757d;
+                line-height: 1.5;
+                margin-bottom: 20px;
+            }
+
+            .setup-form-group {
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .setup-form-group label {
+                font-weight: 600;
+                color: var(--setup-text);
+            }
+
+            .setup-form-group select,
+            .setup-form-group input {
+                padding: 10px;
+                border: 1px solid var(--setup-border);
+                border-radius: 4px;
+                font-size: 14px;
+            }
+
+            .setup-actions {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px 30px;
+                border-top: 1px solid var(--setup-border);
+                background: white;
+            }
+
+            .setup-btn {
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            }
+
+            .setup-btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            .setup-btn.primary {
+                background: var(--setup-primary);
+                color: white;
+            }
+
+            .setup-btn.primary:hover:not(:disabled) {
+                background: #357abd;
+            }
+
+            .setup-btn.secondary {
+                background: var(--setup-border);
+                color: var(--setup-text);
+            }
+
+            .setup-btn.secondary:hover:not(:disabled) {
+                background: #c6c8ca;
+            }
+
+            .setup-btn.success {
+                background: var(--setup-success);
+                color: white;
+            }
+
+            .setup-btn.success:hover:not(:disabled) {
+                background: #218838;
+            }
+
+            .world-info-box {
+                background: white;
+                border: 1px solid var(--setup-border);
+                border-radius: 8px;
+                padding: 15px;
+                margin: 10px 0;
+            }
+
+            .world-info-box h4 {
+                margin: 0 0 10px 0;
+                color: var(--setup-text);
+            }
+
+            .world-info-box p {
+                margin: 5px 0;
+                color: #6c757d;
+                font-size: 14px;
+            }
+
+            .status-indicator {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: 600;
+            }
+
+            .status-indicator.success {
+                background: rgba(40, 167, 69, 0.1);
+                color: var(--setup-success);
+            }
+
+            .status-indicator.warning {
+                background: rgba(255, 193, 7, 0.1);
+                color: var(--setup-warning);
+            }
+
+            .loading-spinner {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                border: 2px solid #f3f3f3;
+                border-top: 2px solid var(--setup-primary);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* Step 5: Selection rows - equal name/select split and high-contrast visuals */
+            .world-setup-dialog .ws-select-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .world-setup-dialog .ws-select-row .ws-name,
+            .world-setup-dialog .ws-select-row select {
+                /* Split remaining space 50/50 regardless of checkbox width */
+                flex: 1 1 0;
+                min-width: 0;
+                /* allow shrinking in flex containers */
+            }
+
+            /* Hard contrast for readability across themes */
+            .world-setup-dialog .ws-select-row .ws-name {
+                background: #262626 !important;
+                color: #ffffff !important;
+                border: 1px solid #444 !important;
+                border-radius: 4px;
+                padding: 6px 10px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .world-setup-dialog .ws-select-row select {
+                background: #262626 !important;
+                color: #ffffff !important;
+                border: 1px solid #444 !important;
+                border-radius: 4px;
+                padding: 8px 10px;
+            }
+
+            /* Step 6: High-contrast progress logs */
+            .world-setup-dialog .ws-progress-log {
+                max-height: 200px;
+                overflow: auto;
+                background: #1f1f1f !important;
+                color: #ffffff !important;
+                border: 1px solid #444 !important;
+                padding: 8px;
+                border-radius: 6px;
+            }
+
+            .world-setup-dialog .ws-progress-log * {
+                color: #ffffff !important;
+                background: transparent !important;
+            }
+
+            .world-setup-dialog .ws-progress-log ul {
+                margin: 0;
+                padding-left: 16px;
+            }
+
+            .world-setup-dialog .ws-progress-log li {
+                margin: 3px 0;
+                line-height: 1.35;
+            }
+        </style>
+
+        <div class="setup-header">
+            <h2>{{localize "ARCHIVIST_SYNC.worldSetup.title"}}</h2>
+            <p>{{localize "ARCHIVIST_SYNC.worldSetup.subtitle"}}</p>
+            <div class="progress-container">
+                <div class="progress-fill" style="width: {{progressPercentage}}%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="setup-content">
+        <div class="step-indicator">
+            {{#each steps}}
+            <div
+                class="step-number {{#if (eq this ../currentStep)}}active{{else}}{{#if (lt this ../currentStep)}}completed{{/if}}{{/if}}">
+                {{#if (lt this ../currentStep)}}
+                <i class="fas fa-check"></i>
+                {{else}}
+                {{this}}
+                {{/if}}
+            </div>
+            {{#unless @last}}<div
+                style="width: 20px; height: 2px; background: {{#if (lt this ../currentStep)}}var(--setup-success){{else}}var(--setup-border){{/if}};">
+            </div>{{/unless}}
+            {{/each}}
+        </div>
+
+        <div class="step-content">
+            {{#if isStep1}}
+            <!-- Step 1: Welcome -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.step1.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step1.description"}}</p>
+                <div class="world-info-box">
+                    <h4><i class="fas fa-globe"></i> {{foundryWorldTitle}}</h4>
+                    {{#if foundryWorldDescription}}
+                    <p>{{foundryWorldDescription}}</p>
+                    {{/if}}
+                    <p><strong>{{localize "ARCHIVIST_SYNC.worldSetup.step1.nextSteps"}}</strong></p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
+                        <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
+                        <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
+                    </ul>
+                </div>
+                <div style="text-align:center; margin-top: 16px;">
+                    <button type="button" data-action="nextStep" class="setup-btn primary">
+                        <i class="fas fa-rocket"></i>
+                        {{localize "ARCHIVIST_SYNC.worldSetup.buttons.start"}}
+                    </button>
+                </div>
+            </div>
+            {{/if}}
+
+            {{#if isStep4}}
+            <!-- Step 4: Mapping Configuration -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.mapping.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.mapping.description"}}</p>
+            </div>
+
+            <div class="world-info-box">
+                <h4>PC Mapping</h4>
+                <div class="setup-form-group">
+                    <label>Character Name</label>
+                    <select id="map-pc-name">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.actor}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.pc.namePath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Image</label>
+                    <select id="map-pc-image">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.actor}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.pc.imagePath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Description</label>
+                    <select id="map-pc-desc">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.actor}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.pc.descPath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+            </div>
+
+            <div class="world-info-box">
+                <h4>NPC Mapping</h4>
+                <div class="setup-form-group">
+                    <label>Character Name</label>
+                    <select id="map-npc-name">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.actor}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.npc.namePath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Image</label>
+                    <select id="map-npc-image">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.actor}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.npc.imagePath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Description</label>
+                    <select id="map-npc-desc">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.actor}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.npc.descPath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+            </div>
+
+            <div class="world-info-box">
+                <h4>Item Mapping</h4>
+                <div class="setup-form-group">
+                    <label>Name</label>
+                    <select id="map-item-name">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.item}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.item.namePath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Image</label>
+                    <select id="map-item-image">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.item}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.item.imagePath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Description</label>
+                    <select id="map-item-desc">
+                        <option value="">Select property path...</option>
+                        {{#each mappingOptions.item}}
+                        <option value="{{this.path}}" {{#if (eq this.path
+                            ../setupData.mapping.item.descPath)}}selected{{/if}}>
+                            {{this.path}} ({{this.type}})
+                        </option>
+                        {{/each}}
+                    </select>
+                </div>
+            </div>
+
+            <div class="world-info-box">
+                <h4>Destination Paths</h4>
+                <div class="setup-form-group">
+                    <label>PCs</label>
+                    <select id="dest-pc">
+                        <option value="">Root</option>
+                        {{#each folderOptions.pc}}
+                        <option value="{{this.id}}" {{#if (eq this.id ../setupData.destinations.pc)}}selected{{/if}}>
+                            {{this.name}}</option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>NPCs</label>
+                    <select id="dest-npc">
+                        <option value="">Root</option>
+                        {{#each folderOptions.npc}}
+                        <option value="{{this.id}}" {{#if (eq this.id ../setupData.destinations.npc)}}selected{{/if}}>
+                            {{this.name}}</option>
+                        {{/each}}
+                    </select>
+                </div>
+                <div class="setup-form-group">
+                    <label>Items</label>
+                    <select id="dest-item">
+                        <option value="">Root</option>
+                        {{#each folderOptions.item}}
+                        <option value="{{this.id}}" {{#if (eq this.id ../setupData.destinations.item)}}selected{{/if}}>
+                            {{this.name}}</option>
+                        {{/each}}
+                    </select>
+                </div>
+                {{!-- Removed Locations and Factions destination selects; containers are created at root --}}
+                <div style="text-align:right; margin-top:8px;">
+                    <button type="button" class="setup-btn primary" data-action="nextStep">{{localize
+                        "ARCHIVIST_SYNC.worldSetup.mapping.saveAndContinue"}}</button>
+                </div>
+            </div>
+            {{/if}}
+
+            {{#if isStep5}}
+            <!-- Step 5: Selection of Documents to Sync -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.select.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.select.description"}}</p>
+            </div>
+            <div class="world-info-box">
+                <div style="display:flex; gap:8px; margin-bottom:10px;">
+                    <button type="button" class="setup-btn secondary" data-action="prepareSelections">Refresh</button>
+                </div>
+                <div>
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                        <h4 style="margin:0;">PCs</h4>
+                        <button type="button" class="setup-btn secondary" data-action="selectAll"
+                            data-kind="pcs">All</button>
+                        <button type="button" class="setup-btn secondary" data-action="selectNone"
+                            data-kind="pcs">None</button>
+                    </div>
+                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                        {{#each setupData.selections.pcs}}
+                        <li class="ws-select-row">
+                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
+                                data-kind="pcs" data-id="{{this.id}}" />
+                            <span class="ws-name">{{this.name}}</span>
+                            <select data-action="changeMatch" data-kind="pcs" data-id="{{this.id}}">
+                                <option value="NEW">New Character</option>
+                                {{#with ../../archivistCandidates}}
+                                {{#each characters}}
+                                <option value="{{this.id}}">{{this.name}}</option>
+                                {{/each}}
+                                {{/with}}
+                            </select>
+                        </li>
+                        {{/each}}
+                    </ul>
+                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
+                        <h4 style="margin:0;">NPCs</h4>
+                        <button type="button" class="setup-btn secondary" data-action="selectAll"
+                            data-kind="npcs">All</button>
+                        <button type="button" class="setup-btn secondary" data-action="selectNone"
+                            data-kind="npcs">None</button>
+                    </div>
+                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                        {{#each setupData.selections.npcs}}
+                        <li class="ws-select-row">
+                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
+                                data-kind="npcs" data-id="{{this.id}}" />
+                            <span class="ws-name">{{this.name}}</span>
+                            <select data-action="changeMatch" data-kind="npcs" data-id="{{this.id}}">
+                                <option value="NEW">New Character</option>
+                                {{#with ../../archivistCandidates}}
+                                {{#each characters}}
+                                <option value="{{this.id}}">{{this.name}}</option>
+                                {{/each}}
+                                {{/with}}
+                            </select>
+                        </li>
+                        {{/each}}
+                    </ul>
+
+                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
+                        <h4 style="margin:0;">Items</h4>
+                        <button type="button" class="setup-btn secondary" data-action="selectAll"
+                            data-kind="items">All</button>
+                        <button type="button" class="setup-btn secondary" data-action="selectNone"
+                            data-kind="items">None</button>
+                    </div>
+                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                        {{#each setupData.selections.items}}
+                        <li class="ws-select-row">
+                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
+                                data-kind="items" data-id="{{this.id}}" />
+                            <span class="ws-name">{{this.name}}</span>
+                            <select data-action="changeMatch" data-kind="items" data-id="{{this.id}}">
+                                <option value="NEW">New Item</option>
+                                {{#with ../../archivistCandidates}}
+                                {{#each items}}
+                                <option value="{{this.id}}">{{this.name}}</option>
+                                {{/each}}
+                                {{/with}}
+                            </select>
+                        </li>
+                        {{/each}}
+                    </ul>
+
+                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
+                        <h4 style="margin:0;">Locations</h4>
+                        <button type="button" class="setup-btn secondary" data-action="selectAll"
+                            data-kind="locations">All</button>
+                        <button type="button" class="setup-btn secondary" data-action="selectNone"
+                            data-kind="locations">None</button>
+                    </div>
+                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                        {{#each setupData.selections.locations}}
+                        <li class="ws-select-row">
+                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
+                                data-kind="locations" data-id="{{this.id}}" />
+                            <span class="ws-name">{{this.name}}</span>
+                            <select data-action="changeMatch" data-kind="locations" data-id="{{this.id}}">
+                                <option value="NEW">New Location</option>
+                                {{#with ../../archivistCandidates}}
+                                {{#each locations}}
+                                <option value="{{this.id}}">{{this.name}}</option>
+                                {{/each}}
+                                {{/with}}
+                            </select>
+                        </li>
+                        {{/each}}
+                    </ul>
+
+                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
+                        <h4 style="margin:0;">Factions</h4>
+                        <button type="button" class="setup-btn secondary" data-action="selectAll"
+                            data-kind="factions">All</button>
+                        <button type="button" class="setup-btn secondary" data-action="selectNone"
+                            data-kind="factions">None</button>
+                    </div>
+                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                        {{#each setupData.selections.factions}}
+                        <li class="ws-select-row">
+                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
+                                data-kind="factions" data-id="{{this.id}}" />
+                            <span class="ws-name">{{this.name}}</span>
+                            <select data-action="changeMatch" data-kind="factions" data-id="{{this.id}}">
+                                <option value="NEW">New Faction</option>
+                                {{#with ../../archivistCandidates}}
+                                {{#each factions}}
+                                <option value="{{this.id}}">{{this.name}}</option>
+                                {{/each}}
+                                {{/with}}
+                            </select>
+                        </li>
+                        {{/each}}
+                    </ul>
+                </div>
+                <div style="text-align:right; margin-top:10px;">
+                    <button type="button" class="setup-btn primary" data-action="confirmSelections">{{localize
+                        "ARCHIVIST_SYNC.worldSetup.buttons.next"}}</button>
+                </div>
+            </div>
+            {{/if}}
+
+            {{#if isStep6}}
+            <!-- Step 6: Summary + Begin Sync -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.summary.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.summary.description"}}</p>
+            </div>
+            <div class="world-info-box">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.summary.placeholder"}}</p>
+                {{#if syncPlan.counts}}
+                <div class="sync-plan-grid">
+                    <div class="sync-plan-box">
+                        <strong>Create in Archivist</strong>
+                        <ul>
+                            <li>PCs: {{syncPlan.counts.create.pc}}</li>
+                            <li>NPCs: {{syncPlan.counts.create.npc}}</li>
+                            <li>Items: {{syncPlan.counts.create.item}}</li>
+                            <li>Locations: {{syncPlan.counts.create.location}}</li>
+                            <li>Factions: {{syncPlan.counts.create.faction}}</li>
+                        </ul>
+                    </div>
+                    <div class="sync-plan-box">
+                        <strong>Link Existing</strong>
+                        <ul>
+                            <li>PCs: {{syncPlan.counts.link.pc}}</li>
+                            <li>NPCs: {{syncPlan.counts.link.npc}}</li>
+                            <li>Items: {{syncPlan.counts.link.item}}</li>
+                            <li>Locations: {{syncPlan.counts.link.location}}</li>
+                            <li>Factions: {{syncPlan.counts.link.faction}}</li>
+                        </ul>
+                    </div>
+                </div>
+                {{/if}}
+                {{#if syncStatus.total}}
+                <div style="margin:8px 0;">
+                    <div style="height:6px; background:#eee; position:relative; border-radius:3px; overflow:hidden;">
+                        <div
+                            style="position:absolute; left:0; top:0; bottom:0; width: {{syncStatusPct}}%; background: var(--setup-primary);">
+                        </div>
+                    </div>
+                    <small>{{syncStatus.processed}} / {{syncStatus.total}} — {{syncStatus.current}}</small>
+                </div>
+                {{/if}}
+                {{#if syncStatus.logs}}
+                <div class="ws-progress-log">
+                    <ul>
+                        {{#each syncStatus.logs}}
+                        <li>{{this}}</li>
+                        {{/each}}
+                    </ul>
+                </div>
+                {{/if}}
+                <div style="text-align:right;">
+                    <button type="button" class="setup-btn success" data-action="beginSync" {{#if
+                        isLoading}}disabled{{/if}}>{{localize
+                        "ARCHIVIST_SYNC.worldSetup.summary.beginSync"}}</button>
+                </div>
+            </div>
+            {{/if}}
+            {{#if isStep2}}
+            <!-- Step 2: API Key Entry -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.step2.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step2.description"}}</p>
+            </div>
+
+            <div class="world-info-box">
+                <h4><i class="fas fa-key" style="color: #ffc107;"></i> {{localize
+                    "ARCHIVIST_SYNC.worldSetup.step2.getApiKey"}}</h4>
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step2.noKeyYet"}}</p>
+                <ol style="margin: 10px 0; padding-left: 20px; color: #666;">
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step1"}}</li>
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step2"}}</li>
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step3"}}</li>
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step4"}}</li>
+                </ol>
+                <div
+                    style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 10px; margin: 10px 0;">
+                    <strong style="color: #856404;">⚠️ {{localize
+                        "ARCHIVIST_SYNC.worldSetup.step2.permissionsWarning"}}</strong>
+                    <p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">{{localize
+                        "ARCHIVIST_SYNC.worldSetup.step2.permissionsDetails"}}</p>
+                </div>
+            </div>
+
+            <div class="setup-form-group">
+                <label for="api-key-input">{{localize "ARCHIVIST_SYNC.worldSetup.step2.enterKey"}}</label>
+                <input type="password" id="api-key-input"
+                    placeholder="{{localize 'ARCHIVIST_SYNC.worldSetup.step2.keyPlaceholder'}}"
+                    value="{{setupData.apiKey}}" style="font-family: monospace;">
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <button type="button" data-action="validateApiKey" class="setup-btn primary" {{#if
+                        isValidatingApi}}disabled{{/if}}>
+                        {{#if isValidatingApi}}
+                        <span class="loading-spinner"></span>
+                        {{localize "ARCHIVIST_SYNC.worldSetup.step2.validating"}}
+                        {{else}}
+                        <i class="fas fa-check"></i>
+                        {{localize "ARCHIVIST_SYNC.worldSetup.step2.validateKey"}}
+                        {{/if}}
+                    </button>
+                    {{#if setupData.apiKeyValid}}
+                    <div class="status-indicator success">
+                        <i class="fas fa-check-circle"></i>
+                        {{localize "ARCHIVIST_SYNC.worldSetup.step2.keyValid"}}
+                    </div>
+                    {{/if}}
+                </div>
+            </div>
+            {{/if}}
+
+            {{#if isStep3}}
+            <!-- Step 3: Campaign Selection or Creation -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.step3.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step3.description"}}</p>
+            </div>
+
+            <div class="setup-form-group" style="display:flex; gap: 10px; align-items:center;">
+                <button type="button" data-action="loadCampaigns" class="setup-btn primary" {{#if
+                    isLoading}}disabled{{/if}}>
+                    {{#if isLoading}}
+                    <span class="loading-spinner"></span>
+                    {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
+                    {{else}}
+                    <i class="fas fa-sync"></i>
+                    {{localize "ARCHIVIST_SYNC.buttons.syncWorlds"}}
+                    {{/if}}
+                </button>
+                <button type="button" data-action="createCampaign" class="setup-btn secondary" {{#if
+                    isLoading}}disabled{{/if}}>
+                    <i class="fas fa-plus"></i>
+                    {{localize "ARCHIVIST_SYNC.buttons.createWorld"}}
+                </button>
+            </div>
+
+            {{#if worlds.length}}
+            <div class="setup-form-group">
+                <label for="campaign-select">{{localize "ARCHIVIST_SYNC.labels.selectWorld"}}</label>
+                <select id="campaign-select" name="campaignSelect">
+                    <option value="">{{localize "ARCHIVIST_SYNC.options.selectWorld"}}</option>
+                    {{#each worlds}}
+                    <option value="{{this.id}}" {{#if (eq this.id ../setupData.selectedWorldId)}}selected{{/if}}>
+                        {{#if this.name}}{{this.name}}{{else}}{{this.title}}{{/if}}
+                    </option>
+                    {{/each}}
+                </select>
+            </div>
+            {{/if}}
+
+            {{#if setupData.selectedWorldId}}
+            <div class="world-info-box">
+                <div class="status-indicator success">
+                    <i class="fas fa-check-circle"></i>
+                    {{localize "ARCHIVIST_SYNC.worldSetup.step3.worldSelected"}}
+                </div>
+                <p><strong>{{setupData.selectedWorldName}}</strong></p>
+                <div style="text-align:right; margin-top:8px;">
+                    <button type="button" data-action="confirmCampaign" class="setup-btn primary">
+                        {{localize "ARCHIVIST_SYNC.buttons.saveSelection"}}
+                    </button>
+                </div>
+            </div>
+            {{/if}}
+            {{/if}}
+
+            {{#if isStep4}}
+            <!-- Step 4: Complete Setup -->
+            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.step4.title"}}</h3>
+            <div class="step-description">
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step4.description"}}</p>
+            </div>
+
+            <div class="world-info-box">
+                <h4><i class="fas fa-check-circle" style="color: var(--setup-success);"></i> {{localize
+                    "ARCHIVIST_SYNC.worldSetup.step4.ready"}}</h4>
+                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step4.features"}}</p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature1"}}</li>
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature2"}}</li>
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature3"}}</li>
+                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature4"}}</li>
+                </ul>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+
+    <div class="setup-actions">
+        <div>
+            {{#unless isFirstStep}}
+            <button type="button" data-action="prevStep" class="setup-btn secondary">
+                <i class="fas fa-arrow-left"></i>
+                {{localize "ARCHIVIST_SYNC.worldSetup.buttons.previous"}}
+            </button>
+            {{/unless}}
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+            <button type="button" data-action="cancel" class="setup-btn secondary">
+                {{localize "ARCHIVIST_SYNC.worldSetup.buttons.cancel"}}
+            </button>
+
+            {{#if isLastStep}}
+            <button type="button" data-action="completeSetup" class="setup-btn success" {{#unless
+                canProceed}}disabled{{/unless}}>
+                <i class="fas fa-check"></i>
+                {{localize "ARCHIVIST_SYNC.worldSetup.buttons.complete"}}
+            </button>
+            {{else}}
+            <button type="button" data-action="nextStep" class="setup-btn primary" {{#unless
+                canProceed}}disabled{{/unless}}>
+                {{localize "ARCHIVIST_SYNC.worldSetup.buttons.next"}}
+                <i class="fas fa-arrow-right"></i>
+            </button>
+            {{/if}}
+        </div>
+    </div>
+</form>

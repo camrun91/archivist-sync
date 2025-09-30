@@ -1,6 +1,6 @@
 import { CONFIG, SETTINGS, MENU_CONFIG } from './config.js';
 import { SyncOptionsDialog } from '../dialogs/sync-options-dialog.js';
-import { AskChatMenu } from '../dialogs/ask-chat-menu.js';
+import { Utils } from './utils.js';
 
 /**
  * Settings Manager for Archivist Sync Module
@@ -21,7 +21,9 @@ export class SettingsManager {
     this._registerMappingOverride();
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
+    this._registerImportConfig();
     this._registerChatHistory();
+    this._registerWorldInitialized();
     this._registerMenu();
   }
 
@@ -40,6 +42,7 @@ export class SettingsManager {
       default: setting.default,
       onChange: value => {
         console.log(`${this.moduleTitle} | API Key updated`);
+        this._onChatAvailabilityChange();
       }
     });
   }
@@ -87,6 +90,22 @@ export class SettingsManager {
   }
 
   /**
+   * Register world-scoped import configuration setting (JSON)
+   * @private
+   */
+  _registerImportConfig() {
+    const setting = SETTINGS.IMPORT_CONFIG;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default
+    });
+  }
+
+  /**
    * Register Selected World ID setting
    * @private
    */
@@ -98,7 +117,11 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
+      onChange: value => {
+        console.log(`${this.moduleTitle} | Selected world ID: ${value}`);
+        this._onChatAvailabilityChange();
+      }
     });
   }
 
@@ -117,6 +140,7 @@ export class SettingsManager {
       default: setting.default,
       onChange: value => {
         console.log(`${this.moduleTitle} | Selected world: ${value}`);
+        this._onChatAvailabilityChange();
       }
     });
   }
@@ -136,16 +160,7 @@ export class SettingsManager {
       restricted: sync.restricted
     });
 
-    // Register Ask chat menu: use a tiny ApplicationV2 that opens the sidebar tab and closes
-    const chat = MENU_CONFIG.ASK_CHAT;
-    game.settings.registerMenu(this.moduleId, chat.key, {
-      name: game.i18n.localize(chat.name),
-      label: game.i18n.localize(chat.label),
-      hint: game.i18n.localize(chat.hint),
-      icon: chat.icon,
-      type: AskChatMenu,
-      restricted: chat.restricted
-    });
+    // Ask Chat menu removed - chat is now available in sidebar when world is properly configured
   }
 
   /**
@@ -219,6 +234,58 @@ export class SettingsManager {
   }
 
   /**
+   * Import configuration helpers
+   */
+  getImportConfig() {
+    try {
+      const json = this.getSetting(SETTINGS.IMPORT_CONFIG.key) || '{}';
+      const parsed = JSON.parse(json);
+      return this._withImportDefaults(parsed);
+    } catch (_) {
+      return this._withImportDefaults({});
+    }
+  }
+
+  async setImportConfig(config) {
+    const json = JSON.stringify(config ?? {});
+    await this.setSetting(SETTINGS.IMPORT_CONFIG.key, json);
+  }
+
+  _withImportDefaults(input) {
+    const systemId = game.system?.id || 'generic';
+    const defaults = {
+      version: 1,
+      actorMappings: {
+        pc: { enabled: true, descriptionPath: this._defaultDescriptionPath(systemId, 'pc'), portraitPath: 'img', writeBack: 'none' },
+        npc: { enabled: false, descriptionPath: this._defaultDescriptionPath(systemId, 'npc'), portraitPath: 'img', writeBack: 'none' }
+      },
+      includeRules: {
+        sources: { worldActors: true, compendiumActorPacks: [], worldItems: false, compendiumItemPacks: [], journals: [] },
+        filters: {
+          actors: {
+            mustHavePlayerOwner: true,
+            npcRequirePlacedToken: true,
+            includeFolders: { pcs: ['PCs'], npcs: [] }
+          },
+          items: {
+            includeActorOwnedFrom: 'pc', // 'pc' | 'pc+npc'
+            includeWorldItemFolders: []
+          },
+          factions: { journalFolders: [] }
+        }
+      },
+      writeBack: { summaryMaxChars: 1200 }
+    };
+    return foundry.utils.mergeObject(defaults, input ?? {}, { inplace: false, insertKeys: true, insertValues: true, overwrite: false });
+  }
+
+  _defaultDescriptionPath(systemId, kind) {
+    if (systemId === 'dnd5e') return 'system.details.biography.value';
+    if (systemId === 'pf2e') return 'system.details.publicNotes';
+    return 'system.details.biography.value';
+  }
+
+  /**
    * Check if API is configured
    * @returns {boolean} True if API key is set
    */
@@ -234,6 +301,83 @@ export class SettingsManager {
   isWorldSelected() {
     const worldId = this.getSelectedWorldId();
     return worldId && worldId.length > 0;
+  }
+
+  /**
+   * Check if Archivist chat should be available
+   * Requires both API configuration with world selection AND world initialization
+   * @returns {boolean} True if chat should be available
+   */
+  isArchivistChatAvailable() {
+    // Condition 1: API key configured and world selected
+    const hasValidWorldSelection = this.isApiConfigured() && this.isWorldSelected();
+
+    // Condition 2: World has been initialized with Archivist
+    const isInitialized = this.isWorldInitialized();
+
+    return hasValidWorldSelection && isInitialized;
+  }
+
+  /**
+   * Check if world is initialized with Archivist
+   * @returns {boolean} True if world has been initialized
+   */
+  isWorldInitialized() {
+    return this.getSetting(SETTINGS.WORLD_INITIALIZED.key);
+  }
+
+  /**
+   * Set world initialization status
+   * @param {boolean} initialized - Whether the world is initialized
+   * @returns {Promise<void>}
+   */
+  async setWorldInitialized(initialized = true) {
+    await this.setSetting(SETTINGS.WORLD_INITIALIZED.key, initialized);
+    Utils.log(`World initialization status set to: ${initialized}`);
+  }
+
+  /**
+   * Ensure world initialization flag exists and is properly set
+   * Only sets up the flag structure, does not mark as initialized
+   * @returns {Promise<boolean>} True if flag was created, false if already existed
+   */
+  async ensureWorldInitializationFlag() {
+    // Check if the setting already has a value (including false)
+    const currentValue = this.getSetting(SETTINGS.WORLD_INITIALIZED.key);
+
+    // If it's undefined (first time), set it to false
+    if (currentValue === undefined || currentValue === null) {
+      Utils.log('Setting up world initialization flag for first time (false)');
+      await this.setSetting(SETTINGS.WORLD_INITIALIZED.key, false);
+      return true;
+    }
+
+    Utils.log(`World initialization flag already exists: ${currentValue}`);
+    return false;
+  }
+
+  /**
+   * Complete world initialization (called when user finishes setup wizard)
+   * @returns {Promise<void>}
+   */
+  async completeWorldInitialization() {
+    Utils.log('Completing world initialization through setup wizard');
+    await this.setWorldInitialized(true);
+
+    // Perform any additional setup completion tasks here
+    // For example: set default import config, create initial folders, etc.
+
+    ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldInitialized'));
+  }
+
+  /**
+   * Reset world initialization (for testing/development purposes)
+   * @returns {Promise<void>}
+   */
+  async resetWorldInitialization() {
+    Utils.log('Resetting world initialization flag to false');
+    await this.setWorldInitialized(false);
+    ui.notifications.warn('World initialization has been reset. The setup wizard will appear again.');
   }
 
   /**
@@ -254,6 +398,39 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       default: setting.default
+    });
+  }
+
+  /**
+   * Handle changes that affect chat availability
+   * @private
+   */
+  _onChatAvailabilityChange() {
+    // Defer to next tick to ensure all settings have been updated
+    setTimeout(() => {
+      if (typeof window !== 'undefined' && window.ARCHIVIST_SYNC?.updateChatAvailability) {
+        window.ARCHIVIST_SYNC.updateChatAvailability();
+      }
+    }, 0);
+  }
+
+  /**
+   * Register World Initialized setting
+   * @private
+   */
+  _registerWorldInitialized() {
+    const setting = SETTINGS.WORLD_INITIALIZED;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+      onChange: value => {
+        console.log(`${this.moduleTitle} | World initialized: ${value}`);
+        this._onChatAvailabilityChange();
+      }
     });
   }
 }
