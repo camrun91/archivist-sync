@@ -8,6 +8,10 @@ export class ArchivistApiService {
     this.baseUrl = CONFIG.API_BASE_URL;
     /** @type {number} */
     this._lastWriteAtMs = 0;
+    /** @type {number} */
+    this._requestCount = 0;
+    /** @type {number} */
+    this._batchStartTime = 0;
   }
 
   /**
@@ -21,32 +25,101 @@ export class ArchivistApiService {
     const headers = this._createHeaders(apiKey, options);
     const url = `${this.baseUrl}${path}`;
     let attempt = 0;
+    const maxRetries = 10;
+
     // Simple client-side throttle for write-heavy operations
     const method = String(options?.method || 'GET').toUpperCase();
     const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+
     if (isWrite) {
       const now = Date.now();
-      const minSpacingMs = 900; // ~1 write/sec to further reduce 429s
-      const waitMs = Math.max(0, (this._lastWriteAtMs + minSpacingMs) - now);
-      if (waitMs > 0) await new Promise(r => setTimeout(r, waitMs));
-    }
-    while (true) {
-      const response = await fetch(url, { ...options, headers });
-      if (response.status !== 429) return this._handleResponse(response);
-      // 429 handling with exponential backoff and jitter; respect Retry-After
-      attempt += 1;
-      if (attempt > 8) throw new Error(`API request failed: 429 rate limited`);
-      const ra = response.headers.get('Retry-After');
-      let retryMs = 0;
-      if (ra) {
-        const n = Number(ra);
-        // If small value, assume seconds; if large, assume milliseconds
-        if (isFinite(n)) retryMs = n < 100 ? Math.max(1000, n * 1000) : n;
+
+      // Initialize batch tracking if needed
+      if (this._batchStartTime === 0) {
+        this._batchStartTime = now;
+        this._requestCount = 0;
       }
-      const base = Math.min(15000, 500 * Math.pow(2, attempt - 1));
-      const jitter = Math.floor(Math.random() * 250);
-      const delay = Math.max(retryMs || 0, base + jitter);
-      await new Promise(r => setTimeout(r, delay));
+
+      // Progressive throttling - more aggressive throttling as we make more requests
+      const batchElapsedMs = now - this._batchStartTime;
+      const requestsPerSecond = this._requestCount / (batchElapsedMs / 1000);
+
+      let minSpacingMs = 250; // Base spacing
+      if (requestsPerSecond > 3) {
+        minSpacingMs = 500; // Slow down if we're going too fast
+      }
+      if (requestsPerSecond > 2) {
+        minSpacingMs = 350; // Moderate slowdown
+      }
+
+      const waitMs = Math.max(0, (this._lastWriteAtMs + minSpacingMs) - now);
+      if (waitMs > 0) {
+        await new Promise(r => setTimeout(r, waitMs));
+      }
+
+      this._lastWriteAtMs = Date.now();
+      this._requestCount++;
+
+      // Reset batch tracking every 30 seconds
+      if (batchElapsedMs > 30000) {
+        this._batchStartTime = Date.now();
+        this._requestCount = 0;
+      }
+    }
+
+    while (attempt <= maxRetries) {
+      try {
+        const response = await fetch(url, { ...options, headers });
+
+        // Handle successful responses (non-429)
+        if (response.status !== 429) {
+          return this._handleResponse(response);
+        }
+
+        // 429 handling with exponential backoff and jitter; respect Retry-After
+        attempt += 1;
+
+        if (attempt > maxRetries) {
+          console.error(`${CONFIG.MODULE_TITLE} | Max retries (${maxRetries}) exceeded for ${method} ${path}`);
+          throw new Error(`API request failed: 429 rate limited after ${maxRetries} retries`);
+        }
+
+        // Calculate retry delay
+        const ra = response.headers.get('Retry-After');
+        let retryMs = 0;
+        if (ra) {
+          const n = Number(ra);
+          // If small value, assume seconds; if large, assume milliseconds
+          if (isFinite(n)) {
+            retryMs = n < 100 ? Math.max(1000, n * 1000) : n;
+          }
+        }
+
+        // Exponential backoff: start at 1s, max 30s
+        const baseDelay = Math.min(30000, 1000 * Math.pow(2, attempt - 1));
+        const jitter = Math.floor(Math.random() * 500); // 0-500ms jitter
+        const delay = Math.max(retryMs || 0, baseDelay + jitter);
+
+        console.warn(`${CONFIG.MODULE_TITLE} | Rate limited (429) on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+
+      } catch (error) {
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+          // Network error - retry with exponential backoff
+          attempt += 1;
+          if (attempt > maxRetries) {
+            console.error(`${CONFIG.MODULE_TITLE} | Network error after ${maxRetries} retries for ${method} ${path}:`, error);
+            throw new Error(`Network error after ${maxRetries} retries: ${error.message}`);
+          }
+
+          const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 500);
+          console.warn(`${CONFIG.MODULE_TITLE} | Network error on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms:`, error.message);
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          // Other errors should not be retried
+          throw error;
+        }
+      }
     }
   }
 
@@ -232,8 +305,21 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, error);
-      return { success: false, message: error.message || 'Failed to create character' };
+      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, {
+        error: error.message,
+        payload: payload?.character_name || 'unknown',
+        isRateLimited,
+        isNetworkError
+      });
+
+      return {
+        success: false,
+        message: error.message || 'Failed to create character',
+        retryable: isRateLimited || isNetworkError
+      };
     }
   }
 
@@ -287,8 +373,21 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to create faction:`, error);
-      return { success: false, message: error.message || 'Failed to create faction' };
+      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create faction:`, {
+        error: error.message,
+        payload: payload?.name || 'unknown',
+        isRateLimited,
+        isNetworkError
+      });
+
+      return {
+        success: false,
+        message: error.message || 'Failed to create faction',
+        retryable: isRateLimited || isNetworkError
+      };
     }
   }
 
@@ -328,6 +427,29 @@ export class ArchivistApiService {
     }
   }
 
+  /**
+   * List all game sessions for a campaign
+   */
+  async listSessions(apiKey, campaignId) {
+    try {
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(apiKey, `/sessions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
+        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        all.push(...items);
+        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        if (page >= totalPages || items.length < size) break;
+        page += 1;
+      }
+      return { success: true, data: all };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to list sessions:`, error);
+      return { success: false, message: error.message || 'Failed to list sessions' };
+    }
+  }
+
   async createLocation(apiKey, payload) {
     try {
       const data = await this._request(apiKey, `/locations`, {
@@ -336,8 +458,21 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to create location:`, error);
-      return { success: false, message: error.message || 'Failed to create location' };
+      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create location:`, {
+        error: error.message,
+        payload: payload?.name || 'unknown',
+        isRateLimited,
+        isNetworkError
+      });
+
+      return {
+        success: false,
+        message: error.message || 'Failed to create location',
+        retryable: isRateLimited || isNetworkError
+      };
     }
   }
 
@@ -388,8 +523,21 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to create item:`, error);
-      return { success: false, message: error.message || 'Failed to create item' };
+      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create item:`, {
+        error: error.message,
+        payload: payload?.name || 'unknown',
+        isRateLimited,
+        isNetworkError
+      });
+
+      return {
+        success: false,
+        message: error.message || 'Failed to create item',
+        retryable: isRateLimited || isNetworkError
+      };
     }
   }
 

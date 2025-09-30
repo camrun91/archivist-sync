@@ -24,6 +24,10 @@
       "MappingOverride": {
         "Name": "Mapping Override (JSON)",
         "Hint": "Optional JSON rules to customize importer field mapping"
+      },
+      "WorldInitialized": {
+        "Name": "World Initialized",
+        "Hint": "Internal flag indicating whether this Foundry world has been set up with Archivist"
       }
     },
     "chat": {
@@ -38,6 +42,7 @@
       "assistant": "",
       "noWorld": "Please select an Archivist world first.",
       "noApi": "Please configure your API key in module settings.",
+      "notInitialized": "This Foundry world has not been initialized with Archivist yet.",
       "error": "Chat error"
     },
     "Menu": {
@@ -146,7 +151,8 @@
       "locationsSynced": "Locations synchronized successfully",
       "factionsPulled": "Factions pulled successfully",
       "locationsPulled": "Locations pulled successfully",
-      "charactersPulled": "Characters pulled successfully"
+      "charactersPulled": "Characters pulled successfully",
+      "worldInitialized": "Foundry world has been initialized with Archivist for the first time"
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",
@@ -154,6 +160,75 @@
       "saveFailed": "Failed to save world selection",
       "syncFailed": "Failed to sync data",
       "actorNotFound": "Actor not found"
+    },
+    "worldSetup": {
+      "title": "Archivist World Setup",
+      "subtitle": "Connect your Foundry world to Archivist in just a few steps",
+      "setupComplete": "World setup completed successfully! Archivist features are now available.",
+      "setupFailed": "Failed to complete world setup. Please try again.",
+      "buttons": {
+        "start": "Start World Setup",
+        "previous": "Previous",
+        "next": "Next",
+        "complete": "Complete Setup",
+        "cancel": "Cancel"
+      },
+      "step1": {
+        "title": "Welcome to Archivist",
+        "description": "This setup wizard will help you connect your Foundry world to Archivist, enabling powerful AI-driven campaign management features.",
+        "nextSteps": "Here's what we'll do:",
+        "step1": "Configure your Archivist API key",
+        "step2": "Connect to your Archivist campaign world",
+        "step3": "Complete the initialization process"
+      },
+      "step2": {
+        "title": "Enter Your API Key",
+        "description": "To connect to Archivist, you'll need to provide your API key. This key allows secure access to your campaign data.",
+        "getApiKey": "How to Get Your API Key",
+        "noKeyYet": "Don't have an API key yet? Follow these steps:",
+        "step1": "Make sure you have an active Archivist subscription",
+        "step2": "Log into your Archivist account",
+        "step3": "Navigate to https://app.myarchivist.ai/profile",
+        "step4": "Generate a new API key with all permissions checked",
+        "permissionsWarning": "Important: API Key Permissions",
+        "permissionsDetails": "When generating your API key, make sure ALL available permissions are checked. This ensures the Foundry module can access all necessary features.",
+        "enterKey": "Enter Your API Key",
+        "keyPlaceholder": "Paste your API key here...",
+        "validateKey": "Validate Key",
+        "validating": "Validating...",
+        "keyValid": "Key is valid!"
+      },
+      "step3": {
+        "title": "Select Your Campaign World",
+        "description": "Now let's connect to your Archivist campaign world. Click 'Sync Worlds' to fetch your available campaigns.",
+        "worldSelected": "Perfect! Your world is selected and ready."
+      },
+      "step4": {
+        "title": "Setup Complete!",
+        "description": "Congratulations! Your Foundry world is now connected to Archivist.",
+        "ready": "You're all set!",
+        "features": "You now have access to these Archivist features:",
+        "feature1": "AI-powered chat assistant in the sidebar",
+        "feature2": "Character and NPC synchronization",
+        "feature3": "Faction and location management",
+        "feature4": "Advanced import and mapping tools"
+      },
+      "mapping": {
+        "title": "Configure Mapping",
+        "description": "Choose which Foundry fields map to Archivist fields and where new imports will be placed.",
+        "saveAndContinue": "Save & Continue"
+      },
+      "select": {
+        "title": "Select Documents to Sync",
+        "description": "Choose existing Foundry documents to export or link. You can skip this step if you're only importing.",
+        "placeholder": "Selection UI coming next: PCs, NPCs, Items, Locations, Factions with matching suggestions."
+      },
+      "summary": {
+        "title": "Review & Begin Sync",
+        "description": "We will create and link journal entries in the Archivist directory and perform the selected operations.",
+        "placeholder": "Summary UI coming next with counts and details.",
+        "beginSync": "Begin Sync"
+      }
     }
   }
 }

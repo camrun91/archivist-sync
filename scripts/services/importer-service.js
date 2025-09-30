@@ -5,6 +5,10 @@ import { computeEntityFingerprint } from '../modules/importer-fingerprint.js';
 import { upsertMappedEntity } from '../modules/importer-upserter.js';
 import { unwrapToPlainText } from '../modules/importer-normalizer.js';
 import { getPresetForSystemId } from '../modules/mapping-presets.js';
+import { getActorCandidates } from '../modules/actor-filters.js';
+import { gatherUsedItems } from '../modules/items-gather.js';
+import { discoverFactions } from '../modules/factions-discover.js';
+import { mapActorToArchivist, mapItemToArchivist, mapJournalToFaction } from '../modules/deterministic-mapper.js';
 
 function safeGet(obj, path) {
     try {
@@ -107,6 +111,11 @@ export class ImporterService {
      */
     all() {
         const corrections = this.getCorrections();
+        // Legacy semantic importer path retained only when enabled
+        if (!settingsManager.getSemanticMappingEnabled()) {
+            ui.notifications?.warn?.('Semantic importer is disabled. Use the Mapping Wizard tab to run deterministic sync.');
+            return { total: 0, autoImported: 0, queued: 0, dropped: 0, errors: 0 };
+        }
         const entities = extractGenericEntities();
         return entities.map(e => {
             const proposed = mapEntityToArchivist(e);
@@ -190,6 +199,222 @@ export class ImporterService {
             }
         }
         return { success: true, count: createdOrUpdated };
+    }
+
+    /**
+     * Config-driven push using deterministic mapping and explicit filters
+     * @param {Object} progressCallback - Optional callback for progress updates
+     */
+    async pushDeterministic(progressCallback = null) {
+        const apiKey = settingsManager.getApiKey();
+        const worldId = settingsManager.getSelectedWorldId();
+        if (!apiKey || !worldId) throw new Error('API key or world selection missing');
+
+        const config = settingsManager.getImportConfig();
+        const { pcs, npcs } = getActorCandidates(config);
+
+        let count = 0;
+        let failed = 0;
+        const failedEntities = [];
+
+        // Calculate total entities to process
+        const enabledNpcs = config?.actorMappings?.npc?.enabled ? npcs : [];
+        const actorPool = [...pcs, ...(config?.includeRules?.filters?.items?.includeActorOwnedFrom === 'pc+npc' ? enabledNpcs : [])];
+        const usedItems = await gatherUsedItems(config, actorPool);
+        const factions = discoverFactions(config);
+
+        const pcCount = config?.actorMappings?.pc?.enabled !== false ? pcs.length : 0;
+        const npcCount = config?.actorMappings?.npc?.enabled ? npcs.length : 0;
+        const itemCount = usedItems.length;
+        const factionCount = factions.length;
+        const totalEntities = pcCount + npcCount + itemCount + factionCount;
+
+        // Initialize progress
+        if (progressCallback) {
+            progressCallback.updateSyncProgress({
+                total: totalEntities,
+                processed: 0,
+                succeeded: 0,
+                failed: 0,
+                phase: 'processing'
+            });
+        }
+
+        // Helper function to process entities with error tracking
+        const processEntity = async (entity, mapper, type) => {
+            const entityName = entity.name || 'Unknown';
+
+            // Update progress to show current entity
+            if (progressCallback) {
+                progressCallback.updateSyncProgress({
+                    currentType: type,
+                    currentEntity: entityName
+                });
+            }
+
+            try {
+                const mapped = mapper(entity);
+                const res = await upsertMappedEntity(apiKey, worldId, entity, mapped);
+
+                if (res?.success) {
+                    count += 1;
+
+                    // Update progress
+                    if (progressCallback) {
+                        progressCallback.updateSyncProgress({
+                            processed: count + failed,
+                            succeeded: count
+                        });
+                    }
+
+                    return true;
+                } else {
+                    console.warn(`${CONFIG.MODULE_TITLE} | Failed to sync ${type}: ${entityName} - ${res?.message || 'Unknown error'}`);
+
+                    // Track failed entities for potential retry
+                    failedEntities.push({
+                        entity,
+                        mapper,
+                        type,
+                        error: res?.message,
+                        retryable: res?.retryable
+                    });
+                    failed += 1;
+
+                    // Update progress
+                    if (progressCallback) {
+                        progressCallback.updateSyncProgress({
+                            processed: count + failed,
+                            failed: failed
+                        });
+                    }
+
+                    return false;
+                }
+            } catch (error) {
+                console.error(`${CONFIG.MODULE_TITLE} | Exception processing ${type}: ${entityName}`, error);
+                failedEntities.push({
+                    entity,
+                    mapper,
+                    type,
+                    error: error.message,
+                    retryable: false
+                });
+                failed += 1;
+
+                // Update progress
+                if (progressCallback) {
+                    progressCallback.updateSyncProgress({
+                        processed: count + failed,
+                        failed: failed
+                    });
+                }
+
+                return false;
+            }
+        };
+
+        // Process PCs
+        if (config?.actorMappings?.pc?.enabled !== false) {
+            console.log(`${CONFIG.MODULE_TITLE} | Processing ${pcs.length} PC actors...`);
+            for (let i = 0; i < pcs.length; i++) {
+                await processEntity(pcs[i], (actor) => mapActorToArchivist(actor, config, 'pc'), 'PC');
+
+                // Add small delay every 10 entities to prevent overwhelming the API
+                if ((i + 1) % 10 === 0 && i < pcs.length - 1) {
+                    console.log(`${CONFIG.MODULE_TITLE} | Processed ${i + 1}/${pcs.length} PCs, pausing briefly...`);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        // Process NPCs
+        if (config?.actorMappings?.npc?.enabled) {
+            console.log(`${CONFIG.MODULE_TITLE} | Processing ${npcs.length} NPC actors...`);
+            for (let i = 0; i < npcs.length; i++) {
+                await processEntity(npcs[i], (actor) => mapActorToArchivist(actor, config, 'npc'), 'NPC');
+
+                // Add small delay every 10 entities to prevent overwhelming the API
+                if ((i + 1) % 10 === 0 && i < npcs.length - 1) {
+                    console.log(`${CONFIG.MODULE_TITLE} | Processed ${i + 1}/${npcs.length} NPCs, pausing briefly...`);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        // Process Items
+        console.log(`${CONFIG.MODULE_TITLE} | Processing ${usedItems.length} items...`);
+        for (let i = 0; i < usedItems.length; i++) {
+            await processEntity(usedItems[i], mapItemToArchivist, 'Item');
+
+            // Add small delay every 10 entities to prevent overwhelming the API
+            if ((i + 1) % 10 === 0 && i < usedItems.length - 1) {
+                console.log(`${CONFIG.MODULE_TITLE} | Processed ${i + 1}/${usedItems.length} items, pausing briefly...`);
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        // Process Factions
+        console.log(`${CONFIG.MODULE_TITLE} | Processing ${factions.length} factions...`);
+        for (let i = 0; i < factions.length; i++) {
+            await processEntity(factions[i].doc, mapJournalToFaction, 'Faction');
+
+            // Add small delay every 10 entities to prevent overwhelming the API
+            if ((i + 1) % 10 === 0 && i < factions.length - 1) {
+                console.log(`${CONFIG.MODULE_TITLE} | Processed ${i + 1}/${factions.length} factions, pausing briefly...`);
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        }
+
+        // Retry failed entities that are retryable (rate limits, network errors)
+        const retryable = failedEntities.filter(f => f.retryable);
+        if (retryable.length > 0) {
+            console.log(`${CONFIG.MODULE_TITLE} | Retrying ${retryable.length} failed entities after brief delay...`);
+
+            // Update progress to show retry phase
+            if (progressCallback) {
+                progressCallback.updateSyncProgress({
+                    phase: 'retrying',
+                    currentType: 'Retry',
+                    currentEntity: `Retrying ${retryable.length} failed entities...`
+                });
+            }
+
+            await new Promise(r => setTimeout(r, 5000)); // 5 second delay before retry
+
+            for (const failedItem of retryable) {
+                console.log(`${CONFIG.MODULE_TITLE} | Retrying ${failedItem.type}: ${failedItem.entity.name || 'Unknown'}`);
+                const success = await processEntity(failedItem.entity, failedItem.mapper, failedItem.type + ' (retry)');
+                if (success) {
+                    // Remove from failed list since it succeeded on retry
+                    const index = failedEntities.indexOf(failedItem);
+                    if (index > -1) {
+                        failedEntities.splice(index, 1);
+                        failed -= 1;
+                    }
+                }
+            }
+        }
+
+        // Report results
+        const totalProcessed = count + failed;
+        console.log(`${CONFIG.MODULE_TITLE} | Sync complete: ${count} succeeded, ${failed} failed out of ${totalProcessed} total`);
+
+        if (failedEntities.length > 0) {
+            console.warn(`${CONFIG.MODULE_TITLE} | Failed entities:`, failedEntities.map(f => `${f.type}: ${f.entity.name || 'Unknown'} (${f.error})`));
+        }
+
+        return {
+            success: true,
+            count,
+            failed,
+            total: totalProcessed,
+            failedEntities: failedEntities.map(f => ({
+                name: f.entity.name || 'Unknown',
+                type: f.type,
+                error: f.error
+            }))
+        };
     }
 }
 

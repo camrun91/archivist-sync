@@ -133,10 +133,12 @@ export class Utils {
    * @param {string} worldId
    */
   static toApiFactionPayload(journal, worldId) {
+    const raw = String(journal?.img || '').trim();
+    const image = raw.startsWith('https://') ? raw : undefined;
     return {
       name: journal.name,
       description: this._extractJournalText(journal),
-      image: journal.img || undefined,
+      ...(image ? { image } : {}),
       campaign_id: worldId
     };
   }
@@ -147,10 +149,12 @@ export class Utils {
    * @param {string} worldId
    */
   static toApiLocationPayload(journal, worldId) {
+    const raw = String(journal?.img || '').trim();
+    const image = raw.startsWith('https://') ? raw : undefined;
     return {
       name: journal.name,
       description: this._extractJournalText(journal),
-      image: journal.img || undefined,
+      ...(image ? { image } : {}),
       campaign_id: worldId
     };
   }
@@ -274,6 +278,98 @@ export class Utils {
     await journal.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
     if (type) await journal.setFlag(CONFIG.MODULE_ID, 'archivistType', type);
     if (worldId) await journal.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+  }
+
+  /**
+   * Get Archivist metadata from a JournalEntryPage
+   * @param {JournalEntryPage} page
+   */
+  static getPageArchivistMeta(page) {
+    return {
+      id: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || null,
+      type: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || null,
+      worldId: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistWorldId') || null
+    };
+  }
+
+  /**
+   * Set Archivist metadata on a JournalEntryPage
+   * @param {JournalEntryPage} page
+   * @param {string} id
+   * @param {string} type
+   * @param {string} worldId
+   */
+  static async setPageArchivistMeta(page, id, type, worldId) {
+    if (!page) return;
+    if (id) await page.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
+    if (type) await page.setFlag(CONFIG.MODULE_ID, 'archivistType', type);
+    if (worldId) await page.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+  }
+
+  /**
+   * Ensure a single root-level JournalEntry exists as a container
+   * @param {string} name
+   * @returns {Promise<JournalEntry>}
+   */
+  static async ensureRootJournalContainer(name) {
+    const journals = game.journal?.contents || [];
+    let j = journals.find(x => x.name === name && !x.folder);
+    if (j) return j;
+    j = await JournalEntry.create({ name, folder: null, pages: [] }, { render: false });
+    return j;
+  }
+
+  /**
+   * Create or update a text page within a container journal
+   * Returns the page document. If creating multiple, call with items pre-sorted, as creation order defines index.
+   * @param {JournalEntry} container
+   * @param {object} opts { name, html, imageUrl, flags }
+   */
+  static async upsertContainerTextPage(container, { name, html, imageUrl, flags } = {}) {
+    const pages = container.pages?.contents || [];
+    // Prefer matching by Archivist ID if provided via flags
+    let page = null;
+    if (flags?.archivistId) {
+      page = pages.find(p => this.getPageArchivistMeta(p).id === flags.archivistId);
+    }
+    if (!page) page = pages.find(p => p.name === name && p.type === 'text');
+    const baseHtml = String(html || '');
+    const finalHtml = imageUrl && !baseHtml.includes(String(imageUrl))
+      ? `<p><img src="${String(imageUrl).replace(/"/g, '&quot;')}" style="max-width:100%"/></p>` + baseHtml
+      : baseHtml;
+    if (page) {
+      await page.update({ name, type: 'text', text: { content: finalHtml, format: 1 } });
+    } else {
+      const created = await container.createEmbeddedDocuments('JournalEntryPage', [{ name, type: 'text', text: { content: finalHtml, format: 1 } }]);
+      page = created?.[0] || null;
+    }
+    if (page && flags) {
+      await this.setPageArchivistMeta(page, flags.archivistId, flags.archivistType, flags.archivistWorldId);
+    }
+    return page;
+  }
+
+  /**
+   * Sort pages within a container using comparator over page docs
+   * Applies increasing sort values to match comparator order.
+   * @param {JournalEntry} container
+   * @param {(a: JournalEntryPage, b: JournalEntryPage) => number} comparator
+   */
+  static async sortContainerPages(container, comparator) {
+    const pages = (container.pages?.contents || []).slice().sort(comparator);
+    let sort = 0;
+    const updates = pages.map(p => ({ _id: p.id, sort: (sort += 100) }));
+    if (updates.length) await container.updateEmbeddedDocuments('JournalEntryPage', updates);
+  }
+
+  /**
+   * Extract HTML text content from a JournalEntryPage
+   * @param {JournalEntryPage} page
+   */
+  static extractPageHtml(page) {
+    if (!page) return '';
+    if (page.type === 'text') return String(page?.text?.content || '');
+    return '';
   }
 
   /**

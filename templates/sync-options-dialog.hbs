@@ -1,4 +1,4 @@
-<div class="archivist-sync-content">
+<form class="archivist-sync-content" autocomplete="off">
   <style>
     /* ===== Color Tokens (light/dark aware) ===== */
     .archivist-sync-content {
@@ -537,13 +537,17 @@
   </style>
   <!-- Tab Navigation -->
   <nav class="tabs" data-group="main">
+    {{#if showSetupMode}}
+    <!-- World Setup Mode - Only show setup option -->
+    <a class="item active" data-tab="setup">
+      <i class="fas fa-magic"></i>
+      {{localize "ARCHIVIST_SYNC.worldSetup.title"}}
+    </a>
+    {{else}}
+    <!-- Normal Mode - Show all tabs -->
     <a class="item" data-tab="world">
       <i class="fas fa-globe"></i>
-      {{localize "ARCHIVIST_SYNC.tabs.world"}}
-    </a>
-    <a class="item" data-tab="importer">
-      <i class="fas fa-file-import"></i>
-      {{localize "ARCHIVIST_SYNC.tabs.importer"}}
+      World Options
     </a>
     <a class="item" data-tab="characters">
       <i class="fas fa-users"></i>
@@ -557,18 +561,69 @@
       <i class="fas fa-map-marker-alt"></i>
       {{localize "ARCHIVIST_SYNC.tabs.locations"}}
     </a>
-
-    <!-- Optional: quick access button to open Ask Chat window -->
-    <a class="item ask-chat-btn">
-      <i class="archivist-icon"></i>
-      {{localize "ARCHIVIST_SYNC.Menu.AskChat.Label"}}
+    <a class="item" data-tab="items">
+      <i class="fas fa-box"></i>
+      Items
     </a>
+    <a class="item" data-tab="config">
+      <i class="fas fa-cog"></i>
+      Config
+    </a>
+
+    {{/if}}
 
   </nav>
 
   <!-- Tab Content -->
   <div class="tab-content">
-    <!-- World Selection Tab -->
+
+    {{#if showSetupMode}}
+    <!-- World Setup Tab -->
+    <div class="tab active" data-tab="setup">
+      <div class="setup-welcome">
+        <div style="text-align: center; padding: 40px 20px;">
+          <div style="font-size: 48px; color: #4a90e2; margin-bottom: 20px;">
+            <i class="fas fa-magic"></i>
+          </div>
+          <h2 style="margin: 0 0 15px 0; color: #333;">{{localize "ARCHIVIST_SYNC.worldSetup.title"}}</h2>
+          <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 30px;">
+            {{localize "ARCHIVIST_SYNC.worldSetup.subtitle"}}
+          </p>
+
+          <div
+            style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left;">
+            <h4 style="margin: 0 0 15px 0; color: #333;">
+              <i class="fas fa-globe" style="color: #4a90e2;"></i>
+              {{foundryWorldTitle}}
+            </h4>
+            {{#if foundryWorldDescription}}
+            <p style="color: #666; margin: 0 0 15px 0;">{{foundryWorldDescription}}</p>
+            {{/if}}
+            <p style="color: #666; margin: 0; font-size: 14px;">
+              <strong>{{localize "ARCHIVIST_SYNC.worldSetup.step1.nextSteps"}}</strong>
+            </p>
+            <ul style="margin: 10px 0 0 20px; color: #666; font-size: 14px;">
+              <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
+              <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
+              <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
+            </ul>
+          </div>
+
+          <button type="button" data-action="openWorldSetup" class="btn"
+            style="background: #4a90e2; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer;">
+            <i class="fas fa-rocket"></i>
+            Start World Setup
+          </button>
+
+          <p style="color: #999; font-size: 12px; margin-top: 20px;">
+            This will guide you through connecting your Foundry world to Archivist
+          </p>
+        </div>
+      </div>
+    </div>
+    {{else}}
+    <!-- Normal Tabs -->
+    <!-- World Options Tab -->
     <div class="tab" data-tab="world">
       <div class="form-group">
         <label>{{localize "ARCHIVIST_SYNC.labels.apiStatus"}}</label>
@@ -628,6 +683,24 @@
         <h4>{{localize "ARCHIVIST_SYNC.labels.currentSelection"}}</h4>
         <p><strong>{{selectedWorldName}}</strong> (ID: {{selectedWorldId}})</p>
       </div>
+      <div class="world-options">
+        <div class="form-group">
+          <button type="button" class="btn run-setup-wizard-btn">
+            <i class="fas fa-magic"></i>
+            Run World Setup Wizard
+          </button>
+        </div>
+        <div class="form-group">
+          <label for="api-key-input">API Key</label>
+          <input id="api-key-input" type="password" placeholder="Enter new API key" />
+          <button type="button" class="btn validate-api-key-btn">
+            <i class="fas fa-key"></i>
+            Validate & Save
+          </button>
+          <small class="api-key-hint">Validation checks the currently selected campaign.</small>
+          <div class="api-key-error" style="display:none;"></div>
+        </div>
+      </div>
       <div class="sync-controls">
         <button type="button" class="btn pull sync-from-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
           {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
@@ -642,8 +715,9 @@
       {{/if}}
     </div>
 
-    <!-- Importer Wizard Tab -->
-    <div class="tab" data-tab="importer">
+    <!-- Importer Wizard Tab (removed) -->
+    {{!-- Importer removed in favor of setup flow --}}
+    <div class="tab" data-tab="importer" style="display:none">
       {{#if isWorldSelected}}
       <div class="entities-section">
         <div class="section-header">
@@ -782,6 +856,226 @@
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+      {{else}}
+      <div class="warning-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{localize "ARCHIVIST_SYNC.warnings.selectWorldFirst"}}</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Deterministic Mapping Wizard Tab (removed) -->
+    {{!-- Mapping Wizard removed; configuration lives in Config tab --}}
+    <div class="tab" data-tab="wizard" style="display:none">
+      {{#if isWorldSelected}}
+      <div class="entities-section">
+        <div class="section-header">
+          <h4><i class="fas fa-wand-magic-sparkles"></i> Mapping Wizard</h4>
+          <div class="actions">
+            <button type="button" class="btn push deterministic-sync-btn" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-bolt"></i>{{/if}}
+              Run Deterministic Sync
+            </button>
+          </div>
+        </div>
+
+        {{#if syncInProgress}}
+        <div class="sync-progress-container">
+          <div class="progress-header">
+            <h5><i class="fas fa-sync-alt fa-spin"></i> Sync in Progress</h5>
+            <div class="progress-stats">
+              <span class="stat-item">
+                <i class="fas fa-list"></i>
+                <span class="stat-label">Total:</span>
+                <span class="stat-value">{{syncProgress.total}}</span>
+              </span>
+              <span class="stat-item success">
+                <i class="fas fa-check"></i>
+                <span class="stat-label">Success:</span>
+                <span class="stat-value">{{syncProgress.succeeded}}</span>
+              </span>
+              <span class="stat-item processing">
+                <i class="fas fa-cog fa-spin"></i>
+                <span class="stat-label">Processed:</span>
+                <span class="stat-value">{{syncProgress.processed}}</span>
+              </span>
+              {{#if syncProgress.failed}}
+              <span class="stat-item failed">
+                <i class="fas fa-times"></i>
+                <span class="stat-label">Failed:</span>
+                <span class="stat-value">{{syncProgress.failed}}</span>
+              </span>
+              {{/if}}
+            </div>
+          </div>
+
+          <div class="progress-bar-container">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {{syncProgress.progressPercentage}}%"></div>
+            </div>
+            <div class="progress-text">
+              {{syncProgress.processed}} / {{syncProgress.total}} entities processed
+              ({{syncProgress.progressPercentage}}%)
+            </div>
+          </div>
+
+          {{#if syncProgress.currentEntity}}
+          <div class="current-entity">
+            <div class="entity-info">
+              <strong>{{syncProgress.currentType}}:</strong> {{syncProgress.currentEntity}}
+            </div>
+            {{#if (eq syncProgress.phase 'retrying')}}
+            <div class="retry-indicator">
+              <i class="fas fa-redo"></i> Retrying failed entities...
+            </div>
+            {{/if}}
+          </div>
+          {{/if}}
+        </div>
+        {{/if}}
+
+        <div class="world-section">
+          <div class="world-data-box">
+            <div class="input-row">
+              <label>PC Description Path
+                <i class="fas fa-info-circle help-icon"
+                  title="Select the property path that contains PC biography/description text"></i>
+              </label>
+              <div class="path-selector-container">
+                <select class="wizard-pc-desc path-selector">
+                  <option value="">Select a property path...</option>
+                  {{#each actorStringProperties}}
+                  <option value="{{this.path}}" title="{{this.preview}}">
+                    {{this.path}} — {{this.preview}}
+                  </option>
+                  {{/each}}
+                </select>
+              </div>
+            </div>
+            <div class="input-row">
+              <label>NPC Description Path
+                <i class="fas fa-info-circle help-icon"
+                  title="Select the property path that contains NPC biography/description text"></i>
+              </label>
+              <div class="path-selector-container">
+                <select class="wizard-npc-desc path-selector">
+                  <option value="">Select a property path...</option>
+                  {{#each actorStringProperties}}
+                  <option value="{{this.path}}" title="{{this.preview}}">
+                    {{this.path}} — {{this.preview}}
+                  </option>
+                  {{/each}}
+                </select>
+              </div>
+            </div>
+            <div class="input-row">
+              <label>PC Folders
+                <i class="fas fa-info-circle help-icon"
+                  title="Select which Actor folders contain Player Characters to sync"></i>
+              </label>
+              <div class="folder-selector-container">
+                {{#if actorFolders.length}}
+                <div class="folder-checkboxes">
+                  {{#each actorFolders}}
+                  <label class="folder-checkbox">
+                    <input type="checkbox" class="wizard-pc-folder-checkbox" value="{{this.name}}" />
+                    <span class="folder-name" {{#if this.depth}}style="margin-left: {{this.depth}}0px;" {{/if}}>
+                      {{#if this.depth}}<i class="fas fa-level-down-alt"></i>{{/if}}
+                      {{this.name}}
+                    </span>
+                  </label>
+                  {{/each}}
+                </div>
+                {{else}}
+                <p class="no-folders">No Actor folders found. Create folders to organize your actors.</p>
+                {{/if}}
+              </div>
+            </div>
+            <div class="input-row">
+              <label>NPC Folders
+                <i class="fas fa-info-circle help-icon" title="Select which Actor folders contain NPCs to sync"></i>
+              </label>
+              <div class="folder-selector-container">
+                {{#if actorFolders.length}}
+                <div class="folder-checkboxes">
+                  {{#each actorFolders}}
+                  <label class="folder-checkbox">
+                    <input type="checkbox" class="wizard-npc-folder-checkbox" value="{{this.name}}" />
+                    <span class="folder-name" {{#if this.depth}}style="margin-left: {{this.depth}}0px;" {{/if}}>
+                      {{#if this.depth}}<i class="fas fa-level-down-alt"></i>{{/if}}
+                      {{this.name}}
+                    </span>
+                  </label>
+                  {{/each}}
+                </div>
+                {{else}}
+                <p class="no-folders">No Actor folders found. Create folders to organize your actors.</p>
+                {{/if}}
+              </div>
+            </div>
+            <div class="input-row">
+              <label>Items: Include actor-owned from</label>
+              <select class="wizard-items-owned">
+                <option value="pc">PCs only</option>
+                <option value="pc+npc">PCs + NPCs</option>
+              </select>
+            </div>
+            <div class="input-row">
+              <label>Items: World item folders
+                <i class="fas fa-info-circle help-icon" title="Select which Item folders to include in the sync"></i>
+              </label>
+              <div class="folder-selector-container">
+                {{#if itemFolders.length}}
+                <div class="folder-checkboxes">
+                  {{#each itemFolders}}
+                  <label class="folder-checkbox">
+                    <input type="checkbox" class="wizard-item-folder-checkbox" value="{{this.name}}" />
+                    <span class="folder-name" {{#if this.depth}}style="margin-left: {{this.depth}}0px;" {{/if}}>
+                      {{#if this.depth}}<i class="fas fa-level-down-alt"></i>{{/if}}
+                      {{this.name}}
+                    </span>
+                  </label>
+                  {{/each}}
+                </div>
+                {{else}}
+                <p class="no-folders">No Item folders found. Create folders to organize your items.</p>
+                {{/if}}
+              </div>
+            </div>
+            <div class="input-row">
+              <label>Factions: Journal folders
+                <i class="fas fa-info-circle help-icon"
+                  title="Select which Journal folders contain factions to sync"></i>
+              </label>
+              <div class="folder-selector-container">
+                {{#if journalFolders.length}}
+                <div class="folder-checkboxes">
+                  {{#each journalFolders}}
+                  <label class="folder-checkbox">
+                    <input type="checkbox" class="wizard-faction-folder-checkbox" value="{{this.name}}" />
+                    <span class="folder-name" {{#if this.depth}}style="margin-left: {{this.depth}}0px;" {{/if}}>
+                      {{#if this.depth}}<i class="fas fa-level-down-alt"></i>{{/if}}
+                      {{this.name}}
+                    </span>
+                  </label>
+                  {{/each}}
+                </div>
+                {{else}}
+                <p class="no-folders">No Journal folders found. Create folders to organize your journals.</p>
+                {{/if}}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="world-section">
+          <div class="world-data-box" style="display:flex; gap:8px; justify-content:flex-end;">
+            <button type="button" class="btn wizard-load-config">Load</button>
+            <button type="button" class="btn push wizard-save-config">Save</button>
+            <button type="button" class="btn wizard-test-paths">Test Paths</button>
           </div>
         </div>
       </div>
@@ -968,7 +1262,7 @@
       </div>
       {{/if}}
     </div>
-
+    {{/if}}
 
   </div>
-</div>
+</form>

@@ -43,7 +43,7 @@ function flattenStats(system) {
 export function extractGenericEntities(sampleLimit) {
     const out = [];
 
-    // Actors → GenericEntity
+    // Actors → GenericEntity (filtered later by deterministic utilities)
     const actors = (game.actors?.contents ?? game.actors ?? []);
     for (const a of actors) {
         const bioRaw = a?.system?.details?.biography?.value || a?.system?.details?.biography?.public || a?.system?.description || '';

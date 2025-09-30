@@ -2,7 +2,8 @@ import { CONFIG } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
 import { Utils } from '../modules/utils.js';
-import { AskChatWindow } from './ask-chat-window.js';
+// Ask Chat removed from Sync Options dialog
+import { WorldSetupDialog } from './world-setup-dialog.js';
 import { writeBestBiography, writeBestJournalDescription } from '../modules/field-mapper.js';
 import { importerService } from '../services/importer-service.js';
 
@@ -30,6 +31,17 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     this.thresholdB = 0.3;
     this.importerViewMode = 'all'; // 'sample' | 'all'
     this.importerActiveKind = 'All'; // 'All' | 'Actor' | 'Journal' | 'Scene' | 'Item'
+
+    // Progress tracking for sync operations
+    this.syncProgress = {
+      total: 0,
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      currentType: '',
+      currentEntity: '',
+      phase: 'idle' // 'idle', 'processing', 'retrying', 'complete'
+    };
   }
 
   /**
@@ -50,19 +62,25 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     },
     classes: ['archivist-sync-dialog'],
     actions: {
-      syncWorlds: this._onSyncWorlds,
-      saveWorldSelection: this._onSaveWorldSelection,
-      worldSelectChange: this._onWorldSelectChange,
-      syncTitle: this._onSyncTitle,
-      syncToArchivist: this._onSyncToArchivist,
-      syncFromArchivist: this._onSyncFromArchivist,
-      mapCharacter: this._onMapCharacter,
-      syncCharacters: this._onSyncCharacters,
-      pullCharacters: this._onPullCharacters,
-      pushFactions: this._onPushFactions,
-      pullFactions: this._onPullFactions,
-      pushLocations: this._onPushLocations,
-      pullLocations: this._onPullLocations
+      syncWorlds: SyncOptionsDialog.prototype._onSyncWorlds,
+      saveWorldSelection: SyncOptionsDialog.prototype._onSaveWorldSelection,
+      worldSelectChange: SyncOptionsDialog.prototype._onWorldSelectChange,
+      syncTitle: SyncOptionsDialog.prototype._onSyncTitle,
+      syncToArchivist: SyncOptionsDialog.prototype._onSyncToArchivist,
+      syncFromArchivist: SyncOptionsDialog.prototype._onSyncFromArchivist,
+      mapCharacter: SyncOptionsDialog.prototype._onMapCharacter,
+      syncCharacters: SyncOptionsDialog.prototype._onSyncCharacters,
+      pullCharacters: SyncOptionsDialog.prototype._onPullCharacters,
+      pushFactions: SyncOptionsDialog.prototype._onPushFactions,
+      pullFactions: SyncOptionsDialog.prototype._onPullFactions,
+      pushLocations: SyncOptionsDialog.prototype._onPushLocations,
+      pullLocations: SyncOptionsDialog.prototype._onPullLocations,
+      openWorldSetup: SyncOptionsDialog.prototype._onOpenWorldSetup,
+      validateApiKey: SyncOptionsDialog.prototype._onValidateApiKey,
+      saveConfig: SyncOptionsDialog.prototype._onSaveConfig,
+      loadConfig: SyncOptionsDialog.prototype._onLoadConfig,
+      pullItems: SyncOptionsDialog.prototype._onPullItems,
+      pushItems: SyncOptionsDialog.prototype._onPushItems
     }
   };
 
@@ -85,10 +103,14 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const selectedWorldName = settingsManager.getSelectedWorldName();
     const isApiConfigured = settingsManager.isApiConfigured();
     const isWorldSelected = settingsManager.isWorldSelected();
+    const isWorldInitialized = settingsManager.isWorldInitialized();
 
     return {
       isApiConfigured,
       isWorldSelected,
+      isWorldInitialized,
+      // Show setup mode if world is not initialized
+      showSetupMode: !isWorldInitialized,
       apiKey: apiKey ? '***' + apiKey.slice(-4) : '',
       worlds: this.worlds,
       selectedWorldId,
@@ -101,6 +123,10 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       locationJournals: this.locationJournals || [],
       isLoading: this.isLoading,
       syncInProgress: this.syncInProgress,
+      syncProgress: {
+        ...this.syncProgress,
+        progressPercentage: this.syncProgress.total > 0 ? Math.round((this.syncProgress.processed / this.syncProgress.total) * 100) : 0
+      },
       foundryWorldTitle: game.world.title,
       foundryWorldDescription: game.world.description || '',
       importerSampleJson: this.importerSampleJson || '',
@@ -109,8 +135,37 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       , thresholdA: this.thresholdA
       , thresholdB: this.thresholdB
       , mappingOverrideJson: settingsManager.getMappingOverride() || ''
+      // New wizard data
+      , actorStringProperties: this._getActorStringProperties()
+      , actorFolders: this._getAvailableFolders('Actor')
+      , journalFolders: this._getAvailableFolders('JournalEntry')
+      , itemFolders: this._getAvailableFolders('Item')
     };
   }
+
+  /**
+   * Update sync progress and re-render the dialog
+   */
+  updateSyncProgress(updates) {
+    Object.assign(this.syncProgress, updates);
+    this.render(); // Re-render to update the progress display
+  }
+
+  /**
+   * Reset sync progress to initial state
+   */
+  resetSyncProgress() {
+    this.syncProgress = {
+      total: 0,
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      currentType: '',
+      currentEntity: '',
+      phase: 'idle'
+    };
+  }
+
   _normalizeFieldValue(value) {
     try {
       if (value == null) return '';
@@ -145,6 +200,86 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     } catch (_) {
       return '';
     }
+  }
+
+  /**
+   * Get available string properties from Actor object model for description path selection
+   * @returns {Array} Array of property paths with previews
+   */
+  _getActorStringProperties() {
+    const actors = game.actors.contents.filter(actor =>
+      actor.type === 'character' || actor.type === 'npc'
+    );
+
+    if (!actors.length) return [];
+
+    const firstActor = actors[0];
+    const properties = [];
+
+    // Function to recursively explore object properties
+    const exploreObject = (obj, path = '', depth = 0) => {
+      if (depth > 4 || obj == null) return;
+
+      for (const [key, value] of Object.entries(obj)) {
+        const currentPath = path ? `${path}.${key}` : key;
+
+        if (typeof value === 'string' && value.trim().length > 0) {
+          // Get preview value from the first actor
+          const preview = value.length > 50 ? `${value.substring(0, 50)}...` : value;
+          properties.push({
+            path: currentPath,
+            preview: preview,
+            type: 'string'
+          });
+        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+          exploreObject(value, currentPath, depth + 1);
+        }
+      }
+    };
+
+    // Start exploration from actor.system
+    exploreObject(firstActor.system, 'system');
+
+    // Also add some common top-level properties
+    if (firstActor.name) {
+      properties.unshift({
+        path: 'name',
+        preview: firstActor.name,
+        type: 'string'
+      });
+    }
+
+    // Sort by relevance (bio/description fields first)
+    properties.sort((a, b) => {
+      const aRelevant = /(bio|desc|summary|notes)/i.test(a.path);
+      const bRelevant = /(bio|desc|summary|notes)/i.test(b.path);
+      if (aRelevant && !bRelevant) return -1;
+      if (!aRelevant && bRelevant) return 1;
+      return a.path.localeCompare(b.path);
+    });
+
+    return properties;
+  }
+
+  /**
+   * Get available folders by type
+   * @param {string} type - Folder type ('Actor', 'JournalEntry', 'Item')
+   * @returns {Array} Array of folder objects with names and IDs
+   */
+  _getAvailableFolders(type) {
+    const folders = game.folders?.contents || [];
+    return folders
+      .filter(folder => folder.type === type)
+      .map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        depth: folder.depth || 0
+      }))
+      .sort((a, b) => {
+        // Sort by depth first, then by name
+        if (a.depth !== b.depth) return a.depth - b.depth;
+        return a.name.localeCompare(b.name);
+      });
   }
 
 
@@ -208,7 +343,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     // New sync buttons with debug logging
     const syncToBtn = html.querySelector('.sync-to-archivist-btn');
     const syncFromBtn = html.querySelector('.sync-from-archivist-btn');
-    const askChatBtn = html.querySelector('.ask-chat-btn');
+    // Ask Chat button removed
 
     if (syncToBtn) {
       console.log('Found sync-to-archivist-btn, attaching listener');
@@ -224,15 +359,18 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       console.log('sync-from-archivist-btn not found in DOM');
     }
 
-    if (askChatBtn) {
-      console.log('Found ask-chat-btn, attaching listener');
-      askChatBtn.addEventListener('click', () => new AskChatWindow().render(true));
-    } else {
-      console.log('ask-chat-btn not found in DOM');
-    }
+    // no-op
 
     html.querySelector('.push-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
     html.querySelector('.pull-characters-btn')?.addEventListener('click', this._onPullCharacters.bind(this));
+
+    // Deterministic sync button
+    html.querySelector('.deterministic-sync-btn')?.addEventListener('click', this._onDeterministicSync.bind(this));
+
+    // Wizard load/save/test
+    html.querySelector('.wizard-load-config')?.addEventListener('click', this._onWizardLoad.bind(this));
+    html.querySelector('.wizard-save-config')?.addEventListener('click', this._onWizardSave.bind(this));
+    html.querySelector('.wizard-test-paths')?.addEventListener('click', this._onWizardTest.bind(this));
 
     // Per-item actions (event delegation for dynamically updated lists)
     html.addEventListener('click', async (e) => {
@@ -258,62 +396,20 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
     // (Map button removed)
 
-    // Importer tab actions
-    html.querySelector('.importer-sample-btn')?.addEventListener('click', this._onImporterSample.bind(this));
-    html.querySelector('.importer-run-btn')?.addEventListener('click', this._onImporterRun.bind(this));
-    html.querySelector('.mapping-load-btn')?.addEventListener('click', this._onMappingLoad.bind(this));
-    html.querySelector('.mapping-save-btn')?.addEventListener('click', this._onMappingSave.bind(this));
-    html.querySelector('.importer-create-world-btn')?.addEventListener('click', this._onCreateWorld.bind(this));
+    // World Options & Config actions
+    html.querySelector('.run-setup-wizard-btn')?.addEventListener('click', this._onOpenWorldSetup.bind(this));
+    html.querySelector('.validate-api-key-btn')?.addEventListener('click', this._onValidateApiKey.bind(this));
+    html.querySelector('.cfg-load')?.addEventListener('click', this._onLoadConfig.bind(this));
+    html.querySelector('.cfg-save')?.addEventListener('click', this._onSaveConfig.bind(this));
 
-    // Importer preview load mode (Sample vs All)
-    html.querySelector('.importer-load-sample')?.addEventListener('click', async () => {
-      this.importerViewMode = 'sample';
-      await this._refreshImporterPreview();
-    });
-    html.querySelector('.importer-load-all')?.addEventListener('click', async () => {
-      this.importerViewMode = 'all';
-      await this._refreshImporterPreview();
-    });
+    // Items tab actions
+    html.querySelector('.push-items-btn')?.addEventListener('click', this._onPushItems.bind(this));
+    html.querySelector('.pull-items-btn')?.addEventListener('click', this._onPullItems.bind(this));
 
-    // Importer preview change handlers (delegated)
+    // remove importer delegated change handler
     html.addEventListener('change', async (e) => {
-      const typeSel = e.target.closest?.('.importer-type-select');
-      const includeCb = e.target.closest?.('.importer-include');
-      const fieldSel = e.target.closest?.('.importer-field-select');
-      if (!typeSel && !includeCb && !fieldSel) return;
-      try {
-        const uuid = (typeSel || includeCb || fieldSel)?.dataset?.uuid;
-        if (!uuid) return;
-        const corrections = importerService.getCorrections();
-        corrections.byUuid = corrections.byUuid || {};
-        const current = corrections.byUuid[uuid] || {};
-        if (typeSel) {
-          // Split Character:PC / Character:NPC into a targetType and characterType flag
-          const raw = typeSel.value || '';
-          if (raw.startsWith('Character:')) {
-            current.targetType = 'Character';
-            current.characterType = raw.split(':')[1] || 'PC';
-          } else {
-            current.targetType = raw;
-            delete current.characterType;
-          }
-        }
-        if (includeCb) {
-          current.include = includeCb.checked;
-        }
-        if (fieldSel) {
-          const field = fieldSel.dataset.field;
-          const path = fieldSel.value;
-          current.fieldPaths = current.fieldPaths || {};
-          if (path) current.fieldPaths[field] = path; else delete current.fieldPaths[field];
-        }
-        corrections.byUuid[uuid] = current;
-        await importerService.saveCorrections(corrections);
-        await this._refreshImporterPreview();
-      } catch (err) {
-        console.error(err);
-        ui.notifications.error('Failed to apply change');
-      }
+      // no-op for importer
+      return;
     });
 
     // Importer kind tab switching and initial state
@@ -644,6 +740,26 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       ui.notifications.info('Mapping saved to file');
     } catch (e) {
       ui.notifications.error('Failed to save mapping');
+    }
+  }
+
+  /**
+   * Handle open world setup button click
+   * @param {Event} event - Click event
+   */
+  async _onOpenWorldSetup(event) {
+    event?.preventDefault?.();
+
+    try {
+      const setupDialog = new WorldSetupDialog();
+      await setupDialog.render(true);
+
+      // Close the current sync options dialog to avoid confusion
+      await this.close();
+
+    } catch (error) {
+      console.error('Error opening world setup dialog:', error);
+      ui.notifications.error('Failed to open world setup dialog');
     }
   }
 
@@ -1177,17 +1293,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             Array.isArray(list?.results) ? list.results : [];
       if (!list.success) throw new Error(list.message || 'Failed to list factions');
       console.debug('[Archivist Sync] listFactions resolved items:', apiItems.length);
-      const folderId = await Utils.ensureJournalFolder('Factions');
+      // Ensure single container JournalEntry at root
+      const container = await Utils.ensureRootJournalContainer('Factions');
 
-      const existing = new Map();
-      for (const j of (game.journal?.contents ?? game.journal ?? [])) {
-        const id = j.getFlag(CONFIG.MODULE_ID, 'archivistId');
-        const type = j.getFlag(CONFIG.MODULE_ID, 'archivistType');
-        if (id && type === 'faction') existing.set(id, j);
-      }
+      // Sort API items alphabetically by name
+      apiItems.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
       for (const f of apiItems) {
-        console.debug('[Archivist Sync] Faction raw object:', f);
         const name = f.name || 'Faction';
         const description = (f.description ?? f.combined_description ?? f.new_description ?? f.old_description ?? '').toString();
         const imageUrl = (typeof f.image === 'string' && f.image.trim().length)
@@ -1197,31 +1309,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             : (typeof f.thumbnail === 'string' && f.thumbnail.trim().length)
               ? f.thumbnail.trim()
               : null;
-        console.debug('[Archivist Sync] Faction image fields:', { image: f?.image, cover_image: f?.cover_image, thumbnail: f?.thumbnail, resolved: imageUrl });
-        const journal = existing.get(f.id);
-        if (journal) {
-          const updateData = { name, folder: folderId };
-          if (imageUrl) updateData.img = imageUrl;
-          await journal.update(updateData);
-          await writeBestJournalDescription(journal, description);
-          if (imageUrl) {
-            console.debug('[Archivist Sync] Injecting image into existing faction journal', { journalId: journal.id, imageUrl });
-            await Utils.ensureJournalLeadImage(journal, imageUrl);
-          }
-        } else {
-          const createData = { name, folder: folderId };
-          if (imageUrl) createData.img = imageUrl;
-          const created = await JournalEntry.create(createData);
-          if (created) {
-            await writeBestJournalDescription(created, description);
-            await Utils.setJournalArchivistMeta(created, f.id, 'faction');
-            if (imageUrl) {
-              console.debug('[Archivist Sync] Injecting image into new faction journal', { journalId: created.id, imageUrl });
-              await Utils.ensureJournalLeadImage(created, imageUrl);
-            }
-          }
-        }
+        await Utils.upsertContainerTextPage(container, {
+          name,
+          html: description,
+          imageUrl,
+          flags: { archivistId: f.id, archivistType: 'faction', archivistWorldId: worldId }
+        });
       }
+      // Apply alphabetical ordering by page name
+      await Utils.sortContainerPages(container, (a, b) => String(a.name || '').localeCompare(String(b.name || '')));
       ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.factionsPulled'));
     } catch (error) {
       console.error('Error pulling factions:', error);
@@ -1271,17 +1367,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             Array.isArray(list?.results) ? list.results : [];
       if (!list.success) throw new Error(list.message || 'Failed to list locations');
       console.debug('[Archivist Sync] listLocations resolved items:', apiItems.length);
-      const folderId = await Utils.ensureJournalFolder('Locations');
+      // Ensure single container JournalEntry at root
+      const container = await Utils.ensureRootJournalContainer('Locations');
 
-      const existing = new Map();
-      for (const j of (game.journal?.contents ?? game.journal ?? [])) {
-        const id = j.getFlag(CONFIG.MODULE_ID, 'archivistId');
-        const type = j.getFlag(CONFIG.MODULE_ID, 'archivistType');
-        if (id && type === 'location') existing.set(id, j);
-      }
+      // Sort API items alphabetically by name
+      apiItems.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
 
       for (const l of apiItems) {
-        console.debug('[Archivist Sync] Location raw object:', l);
         const name = l.name || 'Location';
         const description = (l.description ?? l.combined_description ?? l.new_description ?? l.old_description ?? '').toString();
         const imageUrl = (typeof l.image === 'string' && l.image.trim().length)
@@ -1291,34 +1383,287 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             : (typeof l.thumbnail === 'string' && l.thumbnail.trim().length)
               ? l.thumbnail.trim()
               : null;
-        console.debug('[Archivist Sync] Location image fields:', { image: l?.image, cover_image: l?.cover_image, thumbnail: l?.thumbnail, resolved: imageUrl });
-        const journal = existing.get(l.id);
-        if (journal) {
-          const updateData = { name, folder: folderId };
-          if (imageUrl) updateData.img = imageUrl;
-          await journal.update(updateData);
-          await writeBestJournalDescription(journal, description);
-          if (imageUrl) {
-            console.debug('[Archivist Sync] Injecting image into existing location journal', { journalId: journal.id, imageUrl });
-            await Utils.ensureJournalLeadImage(journal, imageUrl);
-          }
-        } else {
-          const createData = { name, folder: folderId };
-          if (imageUrl) createData.img = imageUrl;
-          const created = await JournalEntry.create(createData);
-          if (created) {
-            await writeBestJournalDescription(created, description);
-            await Utils.setJournalArchivistMeta(created, l.id, 'location');
-            if (imageUrl) {
-              console.debug('[Archivist Sync] Injecting image into new location journal', { journalId: created.id, imageUrl });
-              await Utils.ensureJournalLeadImage(created, imageUrl);
-            }
-          }
-        }
+        await Utils.upsertContainerTextPage(container, {
+          name,
+          html: description,
+          imageUrl,
+          flags: { archivistId: l.id, archivistType: 'location', archivistWorldId: worldId }
+        });
       }
+      // Apply alphabetical ordering by page name
+      await Utils.sortContainerPages(container, (a, b) => String(a.name || '').localeCompare(String(b.name || '')));
       ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.locationsPulled'));
     } catch (error) {
       console.error('Error pulling locations:', error);
+      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
+  }
+
+  async _onDeterministicSync(event) {
+    event?.preventDefault?.();
+    if (!settingsManager.isWorldSelected()) {
+      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      return;
+    }
+
+    this.syncInProgress = true;
+    this.resetSyncProgress();
+    this.updateSyncProgress({ phase: 'processing' });
+
+    try {
+      const res = await importerService.pushDeterministic(this);
+
+      // Final progress update
+      this.updateSyncProgress({
+        phase: 'complete',
+        currentType: '',
+        currentEntity: 'Sync complete!'
+      });
+
+      // Enhanced notification with success/failure breakdown
+      if (res.failed === 0) {
+        ui.notifications.info(`Successfully synced all ${res.count} entities using deterministic config`);
+      } else if (res.count > 0) {
+        ui.notifications.warn(`Synced ${res.count} entities, but ${res.failed} failed. Check console for details.`);
+        console.log(`${CONFIG.MODULE_TITLE} | Sync Summary:`, {
+          succeeded: res.count,
+          failed: res.failed,
+          total: res.total,
+          failedEntities: res.failedEntities
+        });
+      } else {
+        ui.notifications.error(`Sync failed: all ${res.failed} entities failed to sync. Check console for details.`);
+        console.error(`${CONFIG.MODULE_TITLE} | All entities failed to sync:`, res.failedEntities);
+      }
+    } catch (e) {
+      console.error(`${CONFIG.MODULE_TITLE} | Deterministic sync exception:`, e);
+      ui.notifications.error(`Deterministic sync failed: ${e.message || 'Unknown error'}`);
+      this.updateSyncProgress({ phase: 'idle' });
+    } finally {
+      this.syncInProgress = false;
+      // Don't reset progress here - let user see final results
+      this.render();
+    }
+  }
+
+  _fillWizardFields(root, cfg) {
+    // Set description path dropdowns
+    const pcDescSelect = root.querySelector('.wizard-pc-desc');
+    if (pcDescSelect) pcDescSelect.value = cfg?.actorMappings?.pc?.descriptionPath || '';
+
+    const npcDescSelect = root.querySelector('.wizard-npc-desc');
+    if (npcDescSelect) npcDescSelect.value = cfg?.actorMappings?.npc?.descriptionPath || '';
+
+    // Set folder checkboxes for PCs
+    const pcFolders = cfg?.includeRules?.filters?.actors?.includeFolders?.pcs || [];
+    root.querySelectorAll('.wizard-pc-folder-checkbox').forEach(checkbox => {
+      checkbox.checked = pcFolders.includes(checkbox.value);
+    });
+
+    // Set folder checkboxes for NPCs
+    const npcFolders = cfg?.includeRules?.filters?.actors?.includeFolders?.npcs || [];
+    root.querySelectorAll('.wizard-npc-folder-checkbox').forEach(checkbox => {
+      checkbox.checked = npcFolders.includes(checkbox.value);
+    });
+
+    // Set items dropdown
+    const itemsSelect = root.querySelector('.wizard-items-owned');
+    if (itemsSelect) itemsSelect.value = cfg?.includeRules?.filters?.items?.includeActorOwnedFrom || 'pc';
+
+    // Set item folder checkboxes
+    const itemFolders = cfg?.includeRules?.filters?.items?.includeWorldItemFolders || [];
+    root.querySelectorAll('.wizard-item-folder-checkbox').forEach(checkbox => {
+      checkbox.checked = itemFolders.includes(checkbox.value);
+    });
+
+    // Set faction folder checkboxes
+    const factionFolders = cfg?.includeRules?.filters?.factions?.journalFolders || [];
+    root.querySelectorAll('.wizard-faction-folder-checkbox').forEach(checkbox => {
+      checkbox.checked = factionFolders.includes(checkbox.value);
+    });
+  }
+
+  _readWizardFields(root, cfg) {
+    const next = duplicate(cfg || {});
+    next.actorMappings = next.actorMappings || { pc: {}, npc: {} };
+    next.includeRules = next.includeRules || { filters: { actors: { includeFolders: {} }, items: {}, factions: {} }, sources: {} };
+
+    // Read description paths from dropdowns
+    const pcDescPath = root.querySelector('.wizard-pc-desc')?.value?.trim() || '';
+    const npcDescPath = root.querySelector('.wizard-npc-desc')?.value?.trim() || '';
+    next.actorMappings.pc.descriptionPath = pcDescPath || next.actorMappings.pc.descriptionPath;
+    next.actorMappings.npc.descriptionPath = npcDescPath || next.actorMappings.npc.descriptionPath;
+
+    // Read folder selections from checkboxes
+    const pcFolders = Array.from(root.querySelectorAll('.wizard-pc-folder-checkbox:checked'))
+      .map(cb => cb.value).filter(Boolean);
+    const npcFolders = Array.from(root.querySelectorAll('.wizard-npc-folder-checkbox:checked'))
+      .map(cb => cb.value).filter(Boolean);
+
+    next.includeRules.filters.actors.includeFolders.pcs = pcFolders;
+    next.includeRules.filters.actors.includeFolders.npcs = npcFolders;
+
+    // Read items dropdown
+    const owned = root.querySelector('.wizard-items-owned')?.value?.trim() || 'pc';
+    next.includeRules.filters.items.includeActorOwnedFrom = owned;
+
+    // Read item folders from checkboxes
+    const itemFolders = Array.from(root.querySelectorAll('.wizard-item-folder-checkbox:checked'))
+      .map(cb => cb.value).filter(Boolean);
+    next.includeRules.filters.items.includeWorldItemFolders = itemFolders;
+
+    // Read faction folders from checkboxes
+    const factionFolders = Array.from(root.querySelectorAll('.wizard-faction-folder-checkbox:checked'))
+      .map(cb => cb.value).filter(Boolean);
+    next.includeRules.filters.factions.journalFolders = factionFolders;
+
+    return next;
+  }
+
+  async _onWizardLoad(event) {
+    event?.preventDefault?.();
+    const cfg = settingsManager.getImportConfig();
+    this._fillWizardFields(this.element, cfg);
+    ui.notifications.info('Loaded mapping config');
+  }
+
+  async _onWizardSave(event) {
+    event?.preventDefault?.();
+    const current = settingsManager.getImportConfig();
+    const next = this._readWizardFields(this.element, current);
+    await settingsManager.setImportConfig(next);
+    ui.notifications.info('Saved mapping config');
+  }
+
+  async _onWizardTest(event) {
+    event?.preventDefault?.();
+    const cfg = this._readWizardFields(this.element, settingsManager.getImportConfig());
+    // Simple test: read the first PC actor's description using configured path and show preview
+    const firstPc = (game.actors?.contents ?? game.actors ?? []).find(a => a.type === 'character');
+    if (!firstPc) return ui.notifications.warn('No PC actors found to test');
+    const path = cfg?.actorMappings?.pc?.descriptionPath;
+    const value = path ? path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), firstPc) : undefined;
+    const preview = typeof value === 'string' ? value.slice(0, 200) : JSON.stringify(value)?.slice(0, 200);
+    ui.notifications.info(`PC description preview: ${preview || '(empty)'}`);
+  }
+
+  async _onValidateApiKey(event) {
+    event?.preventDefault?.();
+    try {
+      const root = this.element[0] || document;
+      const input = root.querySelector('#api-key-input');
+      const newKey = input?.value?.trim();
+      if (!newKey) {
+        ui.notifications.warn('Enter an API key to validate.');
+        return;
+      }
+      const currentWorldId = settingsManager.getSelectedWorldId();
+      if (!currentWorldId) {
+        ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+        return;
+      }
+      const res = await archivistApi.fetchCampaignDetails(newKey, currentWorldId);
+      const errEl = root.querySelector('.api-key-error');
+      if (res?.success) {
+        await settingsManager.setSetting('apiKey', newKey);
+        errEl && (errEl.style.display = 'none');
+        ui.notifications.info('API key validated and saved.');
+        this.render();
+      } else {
+        // 404 means selected campaign not found under this key
+        errEl && (errEl.style.display = 'block');
+        if (errEl) errEl.textContent = 'Campaign not found for this key. Enter a different key or run setup again.';
+        ui.notifications.error('Campaign not found. Enter a different key or run setup again.');
+      }
+    } catch (e) {
+      console.error('API key validation failed:', e);
+      ui.notifications.error('Validation failed. Check key and try again.');
+    }
+  }
+
+  _fillConfigForm(root, cfg) {
+    try {
+      root.querySelector('.cfg-pc-desc')?.setAttribute('value', cfg?.actorMappings?.pc?.descriptionPath || '');
+      root.querySelector('.cfg-npc-desc')?.setAttribute('value', cfg?.actorMappings?.npc?.descriptionPath || '');
+      root.querySelector('.cfg-dest-pc')?.setAttribute('value', cfg?.destinations?.pc || '');
+      root.querySelector('.cfg-dest-npc')?.setAttribute('value', cfg?.destinations?.npc || '');
+      root.querySelector('.cfg-dest-item')?.setAttribute('value', cfg?.destinations?.item || '');
+      root.querySelector('.cfg-dest-location')?.setAttribute('value', cfg?.destinations?.location || '');
+      root.querySelector('.cfg-dest-faction')?.setAttribute('value', cfg?.destinations?.faction || '');
+    } catch (_) { }
+  }
+
+  async _onLoadConfig(event) {
+    event?.preventDefault?.();
+    const root = this.element[0] || document;
+    const cfg = settingsManager.getImportConfig();
+    this._ensureConfigDestinations(cfg);
+    this._fillConfigForm(root, cfg);
+    ui.notifications.info('Loaded current configuration.');
+  }
+
+  _ensureConfigDestinations(cfg) {
+    cfg.destinations = cfg.destinations || { pc: '', npc: '', item: '', location: '', faction: '' };
+    cfg.actorMappings = cfg.actorMappings || { pc: {}, npc: {} };
+  }
+
+  async _onSaveConfig(event) {
+    event?.preventDefault?.();
+    const root = this.element[0] || document;
+    const cfg = settingsManager.getImportConfig();
+    this._ensureConfigDestinations(cfg);
+    const val = (sel) => root.querySelector(sel)?.value?.trim() || '';
+    cfg.actorMappings.pc.descriptionPath = val('.cfg-pc-desc');
+    cfg.actorMappings.npc.descriptionPath = val('.cfg-npc-desc');
+    cfg.destinations.pc = val('.cfg-dest-pc');
+    cfg.destinations.npc = val('.cfg-dest-npc');
+    cfg.destinations.item = val('.cfg-dest-item');
+    cfg.destinations.location = val('.cfg-dest-location');
+    cfg.destinations.faction = val('.cfg-dest-faction');
+    await settingsManager.setImportConfig(cfg);
+    ui.notifications.info('Configuration saved.');
+  }
+
+  async _onPullItems(event) {
+    event?.preventDefault?.();
+    if (!settingsManager.isWorldSelected()) {
+      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      return;
+    }
+    this.syncInProgress = true;
+    this.render();
+    try {
+      const apiKey = settingsManager.getApiKey();
+      const worldId = settingsManager.getSelectedWorldId();
+      const list = await archivistApi.listItems(apiKey, worldId);
+      const apiItems = Array.isArray(list?.data) ? list.data : Array.isArray(list?.data?.data) ? list.data.data : [];
+      // TODO: Implement write-back for items to Foundry (create/update)
+      ui.notifications.info(`Fetched ${apiItems.length} items from Archivist.`);
+    } catch (e) {
+      console.error('Error pulling items:', e);
+      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
+  }
+
+  async _onPushItems(event) {
+    event?.preventDefault?.();
+    if (!settingsManager.isWorldSelected()) {
+      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      return;
+    }
+    this.syncInProgress = true;
+    this.render();
+    try {
+      const res = await importerService.pushFiltered({ kinds: ['Item'], targetType: 'Item' });
+      ui.notifications.info(`Items synced: ${res.count}`);
+    } catch (e) {
+      console.error('Error pushing items:', e);
       ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
     } finally {
       this.syncInProgress = false;

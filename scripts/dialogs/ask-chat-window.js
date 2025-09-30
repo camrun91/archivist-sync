@@ -103,6 +103,9 @@ export class AskChatWindow {
         if (!settingsManager.isWorldSelected()) {
             return ui.notifications?.warn(game.i18n.localize('ARCHIVIST_SYNC.chat.noWorld'));
         }
+        if (!settingsManager.isWorldInitialized()) {
+            return ui.notifications?.warn(game.i18n.localize('ARCHIVIST_SYNC.chat.notInitialized'));
+        }
 
         const userMsg = { role: 'user', content: text, from: 'me', at: Date.now() };
         this._messages.push(userMsg);

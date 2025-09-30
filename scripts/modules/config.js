@@ -16,7 +16,7 @@ export const SETTINGS = {
     name: 'ARCHIVIST_SYNC.Settings.ApiKey.Name',
     hint: 'ARCHIVIST_SYNC.Settings.ApiKey.Hint',
     scope: 'world',
-    config: true,
+    config: false,
     type: String,
     default: ''
   },
@@ -36,7 +36,7 @@ export const SETTINGS = {
     name: 'ARCHIVIST_SYNC.Settings.SemanticMappingEnabled.Name',
     hint: 'ARCHIVIST_SYNC.Settings.SemanticMappingEnabled.Hint',
     scope: 'world',
-    config: true,
+    config: false,
     type: Boolean,
     default: false
   },
@@ -56,9 +56,32 @@ export const SETTINGS = {
     name: 'ARCHIVIST_SYNC.Settings.SelectedWorldName.Name',
     hint: 'ARCHIVIST_SYNC.Settings.SelectedWorldName.Hint',
     scope: 'world',
-    config: true,
+    config: false,
     type: String,
     default: 'None selected'
+  },
+  /**
+   * World-scoped import configuration (JSON string)
+   * Holds mapping paths, source selections, filters, and write-back modes
+   */
+  IMPORT_CONFIG: {
+    key: 'importConfig',
+    name: 'ARCHIVIST_SYNC.Settings.ImportConfig.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ImportConfig.Hint',
+    scope: 'world',
+    config: false,
+    type: String,
+    default: '{}'
+  },
+
+  WORLD_INITIALIZED: {
+    key: 'worldInitialized',
+    name: 'ARCHIVIST_SYNC.Settings.WorldInitialized.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.WorldInitialized.Hint',
+    scope: 'world',
+    config: false,
+    type: Boolean,
+    default: false
   }
 };
 
