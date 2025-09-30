@@ -1,4 +1,5 @@
 import { getPresetForSystemId } from './mapping-presets.js';
+import { toMarkdownIfHtml, unwrapToPlainText } from './importer-normalizer.js';
 
 function get(obj, path, defaultValue) {
     try { return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj) ?? defaultValue; } catch (_) { return defaultValue; }
@@ -36,13 +37,34 @@ function testCondition(entity, cond) {
 function materializeFields(fields, entity) {
     const out = {};
     for (const [k, v] of Object.entries(fields || {})) {
+        const isImageKey = /(?:portrait|image)Url$/i.test(k);
         if (Array.isArray(v)) {
             for (const part of v) {
-                const val = evalJsonPath(part, entity);
-                if (val != null && String(val).trim().length) { out[k] = String(val); break; }
+                const raw = evalJsonPath(part, entity);
+                if (isImageKey) {
+                    const url = findExternalUrl(raw);
+                    if (url) { out[k] = url; break; }
+                } else {
+                    const val = unwrapToPlainText(raw);
+                    if (val && val.trim().length) { out[k] = val; break; }
+                }
             }
         } else {
-            out[k] = evalJsonPath(v, entity);
+            const raw = evalJsonPath(v, entity);
+            out[k] = isImageKey ? findExternalUrl(raw) : unwrapToPlainText(raw);
+        }
+    }
+    // Normalize content-ish fields to markdown when they appear HTML-like
+    for (const key of Object.keys(out)) {
+        if (/description|content|body|text/i.test(key)) {
+            out[key] = toMarkdownIfHtml(out[key]);
+        }
+    }
+    // Drop any empty or local-file image fields outright
+    for (const key of Object.keys(out)) {
+        if (/(?:portrait|image)Url$/i.test(key)) {
+            const val = String(out[key] || '').trim();
+            if (!/^https?:\/\//i.test(val)) delete out[key];
         }
     }
     return out;
@@ -53,7 +75,7 @@ function scoreHeuristics(entity, rule) {
     // Baseline confidence for any explicit rule match
     s += 0.55;
     // Images present increase confidence a bit
-    if (Array.isArray(entity.images) && entity.images.length) s += 0.05;
+    if ((Array.isArray(entity.images) && entity.images.length) || (typeof entity.images === 'string' && entity.images.trim().length)) s += 0.05;
     // Tags presence
     if (Array.isArray(entity.tags) && entity.tags.length) s += 0.05;
     // Kind-target pairs
@@ -63,20 +85,40 @@ function scoreHeuristics(entity, rule) {
         if ((entity.subtype || '').toLowerCase() === 'npc') s += 0.07;
         const bio = entity?.metadata?.system?.details?.biography;
         if (bio && (bio.value || bio.public)) s += 0.03;
+        // If a level stat is present, likely a PC (or major NPC) → tiny boost
+        if (Number.isFinite(entity?.stats?.level)) s += 0.03;
+        // Prototype token disposition: hostile/neutral hints at NPC sheets
+        const disp = entity?.metadata?.prototypeToken?.disposition;
+        if (disp === -1 || disp === 0) s += 0.02;
     }
     if (entity.kind === 'Scene' && rule.mapTo === 'Location') {
         s += 0.25;
         const bg = entity?.metadata?.bg || entity?.images?.[0];
         if (bg) s += 0.05;
         if (Array.isArray(entity.links) && entity.links.length) s += 0.05;
+        // Grid/meta signals: more notes/lights/walls → more likely a map-like Location
+        const counts = entity?.metadata?.counts || {};
+        if ((counts.notes || 0) > 0) s += 0.03;
+        if ((counts.lights || 0) > 0) s += 0.02;
+        if ((counts.walls || 0) > 0) s += 0.02;
+    }
+    if (entity.kind === 'Item' && rule.mapTo === 'Item') {
+        s += 0.2;
+        const hasDesc = !!(entity?.body);
+        if (hasDesc) s += 0.05;
+        if (Array.isArray(entity.images) && entity.images.length) s += 0.05;
     }
     if (entity.kind === 'Journal' && rule.mapTo === 'Faction') {
         s += 0.2;
         const name = (entity.name || '').toLowerCase();
-        if (/(order|guild|house|clan|legion|company|collective)/i.test(name)) s += 0.15;
+        if (/(order|guild|house|clan|legion|company|collective|cult|syndicate|faction|organization|organisation)/i.test(name)) s += 0.15;
         const folder = (entity.folderName || '').toLowerCase();
         if (/(faction|organization|organisations|guild|order|house|clan)/i.test(folder)) s += 0.15;
         if ((entity.tags || []).some(t => /faction|organization|guild|order|house|clan/i.test(t))) s += 0.1;
+        // Longer text and link-rich content slightly increases confidence
+        const bodyLen = (String(entity.body || '').replace(/<[^>]*>/g, '').trim().length) || 0;
+        if (bodyLen > 300) s += 0.03;
+        if (Array.isArray(entity.links) && entity.links.length > 2) s += 0.02;
     }
     return Math.min(1, s);
 }
@@ -94,6 +136,8 @@ export function mapEntityToArchivist(entity, overridePreset) {
         let score = 0;
         if (rule.confidenceBoost) score += Number(rule.confidenceBoost) || 0;
         score += scoreHeuristics(entity, rule);
+        // Clamp per-rule score into [0,1] so boosts never exceed 100%
+        score = Math.max(0, Math.min(1, score));
         const payload = materializeFields(rule.fields || {}, entity);
         if (!best || score > bestScore) { best = { targetType: rule.mapTo, payload, labels: rule.labels || [], score }; bestScore = score; }
     }
@@ -103,4 +147,35 @@ export function mapEntityToArchivist(entity, overridePreset) {
     return best;
 }
 
+
+// --- Image helpers ---
+
+function isExternalUrl(s) {
+    const str = String(s || '').trim();
+    return /^https?:\/\//i.test(str);
+}
+
+/**
+ * Attempt to pull the first external URL from a variety of shapes
+ * (string, array, objects with src/url/href)
+ */
+function findExternalUrl(value) {
+    if (value == null) return '';
+    if (typeof value === 'string') return isExternalUrl(value) ? value.trim() : '';
+    if (Array.isArray(value)) {
+        for (const v of value) {
+            const u = findExternalUrl(v);
+            if (u) return u;
+        }
+        return '';
+    }
+    if (typeof value === 'object') {
+        const candidates = [value.src, value.url, value.href, value.path, value.link, value.texture?.src];
+        for (const c of candidates) {
+            const u = findExternalUrl(c);
+            if (u) return u;
+        }
+    }
+    try { return isExternalUrl(String(value)) ? String(value).trim() : ''; } catch (_) { return ''; }
+}
 

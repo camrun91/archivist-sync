@@ -431,6 +431,109 @@
       opacity: .9;
       margin-right: 4px;
     }
+
+    /* ===== Importer Preview — Height & Robust Controls ===== */
+    .archivist-sync-content .tab[data-tab="importer"] .entities-section {
+      max-height: none;
+    }
+
+    .archivist-sync-content .importer-preview {
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .archivist-sync-content .importer-preview .world-data-box {
+      flex: 1;
+      max-height: none;
+      height: 72vh;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    .archivist-sync-content .importer-preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .archivist-sync-content .importer-preview-table th,
+    .archivist-sync-content .importer-preview-table td {
+      padding: 6px 8px;
+      vertical-align: top;
+      word-wrap: break-word;
+    }
+
+    /* Column sizing: Include (tight), Name (grow), Type (compact), Confidence (compact), Fields (largest) */
+    .archivist-sync-content .importer-preview-table th:nth-child(1),
+    .archivist-sync-content .importer-preview-table td:nth-child(1) {
+      width: 54px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .archivist-sync-content .importer-preview-table th:nth-child(2),
+    .archivist-sync-content .importer-preview-table td:nth-child(2) {
+      width: 150px;
+      word-break: break-word;
+    }
+
+    .archivist-sync-content .importer-preview-table th:nth-child(3),
+    .archivist-sync-content .importer-preview-table td:nth-child(3) {
+      width: 100px;
+      white-space: nowrap;
+    }
+
+    .archivist-sync-content .importer-preview-table th:nth-child(4),
+    .archivist-sync-content .importer-preview-table td:nth-child(4) {
+      width: 100px;
+      white-space: nowrap;
+    }
+
+    .archivist-sync-content .importer-preview-table th:nth-child(5),
+    .archivist-sync-content .importer-preview-table td:nth-child(5) {
+      width: auto;
+    }
+
+    .archivist-sync-content .preview-bucket {
+      padding: 8px;
+      border: 1px solid var(--arch-border);
+      border-radius: 8px;
+      background: var(--arch-panel);
+      overflow: hidden;
+    }
+
+    /* Control sizing and resilience */
+    .archivist-sync-content .btn,
+    .archivist-sync-content button,
+    .archivist-sync-content select,
+    .archivist-sync-content input[type="number"],
+    .archivist-sync-content textarea {
+      min-height: 36px;
+    }
+
+    .archivist-sync-content .btn {
+      min-width: 44px;
+    }
+
+    .archivist-sync-content select {
+      min-width: 160px;
+    }
+
+    .archivist-sync-content .importer-field-select {
+      min-width: 140px;
+      width: 100%;
+    }
+
+    .archivist-sync-content .importer-type-select {
+      min-width: 80px;
+    }
+
+    .archivist-sync-content .input-row>label {
+      min-height: 32px;
+      display: flex;
+      align-items: center;
+    }
   </style>
   <!-- Tab Navigation -->
   <nav class="tabs" data-group="main">
@@ -558,7 +661,7 @@
         </div>
 
         <div class="world-section">
-          <div class="world-data-box">
+          <div class="world-data-box importer-controls">
             <div class="input-row">
               <label>{{localize "ARCHIVIST_SYNC.labels.thresholdA"}}</label>
               <input type="number" class="import-threshold-a" step="0.05" min="0" max="1" value="{{thresholdA}}" />
@@ -567,11 +670,24 @@
               <label>{{localize "ARCHIVIST_SYNC.labels.thresholdB"}}</label>
               <input type="number" class="import-threshold-b" step="0.05" min="0" max="1" value="{{thresholdB}}" />
             </div>
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.mappingOverride"}}</label>
+            <div class="input-row">
+              <label>Preview</label>
               <div>
-                <textarea class="mapping-override-json" style="width:100%;min-height:140px" placeholder="{\n  \"
-                  rules\": []\n}">{{mappingOverrideJson}}</textarea>
+                <button type="button" class="importer-load-sample btn" {{#if syncInProgress}}disabled{{/if}}>
+                  <i class="fas fa-list"></i> Sample
+                </button>
+                <button type="button" class="importer-load-all btn" {{#if syncInProgress}}disabled{{/if}}>
+                  <i class="fas fa-list-ul"></i> All
+                </button>
+              </div>
+            </div>
+            <div class="world-field">
+              <label>{{localize "ARCHIVIST_SYNC.labels.mappingOverride"}}
+                <i class="fas fa-info-circle help-icon" title="{{localize 'ARCHIVIST_SYNC.help.mappingOverride'}}"></i>
+              </label>
+              <div>
+                <textarea class="mapping-override-json"
+                  style="width:100%;min-height:140px">{{mappingOverrideJson}}</textarea>
                 <div style="margin-top:6px;display:flex;gap:6px">
                   <button type="button" class="mapping-load-btn btn" {{#if syncInProgress}}disabled{{/if}}><i
                       class="fas fa-upload"></i> {{localize "ARCHIVIST_SYNC.buttons.loadMapping"}}</button>
@@ -583,75 +699,87 @@
           </div>
         </div>
 
-        <div class="world-section">
-          <div class="world-data-box">
-            <div class="world-field">
-              <label>{{localize "ARCHIVIST_SYNC.labels.importPreview"}}</label>
-              <div style="display:grid;gap:8px">
-                {{#each importerGroups}}
-                {{#if this.length}}
-                <div class="preview-bucket">
-                  <h4 style="margin:0 0 6px 0; font-size:13px;">{{@key}}</h4>
-                  <table class="importer-preview-table" style="width:100%; border-collapse: collapse;">
-                    <thead>
-                      <tr>
-                        <th style="text-align:left; padding:4px 6px;">Include</th>
-                        <th style="text-align:left; padding:4px 6px;">Name</th>
-                        <th style="text-align:left; padding:4px 6px;">Type</th>
-                        <th style="text-align:left; padding:4px 6px;">Confidence</th>
-                        <th style="text-align:left; padding:4px 6px;">Fields</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {{#each this}}
-                      <tr>
-                        <td style="padding:4px 6px; vertical-align: top;">
-                          <input type="checkbox" class="importer-include" data-uuid="{{uuid}}" {{#if
-                            include}}checked{{/if}} />
-                        </td>
-                        <td style="padding:4px 6px; vertical-align: top; min-width:160px;">{{name}}</td>
-                        <td style="padding:4px 6px; vertical-align: top;">
-                          <select class="importer-type-select" data-uuid="{{uuid}}">
-                            <option value="Character" {{#if (eq targetType "Character" )}}selected{{/if}}>Character
+        <div class="world-section importer-preview">
+          <div class="world-data-box importer-preview-body">
+            <div class="importer-preview-list" style="display:grid;gap:8px">
+              <div class="importer-kind-tabs" style="display:flex; gap:8px; margin-bottom:6px;">
+                <button type="button" class="btn importer-kind-tab" data-kind="All">All</button>
+                <button type="button" class="btn importer-kind-tab" data-kind="Actor">Actor</button>
+                <button type="button" class="btn importer-kind-tab" data-kind="Journal">Journal</button>
+                <button type="button" class="btn importer-kind-tab" data-kind="Scene">Scene</button>
+                <button type="button" class="btn importer-kind-tab" data-kind="Item">Item</button>
+              </div>
+              {{#each importerGroups}}
+              {{#if this.length}}
+              <div class="preview-bucket" data-kind="{{@key}}">
+                <h4 style="margin:0 0 6px 0; font-size:13px;">{{@key}}</h4>
+                <table class="importer-preview-table" style="width:100%; border-collapse: collapse;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left; padding:4px 6px;">Include</th>
+                      <th style="text-align:left; padding:4px 6px;">Name</th>
+                      <th style="text-align:left; padding:4px 6px;">Type</th>
+                      <th style="text-align:left; padding:4px 6px;">Confidence</th>
+                      <th style="text-align:left; padding:4px 6px;">Fields</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {{#each this}}
+                    <tr>
+                      <td style="padding:4px 6px; vertical-align: top;">
+                        <input type="checkbox" class="importer-include" data-uuid="{{uuid}}" {{#if
+                          include}}checked{{/if}} />
+                      </td>
+                      <td style="padding:4px 6px; vertical-align: top; min-width:160px;">{{name}}</td>
+                      <td style="padding:4px 6px; vertical-align: top;">
+                        <select class="importer-type-select" data-uuid="{{uuid}}">
+                          <optgroup label="Character">
+                            <option value="Character:PC" {{#if (eq uiType "Character:PC" )}}selected{{/if}}>PC
                             </option>
-                            <option value="Faction" {{#if (eq targetType "Faction" )}}selected{{/if}}>Faction</option>
-                            <option value="Location" {{#if (eq targetType "Location" )}}selected{{/if}}>Location
+                            <option value="Character:NPC" {{#if (eq uiType "Character:NPC" )}}selected{{/if}}>NPC
                             </option>
-                            <option value="Note" {{#if (eq targetType "Note" )}}selected{{/if}}>Note</option>
-                          </select>
-                        </td>
-                        <td style="padding:4px 6px; vertical-align: top;">{{score}}%</td>
-                        <td style="padding:4px 6px; vertical-align: top;">
-                          <div style="display:grid; gap:4px;">
-                            {{#each fields}}
-                            <div style="display:grid; grid-template-columns: 140px 1fr; gap:6px; align-items:center;">
+                          </optgroup>
+                          <option value="Faction" {{#if (eq targetType "Faction" )}}selected{{/if}}>Faction</option>
+                          <option value="Location" {{#if (eq targetType "Location" )}}selected{{/if}}>Location
+                          </option>
+                          <option value="Item" {{#if (eq targetType "Item" )}}selected{{/if}}>Item</option>
+                          <option value="Note" {{#if (eq targetType "Note" )}}selected{{/if}}>Note</option>
+                        </select>
+                      </td>
+                      <td style="padding:4px 6px; vertical-align: top;">{{score}}%</td>
+                      <td style="padding:4px 6px; vertical-align: top;">
+                        <div style="display:grid; gap:8px;">
+                          {{#each fields}}
+                          <div class="field-map-row"
+                            style="display:grid; grid-template-columns: 160px 1fr; gap:6px 10px; align-items:start;">
+                            <div style="display:grid; gap:6px;">
                               <label style="font-size:12px; opacity:.8">{{key}}</label>
-                              <div style="display:flex; gap:6px; align-items:center;">
-                                <code style="font-size:11px; opacity:.9;">{{value}}</code>
-                                <select class="importer-field-select" data-uuid="{{../../uuid}}" data-field="{{key}}">
-                                  {{#each options}}
-                                  <option value="{{path}}" {{#if selected}}selected{{/if}}>{{label}}</option>
-                                  {{/each}}
-                                </select>
-                              </div>
+                              <select class="importer-field-select" data-uuid="{{../../uuid}}" data-field="{{key}}">
+                                {{#each options}}
+                                <option value="{{path}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                                {{/each}}
+                              </select>
                             </div>
-                            {{/each}}
+                            <div
+                              style="display:flex; gap:6px; align-items:flex-start; max-height: 160px; overflow:auto;">
+                              <code class="field-value-chip" style="white-space: pre-wrap;">{{value}}</code>
+                            </div>
                           </div>
-                        </td>
-                      </tr>
-                      {{/each}}
-                    </tbody>
-                  </table>
-                </div>
-                {{/if}}
-                {{/each}}
-                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
-                  <button type="button" class="importer-run-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
-                    {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i
-                      class="fas fa-play"></i>{{/if}}
-                    {{localize "ARCHIVIST_SYNC.buttons.runImport"}}
-                  </button>
-                </div>
+                          {{/each}}
+                        </div>
+                      </td>
+                    </tr>
+                    {{/each}}
+                  </tbody>
+                </table>
+              </div>
+              {{/if}}
+              {{/each}}
+              <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:8px;">
+                <button type="button" class="importer-run-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
+                  {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-play"></i>{{/if}}
+                  {{localize "ARCHIVIST_SYNC.buttons.runImport"}}
+                </button>
               </div>
             </div>
           </div>

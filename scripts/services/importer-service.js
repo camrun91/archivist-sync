@@ -3,6 +3,7 @@ import { extractGenericEntities } from '../modules/importer-extractor.js';
 import { mapEntityToArchivist } from '../modules/importer-mapper.js';
 import { computeEntityFingerprint } from '../modules/importer-fingerprint.js';
 import { upsertMappedEntity } from '../modules/importer-upserter.js';
+import { unwrapToPlainText } from '../modules/importer-normalizer.js';
 import { getPresetForSystemId } from '../modules/mapping-presets.js';
 
 function safeGet(obj, path) {
@@ -28,6 +29,14 @@ function applyCorrections(entity, proposed, corrections) {
     // Target type overrides: per-UUID takes precedence over per-key
     if (keyFix?.targetType) out.targetType = keyFix.targetType;
     if (uuidFix?.targetType) out.targetType = uuidFix.targetType;
+    // Character PC/NPC override from UI (stored as characterType)
+    const charType = uuidFix?.characterType || keyFix?.characterType;
+    if (out.targetType === 'Character' && charType) {
+        const labels = new Set((out.labels || []).map(l => String(l).toUpperCase()));
+        labels.delete('PC'); labels.delete('NPC');
+        labels.add(String(charType).toUpperCase());
+        out.labels = Array.from(labels);
+    }
 
     // Field overrides: evaluate JSONPath-like references against the source entity
     const fieldPaths = { ...(keyFix?.fieldPaths || {}), ...(uuidFix?.fieldPaths || {}) };
@@ -36,7 +45,8 @@ function applyCorrections(entity, proposed, corrections) {
         for (const [field, path] of Object.entries(fieldPaths)) {
             if (!path) continue;
             const value = safeGet(entity, path);
-            if (value != null) newPayload[field] = value;
+            const plain = unwrapToPlainText(value);
+            if (plain != null && String(plain).trim().length) newPayload[field] = plain;
         }
         out.payload = newPayload;
     }
@@ -69,8 +79,35 @@ export class ImporterService {
      * Produce a small sample of proposed mappings for review
      */
     sample(sampleSize = 20) {
+        // Balanced sampling per kind to avoid skew
         const corrections = this.getCorrections();
-        const entities = extractGenericEntities(sampleSize);
+        const all = extractGenericEntities();
+        const byKind = { Actor: [], Journal: [], Scene: [], Item: [] };
+        for (const e of all) {
+            if (byKind[e.kind]) byKind[e.kind].push(e);
+        }
+        const perKind = Math.max(1, Math.floor(sampleSize / 4));
+        const picked = [];
+        for (const k of Object.keys(byKind)) {
+            const arr = byKind[k];
+            if (arr.length <= perKind) picked.push(...arr);
+            else picked.push(...arr.slice(0, perKind));
+        }
+        const entities = picked;
+        return entities.map(e => {
+            const proposed = mapEntityToArchivist(e);
+            const corrected = applyCorrections(e, proposed, corrections);
+            const include = corrections?.byUuid?.[e.sourcePath]?.include !== false; // default include
+            return { entity: e, proposal: corrected, include };
+        });
+    }
+
+    /**
+     * Produce the full set of proposed mappings for review (no sampling)
+     */
+    all() {
+        const corrections = this.getCorrections();
+        const entities = extractGenericEntities();
         return entities.map(e => {
             const proposed = mapEntityToArchivist(e);
             const corrected = applyCorrections(e, proposed, corrections);
@@ -98,7 +135,8 @@ export class ImporterService {
                 if (inc === false) { summary.dropped += 1; completed += 1; onProgress?.({ ...summary, completed }); continue; }
                 const proposed = mapEntityToArchivist(e);
                 const corrected = applyCorrections(e, proposed, corrections);
-                const score = Number(corrected.score || 0);
+                // Defensive clamp: ensure score is within [0,1]
+                const score = Math.max(0, Math.min(1, Number(corrected.score || 0)));
                 if (score >= thresholdA) {
                     const srcDoc = await fromUuid(e.sourcePath);
                     // Force-create: ignore any existing Archivist IDs/flags during import
