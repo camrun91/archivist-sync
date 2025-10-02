@@ -28,18 +28,50 @@
 
         .msg .from {
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.7);
-            /* lighter label for dark bg */
+            color: var(--arch-text-muted);
         }
 
         .msg .bubble {
-            background: rgba(255, 255, 255, .86);
-            border: 1px solid rgba(0, 0, 0, .12);
+            background: var(--arch-bg-alt);
+            border: 1px solid var(--arch-border);
             border-radius: 6px;
             padding: 6px;
-            color: #1f2937;
-            /* force dark readable text */
+            color: var(--arch-text);
             white-space: pre-wrap;
+        }
+
+        .msg .bubble :where(p, ul, ol) {
+            margin: 0 0 0.5em 0;
+        }
+
+        .msg .bubble ul {
+            padding-left: 1.25em;
+            list-style: disc;
+        }
+
+        .msg .bubble ol {
+            padding-left: 1.25em;
+            list-style: decimal;
+        }
+
+        .msg .bubble code {
+            background: rgba(0, 0, 0, .06);
+            padding: 0 .2em;
+            border-radius: 3px;
+        }
+
+        .msg .bubble pre {
+            background: rgba(0, 0, 0, .06);
+            padding: .5em;
+            border-radius: 6px;
+            overflow: auto;
+        }
+
+        .msg .bubble blockquote {
+            border-left: 3px solid var(--arch-border);
+            margin: 0 0 .5em;
+            padding: .25em .5em;
+            color: var(--arch-text-muted);
         }
 
         .composer {
@@ -54,16 +86,14 @@
             min-height: 32px;
             padding: 6px 10px;
             border-radius: 6px;
-            border: 1px solid #d1d5db;
-            background: #ffffff;
-            color: #111827;
-            /* force dark input text */
+            border: 1px solid var(--arch-border);
+            background: var(--arch-panel);
+            color: var(--arch-text);
             font-size: 12px;
         }
 
         .composer .ask-input::placeholder {
-            color: #9ca3af;
-            /* neutral placeholder */
+            color: var(--arch-text-muted);
         }
 
         .composer .send-btn {
@@ -73,10 +103,9 @@
             align-items: center;
             justify-content: center;
             border-radius: 6px;
-            border: 1px solid #d1d5db;
-            background: #ffffff;
-            color: #374151;
-            /* neutral icon color */
+            border: 1px solid var(--arch-border);
+            background: var(--arch-panel);
+            color: var(--arch-text);
             cursor: pointer;
         }
 
@@ -84,7 +113,7 @@
             display: inline-block;
             animation: blink 1.2s infinite ease-in-out;
             margin-right: 2px;
-            color: #6b7280;
+            color: var(--arch-text-muted);
             font-size: 16px;
         }
 

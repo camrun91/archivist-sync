@@ -206,13 +206,14 @@ export async function writeBestJournalDescription(journal, htmlString) {
     if (pagesCollection) {
         const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
         let target = pages.find((p) => p.type === "text");
-        if (!target) target = pages.find((p) => typeof p?.text?.content === "string");
+        if (!target) target = pages.find((p) => typeof p?.text?.content === "string" || typeof p?.text?.markdown === "string");
         if (target) {
-            await target.update({ text: { content: safe, format: 1 } });
+            // Accept either Markdown or HTML input; keep format as Markdown for consistent rendering
+            await target.update({ text: { content: safe, markdown: safe, format: 2 } });
             return;
         }
         await journal.createEmbeddedDocuments("JournalEntryPage", [
-            { name: "Description", type: "text", text: { content: safe, format: 1 } }
+            { name: "Description", type: "text", text: { content: safe, markdown: safe, format: 2 } }
         ]);
         return;
     }

@@ -450,6 +450,25 @@ export class ArchivistApiService {
     }
   }
 
+  /**
+   * Update a game session (recap)
+   * @param {string} apiKey
+   * @param {string} sessionId
+   * @param {{title?:string, summary?:string}} payload
+   */
+  async updateSession(apiKey, sessionId, payload) {
+    try {
+      const data = await this._request(apiKey, `/sessions/${encodeURIComponent(sessionId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update session:`, error);
+      return { success: false, message: error.message || 'Failed to update session' };
+    }
+  }
+
   async createLocation(apiKey, payload) {
     try {
       const data = await this._request(apiKey, `/locations`, {

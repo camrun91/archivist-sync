@@ -1,5 +1,6 @@
 import { CONFIG } from './config.js';
 import { readBestBiography } from './field-mapper.js';
+import { toMarkdownIfHtml } from './importer-normalizer.js';
 
 /**
  * Utility functions for Archivist Sync Module
@@ -32,6 +33,37 @@ export class Utils {
    */
   static localize(key, data = {}) {
     return game.i18n.format(key, data);
+  }
+
+  /**
+   * Convert Markdown to sanitized HTML suitable for storage in Actor/Item fields.
+   * - Prefer a global MarkdownIt instance if available
+   * - Fall back to a minimal converter for basic syntax
+   * - Always sanitize with Foundry's TextEditor.cleanHTML
+   * @param {string} markdown
+   * @returns {string} sanitized HTML
+   */
+  static markdownToStoredHtml(markdown) {
+    const md = String(markdown ?? '');
+    try {
+      let rawHtml = '';
+      if (window?.MarkdownIt) {
+        const mdIt = new window.MarkdownIt({ html: false, linkify: true, breaks: true });
+        rawHtml = mdIt.render(md);
+      } else {
+        // Minimal fallback: paragraphs + bold/italic
+        rawHtml = md
+          .replace(/\r\n/g, '\n')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/_(.*?)_/g, '<em>$1</em>')
+          .split(/\n{2,}/)
+          .map(p => `<p>${p}</p>`) // do not escape intentionally to allow simple inline markup
+          .join('');
+      }
+      return foundry?.utils?.TextEditor?.cleanHTML ? foundry.utils.TextEditor.cleanHTML(rawHtml) : rawHtml;
+    } catch (_) {
+      return String(markdown || '');
+    }
   }
 
   /**
@@ -121,7 +153,8 @@ export class Utils {
     return {
       character_name: actor.name,
       player_name: actor?.system?.details?.player || '',
-      description: readBestBiography(actor) || '',
+      // Convert any stored HTML back to Markdown for Archivist API
+      description: toMarkdownIfHtml(readBestBiography(actor) || ''),
       type: isPC ? 'PC' : 'NPC',
       campaign_id: worldId
     };
@@ -137,7 +170,8 @@ export class Utils {
     const image = raw.startsWith('https://') ? raw : undefined;
     return {
       name: journal.name,
-      description: this._extractJournalText(journal),
+      // Journal pages store HTML — convert to Markdown for API
+      description: toMarkdownIfHtml(this._extractJournalText(journal)),
       ...(image ? { image } : {}),
       campaign_id: worldId
     };
@@ -153,7 +187,7 @@ export class Utils {
     const image = raw.startsWith('https://') ? raw : undefined;
     return {
       name: journal.name,
-      description: this._extractJournalText(journal),
+      description: toMarkdownIfHtml(this._extractJournalText(journal)),
       ...(image ? { image } : {}),
       campaign_id: worldId
     };
@@ -186,12 +220,12 @@ export class Utils {
       const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
       let textPage = pages.find(p => p.type === 'text');
       if (textPage) {
-        await textPage.update({ text: { content: safeContent, format: 1 } });
+        await textPage.update({ text: { content: safeContent, markdown: safeContent, format: 2 } });
       } else {
         await journal.createEmbeddedDocuments('JournalEntryPage', [{
           name: 'Description',
           type: 'text',
-          text: { content: safeContent, format: 1 }
+          text: { content: safeContent, markdown: safeContent, format: 2 }
         }]);
       }
       return;
@@ -217,28 +251,20 @@ export class Utils {
       const pagesCollection = journal.pages;
       if (pagesCollection) {
         const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
-        const textPage = pages.find(p => p.type === 'text');
+        let textPage = pages.find(p => p.type === 'text');
+        const mdImg = `![cover](${url.replace(/\)/g, '\\)')})\n\n`;
         if (textPage) {
           const current = String(textPage?.text?.content ?? '');
           if (!current.includes(url)) {
-            const safeUrl = url.replace(/"/g, '&quot;');
-            const imgHtml = `<p><img src="${safeUrl}" style="max-width:100%"/></p>`;
-            console.debug('[Archivist Sync] Prepending image HTML to journal text page');
-            await textPage.update({ text: { content: imgHtml + current, format: 1 } });
+            console.debug('[Archivist Sync] Prepending image (Markdown) to journal text page');
+            await textPage.update({ text: { content: mdImg + current, markdown: mdImg + current, format: 2 } });
           } else {
             console.debug('[Archivist Sync] Text page already contains image URL; skipping prepend');
           }
         } else {
-          // Fall back to an image page if no text page exists
-          let imagePage = pages.find(p => p.type === 'image');
-          if (imagePage) {
-            const update = imagePage?.image?.src !== undefined ? { image: { src: url } } : { src: url };
-            console.debug('[Archivist Sync] Updating existing image page', { pageId: imagePage.id });
-            await imagePage.update(update);
-          } else {
-            console.debug('[Archivist Sync] Creating image page for journal');
-            await journal.createEmbeddedDocuments('JournalEntryPage', [{ name: 'Cover', type: 'image', src: url, image: { src: url } }]);
-          }
+          console.debug('[Archivist Sync] Creating text page with Markdown lead image');
+          const created = await journal.createEmbeddedDocuments('JournalEntryPage', [{ name: 'Cover', type: 'text', text: { content: mdImg, markdown: mdImg, format: 2 } }]);
+          textPage = created?.[0] || null;
         }
         return;
       }
@@ -333,14 +359,14 @@ export class Utils {
       page = pages.find(p => this.getPageArchivistMeta(p).id === flags.archivistId);
     }
     if (!page) page = pages.find(p => p.name === name && p.type === 'text');
-    const baseHtml = String(html || '');
-    const finalHtml = imageUrl && !baseHtml.includes(String(imageUrl))
-      ? `<p><img src="${String(imageUrl).replace(/"/g, '&quot;')}" style="max-width:100%"/></p>` + baseHtml
-      : baseHtml;
+    const baseMd = String(html || '');
+    const finalMd = imageUrl && !baseMd.includes(String(imageUrl))
+      ? `![cover](${String(imageUrl).replace(/\)/g, '\\)')})\n\n${baseMd}`
+      : baseMd;
     if (page) {
-      await page.update({ name, type: 'text', text: { content: finalHtml, format: 1 } });
+      await page.update({ name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } });
     } else {
-      const created = await container.createEmbeddedDocuments('JournalEntryPage', [{ name, type: 'text', text: { content: finalHtml, format: 1 } }]);
+      const created = await container.createEmbeddedDocuments('JournalEntryPage', [{ name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } }]);
       page = created?.[0] || null;
     }
     if (page && flags) {
@@ -368,7 +394,12 @@ export class Utils {
    */
   static extractPageHtml(page) {
     if (!page) return '';
-    if (page.type === 'text') return String(page?.text?.content || '');
+    if (page.type === 'text') {
+      const fmt = Number(page?.text?.format ?? 0);
+      const md = page?.text?.markdown;
+      if (fmt === 2 && typeof md === 'string') return String(md);
+      return String(page?.text?.content || md || '');
+    }
     return '';
   }
 
