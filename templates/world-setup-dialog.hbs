@@ -1,14 +1,40 @@
 <form class="archivist-world-setup" autocomplete="off">
     <div class="archivist-world-setup-root">
         <style>
+            /* Default (Dark Theme) */
             .world-setup-dialog {
                 --setup-primary: #4a90e2;
-                --setup-success: #28a745;
-                --setup-warning: #ffc107;
+                --setup-success: #47d16a;
+                --setup-warning: #ffb020;
                 --setup-danger: #dc3545;
-                --setup-bg: #f8f9fa;
-                --setup-border: #dee2e6;
-                --setup-text: #212529;
+                --setup-bg: rgba(35, 38, 44, 1);
+                --setup-bg-alt: rgba(42, 45, 51, 1);
+                --setup-border: rgba(255, 255, 255, 0.12);
+                --setup-text: #e8e8e8;
+                --setup-text-muted: #b9b9b9;
+                --setup-panel: rgba(255, 255, 255, 0.03);
+            }
+
+            /* Light Theme */
+            @media (prefers-color-scheme: light) {
+                .world-setup-dialog {
+                    --setup-bg: #f7f8fa;
+                    --setup-bg-alt: #ffffff;
+                    --setup-border: rgba(0, 0, 0, 0.12);
+                    --setup-text: #1c1f24;
+                    --setup-text-muted: #4b5563;
+                    --setup-panel: #ffffff;
+                }
+            }
+
+            body.light .world-setup-dialog,
+            body.theme-light .world-setup-dialog {
+                --setup-bg: #f7f8fa;
+                --setup-bg-alt: #ffffff;
+                --setup-border: rgba(0, 0, 0, 0.12);
+                --setup-text: #1c1f24;
+                --setup-text-muted: #4b5563;
+                --setup-panel: #ffffff;
             }
 
             .world-setup-dialog .window-content {
@@ -44,7 +70,7 @@
             }
 
             .progress-fill {
-                background: white;
+                background: var(--setup-panel);
                 height: 100%;
                 transition: width 0.3s ease;
                 border-radius: 2px;
@@ -157,7 +183,7 @@
                 align-items: center;
                 padding: 20px 30px;
                 border-top: 1px solid var(--setup-border);
-                background: white;
+                background: var(--setup-bg-alt);
             }
 
             .setup-btn {
@@ -202,7 +228,7 @@
             }
 
             .world-info-box {
-                background: white;
+                background: var(--setup-panel);
                 border: 1px solid var(--setup-border);
                 border-radius: 8px;
                 padding: 15px;
@@ -244,7 +270,7 @@
                 display: inline-block;
                 width: 16px;
                 height: 16px;
-                border: 2px solid #f3f3f3;
+                border: 2px solid var(--setup-border);
                 border-top: 2px solid var(--setup-primary);
                 border-radius: 50%;
                 animation: spin 1s linear infinite;
@@ -360,10 +386,10 @@
                     <p>{{foundryWorldDescription}}</p>
                     {{/if}}
                     <p><strong>{{localize "ARCHIVIST_SYNC.worldSetup.step1.nextSteps"}}</strong></p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
-                        <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
-                        <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
+                    <ul style="margin: 10px 0; padding-left: 20px; color: var(--setup-text);">
+                        <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
+                        <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
+                        <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
                     </ul>
                 </div>
                 <div style="text-align:center; margin-top: 16px;">
@@ -380,6 +406,42 @@
             <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.mapping.title"}}</h3>
             <div class="step-description">
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.mapping.description"}}</p>
+            </div>
+
+            <div class="world-info-box">
+                <h4>System Preset</h4>
+                <div class="setup-form-group">
+                    <label>Choose a preset (we auto-detect if possible)</label>
+                    <select id="ws-system-preset">
+                        <option value="">Custom Configuration</option>
+                        <option value="dnd5e" {{#if (eq setupData.systemPreset 'dnd5e' )}}selected{{/if}}>D&D 5e
+                        </option>
+                        <option value="pf2e" {{#if (eq setupData.systemPreset 'pf2e' )}}selected{{/if}}>Pathfinder 2e
+                        </option>
+                        <option value="coc7" {{#if (eq setupData.systemPreset 'coc7' )}}selected{{/if}}>Call of Cthulhu
+                            7e</option>
+                    </select>
+                    <small>We validate the preset's property paths against your system model.</small>
+                </div>
+            </div>
+
+            <!-- Configuration File Management -->
+            <div class="world-info-box">
+                <h4><i class="fas fa-file-code"></i> Configuration File</h4>
+                <p>You can download a sample configuration file to customize mappings, or load an existing
+                    configuration.</p>
+                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+                    <button type="button" class="setup-btn secondary" data-action="downloadSampleConfig">
+                        <i class="fas fa-download"></i>
+                        Download Sample Config
+                    </button>
+                    <input type="file" id="config-file-input" accept=".json" style="display: none;" />
+                    <button type="button" class="setup-btn secondary"
+                        onclick="document.getElementById('config-file-input').click()">
+                        <i class="fas fa-upload"></i>
+                        Load Config File
+                    </button>
+                </div>
             </div>
 
             <div class="world-info-box">
@@ -503,7 +565,7 @@
             </div>
 
             <div class="world-info-box">
-                <h4>Destination Paths</h4>
+                <h4>Destination Paths (Optional)</h4>
                 <div class="setup-form-group">
                     <label>PCs</label>
                     <select id="dest-pc">
@@ -549,6 +611,12 @@
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.select.description"}}</p>
             </div>
             <div class="world-info-box">
+                {{#if isLoading}}
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                    <span class="loading-spinner"></span>
+                    <span>Fetching Archivist data for selected campaign…</span>
+                </div>
+                {{/if}}
                 <div style="display:flex; gap:8px; margin-bottom:10px;">
                     <button type="button" class="setup-btn secondary" data-action="prepareSelections">Refresh</button>
                 </div>
@@ -567,12 +635,12 @@
                                 data-kind="pcs" data-id="{{this.id}}" />
                             <span class="ws-name">{{this.name}}</span>
                             <select data-action="changeMatch" data-kind="pcs" data-id="{{this.id}}">
-                                <option value="NEW">New Character</option>
-                                {{#with ../../archivistCandidates}}
-                                {{#each characters}}
-                                <option value="{{this.id}}">{{this.name}}</option>
+                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Character
+                                </option>
+                                {{#each archivistCandidates.characters}}
+                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
+                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
                                 {{/each}}
-                                {{/with}}
                             </select>
                         </li>
                         {{/each}}
@@ -591,12 +659,12 @@
                                 data-kind="npcs" data-id="{{this.id}}" />
                             <span class="ws-name">{{this.name}}</span>
                             <select data-action="changeMatch" data-kind="npcs" data-id="{{this.id}}">
-                                <option value="NEW">New Character</option>
-                                {{#with ../../archivistCandidates}}
-                                {{#each characters}}
-                                <option value="{{this.id}}">{{this.name}}</option>
+                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Character
+                                </option>
+                                {{#each archivistCandidates.characters}}
+                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
+                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
                                 {{/each}}
-                                {{/with}}
                             </select>
                         </li>
                         {{/each}}
@@ -616,12 +684,11 @@
                                 data-kind="items" data-id="{{this.id}}" />
                             <span class="ws-name">{{this.name}}</span>
                             <select data-action="changeMatch" data-kind="items" data-id="{{this.id}}">
-                                <option value="NEW">New Item</option>
-                                {{#with ../../archivistCandidates}}
-                                {{#each items}}
-                                <option value="{{this.id}}">{{this.name}}</option>
+                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Item</option>
+                                {{#each archivistCandidates.items}}
+                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
+                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
                                 {{/each}}
-                                {{/with}}
                             </select>
                         </li>
                         {{/each}}
@@ -641,12 +708,12 @@
                                 data-kind="locations" data-id="{{this.id}}" />
                             <span class="ws-name">{{this.name}}</span>
                             <select data-action="changeMatch" data-kind="locations" data-id="{{this.id}}">
-                                <option value="NEW">New Location</option>
-                                {{#with ../../archivistCandidates}}
-                                {{#each locations}}
-                                <option value="{{this.id}}">{{this.name}}</option>
+                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Location
+                                </option>
+                                {{#each archivistCandidates.locations}}
+                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
+                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
                                 {{/each}}
-                                {{/with}}
                             </select>
                         </li>
                         {{/each}}
@@ -666,12 +733,12 @@
                                 data-kind="factions" data-id="{{this.id}}" />
                             <span class="ws-name">{{this.name}}</span>
                             <select data-action="changeMatch" data-kind="factions" data-id="{{this.id}}">
-                                <option value="NEW">New Faction</option>
-                                {{#with ../../archivistCandidates}}
-                                {{#each factions}}
-                                <option value="{{this.id}}">{{this.name}}</option>
+                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Faction
+                                </option>
+                                {{#each archivistCandidates.factions}}
+                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
+                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
                                 {{/each}}
-                                {{/with}}
                             </select>
                         </li>
                         {{/each}}
@@ -718,7 +785,8 @@
                 {{/if}}
                 {{#if syncStatus.total}}
                 <div style="margin:8px 0;">
-                    <div style="height:6px; background:#eee; position:relative; border-radius:3px; overflow:hidden;">
+                    <div
+                        style="height:6px; background:var(--setup-bg-alt); position:relative; border-radius:3px; overflow:hidden;">
                         <div
                             style="position:absolute; left:0; top:0; bottom:0; width: {{syncStatusPct}}%; background: var(--setup-primary);">
                         </div>
@@ -753,17 +821,17 @@
                 <h4><i class="fas fa-key" style="color: #ffc107;"></i> {{localize
                     "ARCHIVIST_SYNC.worldSetup.step2.getApiKey"}}</h4>
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.step2.noKeyYet"}}</p>
-                <ol style="margin: 10px 0; padding-left: 20px; color: #666;">
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step1"}}</li>
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step2"}}</li>
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step3"}}</li>
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step2.step4"}}</li>
+                <ol style="margin: 10px 0; padding-left: 20px; color: var(--setup-text);">
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step1"}}</li>
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step2"}}</li>
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step3"}}</li>
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step4"}}</li>
                 </ol>
                 <div
-                    style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 10px; margin: 10px 0;">
-                    <strong style="color: #856404;">⚠️ {{localize
+                    style="background: color-mix(in srgb, var(--setup-warning), transparent 85%); border: 1px solid var(--setup-warning); border-radius: 4px; padding: 10px; margin: 10px 0;">
+                    <strong style="color: var(--setup-warning);">⚠️ {{localize
                         "ARCHIVIST_SYNC.worldSetup.step2.permissionsWarning"}}</strong>
-                    <p style="margin: 5px 0 0 0; color: #856404; font-size: 14px;">{{localize
+                    <p style="margin: 5px 0 0 0; color: var(--setup-warning); font-size: 14px;">{{localize
                         "ARCHIVIST_SYNC.worldSetup.step2.permissionsDetails"}}</p>
                 </div>
             </div>
@@ -860,11 +928,11 @@
                 <h4><i class="fas fa-check-circle" style="color: var(--setup-success);"></i> {{localize
                     "ARCHIVIST_SYNC.worldSetup.step4.ready"}}</h4>
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.step4.features"}}</p>
-                <ul style="margin: 10px 0; padding-left: 20px;">
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature1"}}</li>
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature2"}}</li>
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature3"}}</li>
-                    <li>{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature4"}}</li>
+                <ul style="margin: 10px 0; padding-left: 20px; color: var(--setup-text);">
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature1"}}</li>
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature2"}}</li>
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature3"}}</li>
+                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature4"}}</li>
                 </ul>
             </div>
             {{/if}}

@@ -146,7 +146,7 @@
       padding: 12px;
       display: grid;
       gap: 8px;
-      max-height: 260px;
+      max-height: 600px;
       overflow: auto;
     }
 
@@ -534,6 +534,38 @@
       display: flex;
       align-items: center;
     }
+
+    /* Loading spinner */
+    .tab-loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      gap: 16px;
+      color: var(--arch-text-muted);
+    }
+
+    .tab-loading-spinner i {
+      font-size: 32px;
+      color: var(--arch-accent-pull);
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .tab-loading-spinner p {
+      margin: 0;
+      font-size: 14px;
+    }
   </style>
   <!-- Tab Navigation -->
   <nav class="tabs" data-group="main">
@@ -565,6 +597,10 @@
       <i class="fas fa-box"></i>
       Items
     </a>
+    <a class="item" data-tab="recaps">
+      <i class="fas fa-book-open"></i>
+      Recaps
+    </a>
     <a class="item" data-tab="config">
       <i class="fas fa-cog"></i>
       Config
@@ -582,27 +618,27 @@
     <div class="tab active" data-tab="setup">
       <div class="setup-welcome">
         <div style="text-align: center; padding: 40px 20px;">
-          <div style="font-size: 48px; color: #4a90e2; margin-bottom: 20px;">
+          <div style="font-size: 48px; color: var(--arch-accent-pull); margin-bottom: 20px;">
             <i class="fas fa-magic"></i>
           </div>
-          <h2 style="margin: 0 0 15px 0; color: #333;">{{localize "ARCHIVIST_SYNC.worldSetup.title"}}</h2>
-          <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 30px;">
+          <h2 style="margin: 0 0 15px 0; color: var(--arch-text);">{{localize "ARCHIVIST_SYNC.worldSetup.title"}}</h2>
+          <p style="color: var(--arch-text-muted); font-size: 16px; line-height: 1.5; margin-bottom: 30px;">
             {{localize "ARCHIVIST_SYNC.worldSetup.subtitle"}}
           </p>
 
           <div
-            style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left;">
-            <h4 style="margin: 0 0 15px 0; color: #333;">
-              <i class="fas fa-globe" style="color: #4a90e2;"></i>
+            style="background: var(--arch-panel); border: 1px solid var(--arch-border); border-radius: 8px; padding: 20px; margin: 20px 0; text-align: left;">
+            <h4 style="margin: 0 0 15px 0; color: var(--arch-text);">
+              <i class="fas fa-globe" style="color: var(--arch-accent-pull);"></i>
               {{foundryWorldTitle}}
             </h4>
             {{#if foundryWorldDescription}}
-            <p style="color: #666; margin: 0 0 15px 0;">{{foundryWorldDescription}}</p>
+            <p style="color: var(--arch-text-muted); margin: 0 0 15px 0;">{{foundryWorldDescription}}</p>
             {{/if}}
-            <p style="color: #666; margin: 0; font-size: 14px;">
+            <p style="color: var(--arch-text-muted); margin: 0; font-size: 14px;">
               <strong>{{localize "ARCHIVIST_SYNC.worldSetup.step1.nextSteps"}}</strong>
             </p>
-            <ul style="margin: 10px 0 0 20px; color: #666; font-size: 14px;">
+            <ul style="margin: 10px 0 0 20px; color: var(--arch-text-muted); font-size: 14px;">
               <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
               <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
               <li>{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
@@ -610,12 +646,12 @@
           </div>
 
           <button type="button" data-action="openWorldSetup" class="btn"
-            style="background: #4a90e2; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer;">
+            style="background: var(--arch-accent-pull); color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer;">
             <i class="fas fa-rocket"></i>
             Start World Setup
           </button>
 
-          <p style="color: #999; font-size: 12px; margin-top: 20px;">
+          <p style="color: var(--arch-text-muted); font-size: 12px; margin-top: 20px;">
             This will guide you through connecting your Foundry world to Archivist
           </p>
         </div>
@@ -945,10 +981,14 @@
                   title="Select the property path that contains PC biography/description text"></i>
               </label>
               <div class="path-selector-container">
-                <select class="wizard-pc-desc path-selector">
-                  <option value="">Select a property path...</option>
+                <select class="wizard-pc-desc path-selector"
+                  style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                    property
+                    path...</option>
                   {{#each actorStringProperties}}
-                  <option value="{{this.path}}" title="{{this.preview}}">
+                  <option value="{{this.path}}" title="{{this.preview}}"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
                     {{this.path}} — {{this.preview}}
                   </option>
                   {{/each}}
@@ -961,10 +1001,14 @@
                   title="Select the property path that contains NPC biography/description text"></i>
               </label>
               <div class="path-selector-container">
-                <select class="wizard-npc-desc path-selector">
-                  <option value="">Select a property path...</option>
+                <select class="wizard-npc-desc path-selector"
+                  style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                    property
+                    path...</option>
                   {{#each actorStringProperties}}
-                  <option value="{{this.path}}" title="{{this.preview}}">
+                  <option value="{{this.path}}" title="{{this.preview}}"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
                     {{this.path}} — {{this.preview}}
                   </option>
                   {{/each}}
@@ -1090,6 +1134,12 @@
     <!-- Characters Tab -->
     <div class="tab" data-tab="characters">
       {{#if isWorldSelected}}
+      {{#if isLoadingCharacters}}
+      <div class="tab-loading-spinner">
+        <i class="fas fa-spinner"></i>
+        <p>Loading characters...</p>
+      </div>
+      {{else}}
       <div class="characters-section">
         <div class="section-header">
           <h4><i class="fas fa-users"></i> {{localize "ARCHIVIST_SYNC.labels.charactersAndNpcs"}}</h4>
@@ -1104,61 +1154,38 @@
             </button>
           </div>
         </div>
-        <!-- Player Characters Section -->
-        <div class="character-type-section">
-          <h4><i class="fas fa-user"></i> {{localize "ARCHIVIST_SYNC.labels.playerCharacters"}}</h4>
-          {{#if playerCharacters.length}}
-          <ul class="entity-list player-characters">
-            {{#each playerCharacters}}
-            <li>
-              <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
-              <span>{{this.name}}</span>
-              <div class="entity-actions">
-                <button type="button" class="btn pull actor-pull-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-download"></i>
-                </button>
-                <button type="button" class="btn push actor-push-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-upload"></i>
-                </button>
-              </div>
-            </li>
-            {{/each}}
-          </ul>
-          {{else}}
-          <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noPlayerCharacters"}}</p>
-          {{/if}}
-        </div>
-
-        <!-- NPCs Section -->
-        <div class="character-type-section">
-          <h4><i class="fas fa-users"></i> {{localize "ARCHIVIST_SYNC.labels.npcs"}}</h4>
-          {{#if npcs.length}}
-          <ul class="entity-list npcs">
-            {{#each npcs}}
-            <li>
-              <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
-              <span>{{this.name}}</span>
-              <div class="entity-actions">
-                <button type="button" class="btn pull actor-pull-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-download"></i>
-                </button>
-                <button type="button" class="btn push actor-push-btn" data-actor-id="{{this.id}}">
-                  <i class="fas fa-upload"></i>
-                </button>
-              </div>
-            </li>
-            {{/each}}
-          </ul>
-          {{else}}
-          <p class="no-actors">{{localize "ARCHIVIST_SYNC.messages.noNpcs"}}</p>
-          {{/if}}
-        </div>
-        {{#unless playerCharacters.length}}
-        {{#unless npcs.length}}
+        <!-- Unified Characters List -->
+        {{#if charactersRows.length}}
+        <ul class="entity-list">
+          {{#each charactersRows}}
+          <li>
+            <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+            <span>
+              {{this.name}}
+              {{#if this.linked}}<i class="fas fa-link" title="Linked"></i>{{/if}}
+            </span>
+            <div class="entity-actions">
+              {{#if this.canPull}}
+              <button type="button" class="btn pull row-actor-pull" data-actor-id="{{this.actorId}}"
+                data-archivist-id="{{this.archivistId}}" {{#if ../syncInProgress}}disabled{{/if}}>
+                <i class="fas fa-download"></i>
+              </button>
+              {{/if}}
+              {{#if this.canPush}}
+              <button type="button" class="btn push row-actor-push" data-actor-id="{{this.actorId}}"
+                data-archivist-id="{{this.archivistId}}" {{#if ../syncInProgress}}disabled{{/if}}>
+                <i class="fas fa-upload"></i>
+              </button>
+              {{/if}}
+            </div>
+          </li>
+          {{/each}}
+        </ul>
+        {{else}}
         <p class="no-actors-hint"><em>{{localize "ARCHIVIST_SYNC.messages.noActorsHint"}}</em></p>
-        {{/unless}}
-        {{/unless}}
+        {{/if}}
       </div>
+      {{/if}}
       {{else}}
       <div class="warning-message">
         <i class="fas fa-exclamation-triangle"></i>
@@ -1170,6 +1197,12 @@
     <!-- Factions Tab -->
     <div class="tab" data-tab="factions">
       {{#if isWorldSelected}}
+      {{#if isLoadingFactions}}
+      <div class="tab-loading-spinner">
+        <i class="fas fa-spinner"></i>
+        <p>Loading factions...</p>
+      </div>
+      {{else}}
       <div class="entities-section">
         <div class="section-header">
           <h4><i class="fas fa-flag"></i> {{localize "ARCHIVIST_SYNC.labels.factions"}}</h4>
@@ -1184,21 +1217,28 @@
             </button>
           </div>
         </div>
-        {{#if factionJournals.length}}
+        {{#if factionsRows.length}}
         <ul class="entity-list">
-          {{#each factionJournals}}
+          {{#each factionsRows}}
           <li>
             <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
-            <span>{{this.name}}</span>
+            <span>
+              {{this.name}}
+              {{#if this.linked}}<i class="fas fa-link" title="Linked"></i>{{/if}}
+            </span>
             <div class="entity-actions">
-              <button type="button" class="btn pull faction-pull-btn" data-journal-id="{{this.id}}"
-                data-archivist-id="{{this.archivistId}}">
+              {{#if this.canPull}}
+              <button type="button" class="btn pull row-faction-pull" data-page-id="{{this.pageId}}"
+                data-archivist-id="{{this.archivistId}}" {{#if ../syncInProgress}}disabled{{/if}}>
                 <i class="fas fa-download"></i>
               </button>
-              <button type="button" class="btn push faction-push-btn" data-journal-id="{{this.id}}"
-                data-archivist-id="{{this.archivistId}}">
+              {{/if}}
+              {{#if this.canPush}}
+              <button type="button" class="btn push row-faction-push" data-page-id="{{this.pageId}}"
+                data-archivist-id="{{this.archivistId}}" {{#if ../syncInProgress}}disabled{{/if}}>
                 <i class="fas fa-upload"></i>
               </button>
+              {{/if}}
             </div>
           </li>
           {{/each}}
@@ -1207,6 +1247,7 @@
         <p class="no-entities">{{localize "ARCHIVIST_SYNC.messages.noFactions"}}</p>
         {{/if}}
       </div>
+      {{/if}}
       {{else}}
       <div class="warning-message">
         <i class="fas fa-exclamation-triangle"></i>
@@ -1218,6 +1259,12 @@
     <!-- Locations Tab -->
     <div class="tab" data-tab="locations">
       {{#if isWorldSelected}}
+      {{#if isLoadingLocations}}
+      <div class="tab-loading-spinner">
+        <i class="fas fa-spinner"></i>
+        <p>Loading locations...</p>
+      </div>
+      {{else}}
       <div class="entities-section">
         <div class="section-header">
           <h4><i class="fas fa-map-marker-alt"></i> {{localize "ARCHIVIST_SYNC.labels.locations"}}</h4>
@@ -1232,21 +1279,28 @@
             </button>
           </div>
         </div>
-        {{#if locationJournals.length}}
+        {{#if locationsRows.length}}
         <ul class="entity-list">
-          {{#each locationJournals}}
+          {{#each locationsRows}}
           <li>
             <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
-            <span>{{this.name}}</span>
+            <span>
+              {{this.name}}
+              {{#if this.linked}}<i class="fas fa-link" title="Linked"></i>{{/if}}
+            </span>
             <div class="entity-actions">
-              <button type="button" class="btn pull location-pull-btn" data-journal-id="{{this.id}}"
-                data-archivist-id="{{this.archivistId}}">
+              {{#if this.canPull}}
+              <button type="button" class="btn pull row-location-pull" data-page-id="{{this.pageId}}"
+                data-archivist-id="{{this.archivistId}}" {{#if ../syncInProgress}}disabled{{/if}}>
                 <i class="fas fa-download"></i>
               </button>
-              <button type="button" class="btn push location-push-btn" data-journal-id="{{this.id}}"
-                data-archivist-id="{{this.archivistId}}">
+              {{/if}}
+              {{#if this.canPush}}
+              <button type="button" class="btn push row-location-push" data-page-id="{{this.pageId}}"
+                data-archivist-id="{{this.archivistId}}" {{#if ../syncInProgress}}disabled{{/if}}>
                 <i class="fas fa-upload"></i>
               </button>
+              {{/if}}
             </div>
           </li>
           {{/each}}
@@ -1254,6 +1308,418 @@
         {{else}}
         <p class="no-entities">{{localize "ARCHIVIST_SYNC.messages.noLocations"}}</p>
         {{/if}}
+      </div>
+      {{/if}}
+      {{else}}
+      <div class="warning-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{localize "ARCHIVIST_SYNC.warnings.selectWorldFirst"}}</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Items Tab -->
+    <div class="tab" data-tab="items">
+      {{#if isWorldSelected}}
+      {{#if isLoadingItems}}
+      <div class="tab-loading-spinner">
+        <i class="fas fa-spinner"></i>
+        <p>Loading items...</p>
+      </div>
+      {{else}}
+      <div class="entities-section">
+        <div class="section-header">
+          <h4><i class="fas fa-box"></i> Items</h4>
+          <div class="actions">
+            <button type="button" class="pull-items-btn btn pull" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
+              {{localize "ARCHIVIST_SYNC.buttons.pullFromArchivist"}}
+            </button>
+            <button type="button" class="push-items-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-upload"></i>{{/if}}
+              {{localize "ARCHIVIST_SYNC.buttons.pushToArchivist"}}
+            </button>
+          </div>
+        </div>
+        {{#if itemsRows.length}}
+        <ul class="entity-list">
+          {{#each itemsRows}}
+          <li>
+            <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+            <span>
+              {{this.name}}
+              {{#if this.linked}}<i class="fas fa-link" title="Linked"></i>{{/if}}
+            </span>
+            <div class="entity-actions">
+              {{#if this.canPull}}
+              <button type="button" class="btn pull row-item-pull" data-archivist-id="{{this.archivistId}}">
+                <i class="fas fa-download"></i>
+              </button>
+              {{/if}}
+              {{#if this.canPush}}
+              <button type="button" class="btn push row-item-push" data-item-id="{{this.itemId}}">
+                <i class="fas fa-upload"></i>
+              </button>
+              {{/if}}
+            </div>
+          </li>
+          {{/each}}
+        </ul>
+        {{else}}
+        <p class="no-entities">No items found.</p>
+        {{/if}}
+      </div>
+      {{/if}}
+      {{else}}
+      <div class="warning-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{localize "ARCHIVIST_SYNC.warnings.selectWorldFirst"}}</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Recaps Tab -->
+    <div class="tab" data-tab="recaps">
+      {{#if isWorldSelected}}
+      {{#if isLoadingRecaps}}
+      <div class="tab-loading-spinner">
+        <i class="fas fa-spinner"></i>
+        <p>Loading recaps...</p>
+      </div>
+      {{else}}
+      <div class="entities-section">
+        <div class="section-header">
+          <h4><i class="fas fa-book-open"></i> Recaps</h4>
+          <div class="actions">
+            <button type="button" class="pull-recaps-btn btn pull" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
+              Pull from Archivist
+            </button>
+            <button type="button" class="push-recaps-btn btn push" {{#if syncInProgress}}disabled{{/if}}>
+              {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-upload"></i>{{/if}}
+              Push to Archivist
+            </button>
+          </div>
+        </div>
+        {{#if recapsRows.length}}
+        <ul class="entity-list">
+          {{#each recapsRows}}
+          <li>
+            {{#if this.img}}
+            <img class="entity-thumb" src="{{this.img}}" alt="{{this.name}}" />
+            {{else}}
+            <i class="fas fa-book-open entity-thumb"
+              style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;"></i>
+            {{/if}}
+            <span>
+              {{this.name}}
+              {{#if this.linked}}<i class="fas fa-link" title="Linked"></i>{{/if}}
+            </span>
+            <div class="entity-actions">
+              {{#if this.canPull}}
+              <button type="button" class="btn pull row-recap-pull" data-session-id="{{this.sessionId}}">
+                <i class="fas fa-download"></i>
+              </button>
+              {{/if}}
+              {{#if this.canPush}}
+              <button type="button" class="btn push row-recap-push" data-page-id="{{this.pageId}}">
+                <i class="fas fa-upload"></i>
+              </button>
+              {{/if}}
+            </div>
+          </li>
+          {{/each}}
+        </ul>
+        {{else}}
+        <p class="no-entities">No recaps found.</p>
+        {{/if}}
+      </div>
+      {{/if}}
+      {{else}}
+      <div class="warning-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{localize "ARCHIVIST_SYNC.warnings.selectWorldFirst"}}</p>
+      </div>
+      {{/if}}
+    </div>
+
+    <!-- Config Tab -->
+    <div class="tab" data-tab="config">
+      {{#if isWorldSelected}}
+      <div class="entities-section">
+        <div class="section-header">
+          <h4><i class="fas fa-cog"></i> Configuration Settings</h4>
+          <div class="actions">
+            <button type="button" class="btn" data-action="downloadSampleConfig">
+              <i class="fas fa-download"></i>
+              Download Sample
+            </button>
+            <button type="button" class="btn" data-action="loadConfig">
+              <i class="fas fa-upload"></i>
+              Load Config
+            </button>
+            <button type="button" class="btn push" data-action="saveConfig">
+              <i class="fas fa-save"></i>
+              Save Config
+            </button>
+          </div>
+        </div>
+
+        <div class="world-section">
+          <div class="world-data-box">
+            <!-- System Presets -->
+            <div class="input-row">
+              <label>System Preset
+                <i class="fas fa-info-circle help-icon"
+                  title="Select a preset configuration for common game systems"></i>
+              </label>
+              <div class="path-selector-container">
+                <select class="cfg-system-preset" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Custom
+                    Configuration</option>
+                  <option value="dnd5e" selected style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    D&D
+                    5e</option>
+                  <option value="pf2e" style="color: var(--arch-text); background-color: var(--arch-panel);">Pathfinder
+                    2e
+                  </option>
+                  <option value="coc7" style="color: var(--arch-text); background-color: var(--arch-panel);">Call of
+                    Cthulhu 7e</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- PC Configuration -->
+            <div class="manual-mapping-section">
+              <h5
+                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+                <i class="fas fa-user"></i> Player Character Mapping
+              </h5>
+              <div class="input-row">
+                <label>PC Name Path
+                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains PC name"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-pc-name path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>PC Image Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains PC image/avatar"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-pc-img path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>PC Description Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains PC biography/description text"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-pc-desc path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+
+              <!-- NPC Configuration -->
+              <h5
+                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+                <i class="fas fa-users"></i> Non-Player Character Mapping
+              </h5>
+              <div class="input-row">
+                <label>NPC Name Path
+                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains NPC name"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-npc-name path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>NPC Image Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains NPC image/avatar"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-npc-img path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>NPC Description Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains NPC biography/description text"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-npc-desc path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+
+              <!-- Item Configuration -->
+              <h5
+                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+                <i class="fas fa-box"></i> Item Mapping
+              </h5>
+              <div class="input-row">
+                <label>Item Name Path
+                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains Item name"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-item-name path-selector">
+                    <option value="">Select a property path...</option>
+                    {{#each itemStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>Item Image Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains Item image/icon"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-item-img path-selector">
+                    <option value="">Select a property path...</option>
+                    {{#each itemStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>Item Description Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains Item description text"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-item-desc path-selector">
+                    <option value="">Select a property path...</option>
+                    {{#each itemStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+            </div> <!-- End manual-mapping-section -->
+
+            <!-- Destination Configuration -->
+            <h5
+              style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+              <i class="fas fa-arrow-right"></i> Sync Destinations
+            </h5>
+            <div class="input-row">
+              <label>PC Destination
+                <i class="fas fa-info-circle help-icon" title="Where to sync Player Characters"></i>
+              </label>
+              <select class="cfg-dest-pc" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
+                </option>
+                {{#each actorFolders}}
+                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  {{this.name}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <div class="input-row">
+              <label>NPC Destination
+                <i class="fas fa-info-circle help-icon" title="Where to sync Non-Player Characters"></i>
+              </label>
+              <select class="cfg-dest-npc" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
+                </option>
+                {{#each actorFolders}}
+                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  {{this.name}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <div class="input-row">
+              <label>Item Destination
+                <i class="fas fa-info-circle help-icon" title="Where to sync Items"></i>
+              </label>
+              <select class="cfg-dest-item" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
+                </option>
+                {{#each itemFolders}}
+                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  {{this.name}}</option>
+                {{/each}}
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
       {{else}}
       <div class="warning-message">

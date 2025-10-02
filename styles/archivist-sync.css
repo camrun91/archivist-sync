@@ -3,6 +3,72 @@
  * All styles are scoped to the module to prevent conflicts with Foundry VTT and other modules
  */
 
+/* ===== CSS Variables / Design Tokens ===== */
+/* Default (Dark Theme) */
+.archivist-sync-dialog,
+.archivist-sync-content,
+.archivist-world-setup,
+.archivist-chat,
+#sidebar .tab#archivist-chat {
+  --arch-bg: rgba(24, 27, 32, 0.96);
+  --arch-bg-alt: rgba(42, 45, 51, 1);
+  --arch-panel: rgba(35, 38, 44, 1);
+  --arch-border: rgba(255, 255, 255, 0.12);
+  --arch-border-soft: rgba(255, 255, 255, 0.08);
+  --arch-text: #e8e8e8;
+  --arch-text-muted: #b9b9b9;
+  --arch-shadow: rgba(0, 0, 0, 0.35);
+  --arch-accent-pull: #3ea8ff;
+  --arch-accent-push: #47d16a;
+  --arch-accent-warn: #ffb020;
+}
+
+/* Light Theme - via media query */
+@media (prefers-color-scheme: light) {
+
+  .archivist-sync-dialog,
+  .archivist-sync-content,
+  .archivist-world-setup,
+  .archivist-chat,
+  #sidebar .tab#archivist-chat {
+    --arch-bg: #f7f8fa;
+    --arch-bg-alt: #ffffff;
+    --arch-panel: #ffffff;
+    --arch-border: rgba(0, 0, 0, 0.12);
+    --arch-border-soft: rgba(0, 0, 0, 0.08);
+    --arch-text: #1c1f24;
+    --arch-text-muted: #4b5563;
+    --arch-shadow: rgba(0, 0, 0, 0.08);
+    --arch-accent-pull: #0b6bcb;
+    --arch-accent-push: #0d8a3c;
+    --arch-accent-warn: #b77400;
+  }
+}
+
+/* Light Theme - via explicit body class (some Foundry themes) */
+body.light .archivist-sync-dialog,
+body.light .archivist-sync-content,
+body.light .archivist-world-setup,
+body.light .archivist-chat,
+body.light #sidebar .tab#archivist-chat,
+body.theme-light .archivist-sync-dialog,
+body.theme-light .archivist-sync-content,
+body.theme-light .archivist-world-setup,
+body.theme-light .archivist-chat,
+body.theme-light #sidebar .tab#archivist-chat {
+  --arch-bg: #f7f8fa;
+  --arch-bg-alt: #ffffff;
+  --arch-panel: #ffffff;
+  --arch-border: rgba(0, 0, 0, 0.12);
+  --arch-border-soft: rgba(0, 0, 0, 0.08);
+  --arch-text: #1c1f24;
+  --arch-text-muted: #4b5563;
+  --arch-shadow: rgba(0, 0, 0, 0.08);
+  --arch-accent-pull: #0b6bcb;
+  --arch-accent-push: #0d8a3c;
+  --arch-accent-warn: #b77400;
+}
+
 /* Module dialog styling - scoped to our specific dialog */
 .archivist-sync-dialog {
   border: 1px solid var(--arch-border, rgba(255, 255, 255, 0.12));
@@ -1186,12 +1252,12 @@
 
 /* Sync Progress Display */
 .sync-progress-container {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--arch-panel);
+  border: 1px solid var(--arch-border);
   border-radius: 8px;
   padding: 20px;
   margin: 15px 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--arch-shadow);
 }
 
 .progress-header {
@@ -1205,7 +1271,7 @@
 
 .progress-header h5 {
   margin: 0;
-  color: #495057;
+  color: var(--arch-text);
   font-size: 16px;
 }
 
@@ -1220,29 +1286,30 @@
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
-  background: #fff;
+  background: var(--arch-bg-alt);
   border-radius: 4px;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--arch-border);
   font-size: 13px;
   min-width: 80px;
+  color: var(--arch-text);
 }
 
 .stat-item.success {
-  background: #d4edda;
-  border-color: #c3e6cb;
-  color: #155724;
+  background: color-mix(in srgb, var(--arch-accent-push, #47d16a), transparent 85%);
+  border-color: var(--arch-accent-push, #47d16a);
+  color: var(--arch-accent-push, #47d16a);
 }
 
 .stat-item.processing {
-  background: #d1ecf1;
-  border-color: #bee5eb;
-  color: #0c5460;
+  background: color-mix(in srgb, var(--arch-accent-pull, #3ea8ff), transparent 85%);
+  border-color: var(--arch-accent-pull, #3ea8ff);
+  color: var(--arch-accent-pull, #3ea8ff);
 }
 
 .stat-item.failed {
-  background: #f8d7da;
-  border-color: #f5c6cb;
-  color: #721c24;
+  background: color-mix(in srgb, #d32f2f, transparent 85%);
+  border-color: #d32f2f;
+  color: #d32f2f;
 }
 
 .stat-label {
@@ -1260,15 +1327,16 @@
 .progress-bar {
   width: 100%;
   height: 24px;
-  background: #e9ecef;
+  background: var(--arch-bg-alt);
+  border: 1px solid var(--arch-border);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px var(--arch-shadow);
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #28a745, #20c997);
+  background: linear-gradient(90deg, var(--arch-accent-push, #47d16a), color-mix(in srgb, var(--arch-accent-push, #47d16a), var(--arch-accent-pull, #3ea8ff) 50%));
   border-radius: 12px;
   transition: width 0.3s ease;
   position: relative;
@@ -1306,13 +1374,13 @@
   text-align: center;
   margin-top: 8px;
   font-size: 14px;
-  color: #6c757d;
+  color: var(--arch-text-muted);
   font-weight: 500;
 }
 
 .current-entity {
-  background: #fff;
-  border: 1px solid #dee2e6;
+  background: var(--arch-bg-alt);
+  border: 1px solid var(--arch-border);
   border-radius: 6px;
   padding: 12px;
   margin-top: 10px;
@@ -1320,19 +1388,19 @@
 
 .entity-info {
   font-size: 14px;
-  color: #495057;
+  color: var(--arch-text);
   margin-bottom: 5px;
 }
 
 .entity-info strong {
-  color: #007bff;
+  color: var(--arch-accent-pull, #3ea8ff);
 }
 
 .retry-indicator {
   font-size: 13px;
-  color: #856404;
-  background: #fff3cd;
-  border: 1px solid #ffeaa7;
+  color: var(--arch-accent-warn, #ffb020);
+  background: color-mix(in srgb, var(--arch-accent-warn, #ffb020), transparent 85%);
+  border: 1px solid var(--arch-accent-warn, #ffb020);
   border-radius: 4px;
   padding: 6px 10px;
   margin-top: 8px;
