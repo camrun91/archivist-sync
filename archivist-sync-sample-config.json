@@ -26,16 +26,16 @@
                 "imagePath": "img (actor image field)",
                 "descriptionPath": "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)"
             }
-        },
-        "item": {
-            "namePath": "name",
-            "imagePath": "img",
-            "descriptionPath": "system.description.value",
-            "_examples": {
-                "namePath": "name (item name field)",
-                "imagePath": "img (item image field)",
-                "descriptionPath": "system.description.value (D&D 5e), system.description (PF2e), system.description.value (other systems)"
-            }
+        }
+    },
+    "itemMappings": {
+        "namePath": "name",
+        "imagePath": "img",
+        "descriptionPath": "system.description.value",
+        "_examples": {
+            "namePath": "name (item name field)",
+            "imagePath": "img (item image field)",
+            "descriptionPath": "system.description.value (D&D 5e), system.description (PF2e), system.description.value (other systems)"
         }
     },
     "destinations": {

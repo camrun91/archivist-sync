@@ -51,13 +51,13 @@ export class Utils {
         const mdIt = new window.MarkdownIt({ html: false, linkify: true, breaks: true });
         rawHtml = mdIt.render(md);
       } else {
-        // Minimal fallback: paragraphs + bold/italic
+        // Minimal fallback: paragraphs + bold/italic with HTML escaping for security
         rawHtml = md
           .replace(/\r\n/g, '\n')
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/_(.*?)_/g, '<em>$1</em>')
+          .replace(/\*\*(.*?)\*\*/g, (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`)
+          .replace(/_(.*?)_/g, (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`)
           .split(/\n{2,}/)
-          .map(p => `<p>${p}</p>`) // do not escape intentionally to allow simple inline markup
+          .map(p => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
           .join('');
       }
       return foundry?.utils?.TextEditor?.cleanHTML ? foundry.utils.TextEditor.cleanHTML(rawHtml) : rawHtml;
