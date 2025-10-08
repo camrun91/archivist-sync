@@ -26,13 +26,57 @@
 /* Light mode disabled: lock to dark palette */
 
 /* Module dialog styling - scoped to our specific dialog */
-.archivist-sync-dialog {
+.archivist-sync-dialog,
+.world-setup-dialog {
   border: 1px solid var(--arch-border, rgba(255, 255, 255, 0.12));
   border-radius: 8px;
   min-width: 700px;
   min-height: 600px;
   max-width: 90vw;
   max-height: 90vh;
+}
+
+/* Ensure all text elements in dialogs are light colored regardless of theme */
+.archivist-sync-dialog h1,
+.archivist-sync-dialog h2,
+.archivist-sync-dialog h3,
+.archivist-sync-dialog h4,
+.archivist-sync-dialog h5,
+.archivist-sync-dialog h6,
+.archivist-sync-dialog p,
+.archivist-sync-dialog span,
+.archivist-sync-dialog div,
+.archivist-sync-dialog label,
+.archivist-sync-dialog button,
+.archivist-sync-dialog i,
+.archivist-sync-dialog a,
+.world-setup-dialog h1,
+.world-setup-dialog h2,
+.world-setup-dialog h3,
+.world-setup-dialog h4,
+.world-setup-dialog h5,
+.world-setup-dialog h6,
+.world-setup-dialog p,
+.world-setup-dialog span,
+.world-setup-dialog div,
+.world-setup-dialog label,
+.world-setup-dialog button,
+.world-setup-dialog i,
+.world-setup-dialog a,
+.archivist-chat h1,
+.archivist-chat h2,
+.archivist-chat h3,
+.archivist-chat h4,
+.archivist-chat h5,
+.archivist-chat h6,
+.archivist-chat p,
+.archivist-chat span,
+.archivist-chat div,
+.archivist-chat label,
+.archivist-chat button,
+.archivist-chat i,
+.archivist-chat a {
+  color: var(--arch-text);
 }
 
 .archivist-sync-dialog .window-header {
@@ -42,7 +86,7 @@
 }
 
 .archivist-sync-dialog .window-content {
-  background-color: transparent;
+  background-color: var(--arch-bg);
   padding: 20px;
   overflow-y: auto;
   height: 100%;
@@ -953,6 +997,27 @@
 .archivist-sync-chat .messages .bubble {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Ensure chat controls and buttons have light colors regardless of theme */
+.archivist-chat .btn,
+.archivist-chat button,
+.archivist-chat .chat-clear-btn {
+  color: var(--arch-text) !important;
+  background: var(--arch-panel) !important;
+  border: 1px solid var(--arch-border) !important;
+}
+
+.archivist-chat .btn:hover,
+.archivist-chat button:hover,
+.archivist-chat .chat-clear-btn:hover {
+  filter: brightness(1.1);
+}
+
+.archivist-chat .btn i,
+.archivist-chat button i,
+.archivist-chat .fa-trash {
+  color: var(--arch-text) !important;
 }
 
 /* Ensure the custom sidebar tab fills when active; do not force visibility */
