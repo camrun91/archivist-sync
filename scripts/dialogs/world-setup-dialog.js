@@ -653,7 +653,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     async _onLoadCampaigns(event) {
         event?.preventDefault?.();
         try {
-            this.isLoading = true; await this.render();
+            this.isLoading = true; try { await this.render(); } catch (_) { /* ignore after close */ }
             const apiKey = this.setupData.apiKey || settingsManager.getApiKey();
             if (!apiKey) throw new Error('Missing API key');
             const resp = await archivistApi.fetchCampaignsList(apiKey);
@@ -750,12 +750,26 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 this.currentStep = 3; await this.render();
                 return;
             }
-            // Foundry side
+            // Foundry side — constrain candidates to selected destination folders (root-only when unset)
             const actors = game.actors?.contents || [];
-            this.eligibleDocs.pcs = actors.filter(a => a.type === 'character').map(a => ({ id: a.id, name: a.name, img: a.img || '', type: 'PC' }));
-            this.eligibleDocs.npcs = actors.filter(a => a.type === 'npc').map(a => ({ id: a.id, name: a.name, img: a.img || '', type: 'NPC' }));
+            const destPc = this.setupData.destinations.pc || '';
+            const destNpc = this.setupData.destinations.npc || '';
+            const isInFolder = (doc, folderId) => {
+                const folder = doc?.folder;
+                if (!folderId) return !folder; // root-only when no destination
+                return folder?.id === folderId; // exact folder only; exclude subfolders
+            };
+            this.eligibleDocs.pcs = actors
+                .filter(a => a.type === 'character' && isInFolder(a, destPc))
+                .map(a => ({ id: a.id, name: a.name, img: a.img || '', type: 'PC' }));
+            this.eligibleDocs.npcs = actors
+                .filter(a => (a.type === 'npc' || a.type === 'monster') && isInFolder(a, destNpc))
+                .map(a => ({ id: a.id, name: a.name, img: a.img || '', type: 'NPC' }));
             const items = game.items?.contents || [];
-            this.eligibleDocs.items = items.map(i => ({ id: i.id, name: i.name, img: i.img || '', type: 'Item' }));
+            const destItem = this.setupData.destinations.item || '';
+            this.eligibleDocs.items = items
+                .filter(i => isInFolder(i, destItem))
+                .map(i => ({ id: i.id, name: i.name, img: i.img || '', type: 'Item' }));
             const journals = game.journal?.contents || [];
             // For Locations and Factions, include both JournalEntry containers and their individual pages for selection
             const locEntries = [];
@@ -814,12 +828,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             this.setupData.selections.factions = withSuggestion(this.eligibleDocs.factions, facMap);
 
             // advance to step 5
-            this.currentStep = 5; await this.render();
+            this.currentStep = 5; try { await this.render(); } catch (_) { /* ignore after close */ }
         } catch (e) {
             console.error('Prepare selections error', e);
             ui.notifications.error('Failed to prepare selections');
         } finally {
-            this.isLoading = false; await this.render();
+            this.isLoading = false; try { await this.render(); } catch (_) { /* ignore after close */ }
         }
     }
 
@@ -1043,6 +1057,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         next.includeRules.filters.actors.includeFolders.npcs = next.includeRules.filters.actors.includeFolders.npcs || [];
         if (this.setupData.destinations.pc) next.includeRules.filters.actors.includeFolders.pcs = [this.setupData.destinations.pc];
         if (this.setupData.destinations.npc) next.includeRules.filters.actors.includeFolders.npcs = [this.setupData.destinations.npc];
+        // Persist item destination as includeWorldItemFolders (single folder id)
+        next.includeRules.filters.items = next.includeRules.filters.items || {};
+        if (this.setupData.destinations.item) next.includeRules.filters.items.includeWorldItemFolders = [this.setupData.destinations.item];
         // Save
         await settingsManager.setImportConfig?.(next);
     }

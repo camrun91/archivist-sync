@@ -120,6 +120,23 @@ export class AskChatWindow {
             } catch (err) { console.warn('[Archivist Sync] Copy failed', err); }
         };
         root?.addEventListener?.('click', handleCopyClick);
+        // Submit on Enter, newline on Shift+Enter within the composer
+        const handleComposerKeydown = (e) => {
+            try {
+                if (!e) return;
+                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                    e.preventDefault();
+                    const text = input?.value?.trim();
+                    if (!text) return;
+                    if (form?.requestSubmit) {
+                        form.requestSubmit();
+                    } else {
+                        form?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }
+                }
+            } catch (_) { /* no-op */ }
+        };
+        input?.addEventListener?.('keydown', handleComposerKeydown);
         form?.addEventListener('submit', (e) => {
             e.preventDefault();
             const text = input?.value?.trim();

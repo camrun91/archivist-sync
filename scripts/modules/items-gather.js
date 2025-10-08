@@ -23,11 +23,19 @@ function collectActorOwnedItems(actors, includeNPCs) {
 
 function collectWorldItemsByFolders(folderNames) {
     const out = [];
-    const include = new Set(Array.isArray(folderNames) ? folderNames : []);
-    if (!include.size) return out;
+    const include = new Set((Array.isArray(folderNames) ? folderNames : []).filter(Boolean));
+    const hasSelection = include.size > 0;
     for (const item of (game.items?.contents ?? game.items ?? [])) {
-        const fname = item?.folder?.name;
-        if (!fname || include.has(fname)) out.push(item);
+        const folder = item?.folder;
+        // When no selection is provided, treat as root-only → only include items with no folder
+        if (!hasSelection) {
+            if (!folder) out.push(item);
+            continue;
+        }
+        // Include only items directly in selected folders (exact match by id or name). Exclude subfolders
+        const fid = folder?.id || '';
+        const fname = folder?.name || '';
+        if (include.has(fid) || include.has(fname)) out.push(item);
     }
     return out;
 }

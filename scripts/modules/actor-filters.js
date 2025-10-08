@@ -31,10 +31,15 @@ function getPlacedActorIds() {
 }
 
 function isInSelectedFolder(actor, folderNames) {
-    const list = Array.isArray(folderNames) ? folderNames : [];
-    if (!list.length) return true; // no gating → include
-    const fname = actor?.folder?.name || '';
-    return list.includes(fname);
+    const list = Array.isArray(folderNames) ? folderNames.filter(Boolean) : [];
+    const hasSelection = list.length > 0;
+    const folder = actor?.folder;
+    // When no selection is provided, we treat it as "root-only": include docs with no folder
+    if (!hasSelection) return !folder;
+    // Only include docs directly within one of the selected folders (exact match by id or name)
+    const fid = folder?.id || '';
+    const fname = folder?.name || '';
+    return list.includes(fid) || list.includes(fname);
 }
 
 /**
