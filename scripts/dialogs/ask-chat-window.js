@@ -12,6 +12,7 @@ export class AskChatWindow {
         this._streamAbort = null;
         this._isStreaming = false;
         this._mountEl = null; // optional host element when embedding in sidebar
+        this._md = null; // optional cached markdown parser instance
     }
 
     _loadHistory() {
@@ -40,12 +41,12 @@ export class AskChatWindow {
     }
 
     async getData() {
-        // Pre-enrich assistant messages to support markdown/basic HTML
+        try { console.log('[Archivist Sync][AskChatWindow] getData()', { messages: this._messages?.length ?? 0, isStreaming: this._isStreaming }); } catch (_) { }
+        // Markdown → HTML → Foundry enrichHTML for assistant messages
         const enriched = [];
         for (const m of this._messages) {
-            if (m.role === 'assistant') {
-                const TextEditorImpl = (foundry?.applications?.ux?.TextEditor?.implementation) || globalThis.TextEditor;
-                const html = await TextEditorImpl.enrichHTML(String(m.content ?? ''), { async: true });
+            if (m.role === 'assistant' && !m.typing) {
+                const html = await this._enrichMarkdown(String(m.content ?? ''));
                 enriched.push({ ...m, html });
             } else {
                 enriched.push(m);
@@ -58,11 +59,67 @@ export class AskChatWindow {
         };
     }
 
+    /**
+     * Convert Markdown text to enriched, sanitized HTML using a tiny local pipeline.
+     * Prefers markdown-it, falls back to marked, else a minimal formatter.
+     * @param {string} markdown
+     * @returns {Promise<string>} enriched HTML string safe to inject
+     */
+    async _enrichMarkdown(markdown) {
+        const TextEditorImpl = (foundry?.applications?.ux?.TextEditor?.implementation) || globalThis.TextEditor;
+        // Initialize parser once if available
+        if (!this._md && globalThis.markdownit) {
+            try { this._md = globalThis.markdownit({ linkify: true, breaks: true }); } catch (_) { this._md = null; }
+        }
+        const mdToHtml = (src) => {
+            const s = String(src ?? '');
+            if (this._md) return this._md.render(s);
+            if (globalThis.marked?.parse) return globalThis.marked.parse(s);
+            // Minimal fallback: images and links, code, and line breaks
+            let out = s
+                .replace(/```([\s\S]*?)```/g, (m, code) => `<pre><code>${foundry.utils.escapeHTML(code)}</code></pre>`) // fenced code
+                .replace(/`([^`]+)`/g, (m, code) => `<code>${foundry.utils.escapeHTML(code)}</code>`) // inline code
+                // Images: allow optional whitespace/newline between ] and (
+                .replace(/!\[([^\]]*)\]\s*\(([^)]+)\)/gm, (m, alt, inside) => {
+                    let url = inside.trim();
+                    let title = '';
+                    const titleMatch = url.match(/^(\S+)(?:\s+\"([^\"]+)\")?$/);
+                    if (titleMatch) { url = titleMatch[1]; title = titleMatch[2] || ''; }
+                    return `<img src="${foundry.utils.escapeHTML(url)}" alt="${foundry.utils.escapeHTML(alt || '')}"${title ? ` title="${foundry.utils.escapeHTML(title)}"` : ''}>`;
+                })
+                // Links: allow optional whitespace/newline between ] and (
+                .replace(/\[([^\]]+)\]\s*\(([^)]+)\)/gm, (m, text, url) => `<a href="${foundry.utils.escapeHTML(url.trim())}">${foundry.utils.escapeHTML(text)}</a>`); // links
+            // Simple lists
+            out = out.replace(/(?:^|\n)([-*+]\s.+(?:\n[-*+]\s.+)*)/g, (m, list) => {
+                const items = list.split(/\n/).map(l => l.replace(/^[-*+]\s+/, '')).map(li => `<li>${li}</li>`).join('');
+                return `\n<ul>${items}</ul>`;
+            });
+            return out.replaceAll('\n', '<br/>');
+        };
+        const rawHtml = mdToHtml(markdown);
+        return await TextEditorImpl.enrichHTML(rawHtml, { async: true });
+    }
+
     activateListeners(html) {
         const root = html?.[0] ?? html ?? this._mountEl; // support jQuery or HTMLElement or mounted host
         const form = root?.querySelector?.('.ask-form');
         const input = root?.querySelector?.('.ask-input');
         const clearBtn = root?.querySelector?.('.chat-clear-btn');
+        const handleCopyClick = async (e) => {
+            const btn = e.target?.closest?.('.copy-btn');
+            if (!btn) return;
+            e.preventDefault();
+            try {
+                const msg = btn.closest('.msg');
+                const bubble = msg?.querySelector?.('.bubble');
+                const text = bubble?.innerText || bubble?.textContent || '';
+                if (text) {
+                    await navigator.clipboard?.writeText?.(text);
+                    ui.notifications?.info?.(game.i18n.localize('ARCHIVIST_SYNC.chat.copied') || 'Copied');
+                }
+            } catch (err) { console.warn('[Archivist Sync] Copy failed', err); }
+        };
+        root?.addEventListener?.('click', handleCopyClick);
         form?.addEventListener('submit', (e) => {
             e.preventDefault();
             const text = input?.value?.trim();
@@ -73,10 +130,20 @@ export class AskChatWindow {
         });
 
         clearBtn?.addEventListener('click', async () => {
-            const ok = await Dialog.confirm({
-                title: game.i18n.localize('ARCHIVIST_SYNC.chat.clear'),
-                content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.chat.clearConfirm')}</p>`
-            });
+            let ok = false;
+            try {
+                const DialogV2 = foundry?.applications?.api?.DialogV2;
+                ok = await DialogV2.confirm({
+                    header: game.i18n.localize('ARCHIVIST_SYNC.chat.clear'),
+                    content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.chat.clearConfirm')}</p>`,
+                    yes: { label: game.i18n.localize('Yes') || 'Yes' },
+                    no: { label: game.i18n.localize('No') || 'No' },
+                    modal: true
+                });
+            } catch (e) {
+                console.warn('[Archivist Sync] Dialog confirm failed, defaulting to cancel', e);
+                ok = false;
+            }
             if (!ok) return;
             this._messages = [];
             this._saveHistory();
@@ -85,6 +152,7 @@ export class AskChatWindow {
     }
 
     async render(_force) {
+        try { console.log('[Archivist Sync][AskChatWindow] render()', { hasMount: !!this._mountEl }); } catch (_) { }
         if (!this._mountEl) return;
         const data = await this.getData();
         const html = await foundry.applications.handlebars.renderTemplate('modules/archivist-sync/templates/ask-chat-window.hbs', data);
@@ -93,6 +161,7 @@ export class AskChatWindow {
         try {
             const msgList = this._mountEl.querySelector?.('.messages');
             if (msgList) msgList.scrollTop = msgList.scrollHeight;
+            console.log('[Archivist Sync][AskChatWindow] render() complete');
         } catch (_) { }
     }
 
@@ -143,7 +212,15 @@ export class AskChatWindow {
                         const lastRow = rows?.[rows.length - 1];
                         const bubble = lastRow?.querySelector?.('.bubble');
                         if (bubble) {
-                            bubble.textContent = String(assistantMsg.content);
+                            // Render partial markdown to HTML, then enrich for inline update
+                            // Avoid blocking too often: keep simple for now, renderer is fast
+                            this._enrichMarkdown(String(assistantMsg.content)).then((html) => {
+                                bubble.innerHTML = html;
+                                container.scrollTop = container.scrollHeight;
+                            }).catch(() => {
+                                bubble.textContent = String(assistantMsg.content);
+                                container.scrollTop = container.scrollHeight;
+                            });
                             container.scrollTop = container.scrollHeight;
                             updated = true;
                         }

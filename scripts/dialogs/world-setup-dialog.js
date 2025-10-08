@@ -27,6 +27,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 npc: { namePath: '', imagePath: '', descPath: '' },
                 item: { namePath: '', imagePath: '', descPath: '' }
             },
+            systemPreset: '',
             destinations: { pc: '', npc: '', item: '', location: '', faction: '' },
             // Step 5 selections
             selections: { pcs: [], npcs: [], items: [], locations: [], factions: [] }
@@ -78,6 +79,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             selectNone: WorldSetupDialog.prototype._onSelectNone,
             // Step 6 actions
             beginSync: WorldSetupDialog.prototype._onBeginSync,
+            // Configuration file actions
+            downloadSampleConfig: WorldSetupDialog.prototype._onDownloadSampleConfig,
             // Finalization
             completeSetup: WorldSetupDialog.prototype._onCompleteSetup,
             cancel: WorldSetupDialog.prototype._onCancel
@@ -481,6 +484,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Prepare mapping options for step 4
         if (this.currentStep === 4) {
             await this._prepareMappingOptions();
+            // Auto-detect system preset only if nothing is chosen yet and no mapping set
+            const mappingEmpty = !this.setupData.mapping?.pc?.namePath && !this.setupData.mapping?.npc?.namePath && !this.setupData.mapping?.item?.namePath;
+            if (!this.setupData.systemPreset && mappingEmpty) {
+                const detected = await this._autoDetectPreset();
+                if (detected) {
+                    this.setupData.systemPreset = detected;
+                    this._applyPresetToSetupData(detected);
+                }
+            }
         }
 
         return {
@@ -731,7 +743,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         try {
             this.isLoading = true; await this.render();
             const apiKey = this.setupData.apiKey || settingsManager.getApiKey();
+            // Always prefer the explicit selection from Step 3; fallback to saved setting only if necessary
             const campaignId = this.setupData.selectedWorldId || settingsManager.getSelectedWorldId();
+            if (!campaignId) {
+                ui.notifications.warn('Please select a campaign in Step 3 before continuing.');
+                this.currentStep = 3; await this.render();
+                return;
+            }
             // Foundry side
             const actors = game.actors?.contents || [];
             this.eligibleDocs.pcs = actors.filter(a => a.type === 'character').map(a => ({ id: a.id, name: a.name, img: a.img || '', type: 'PC' }));
@@ -1014,6 +1032,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Store simple portrait/img hints
         next.actorMappings.pc.portraitPath = this.setupData.mapping.pc.imagePath || next.actorMappings.pc.portraitPath || 'img';
         next.actorMappings.npc.portraitPath = this.setupData.mapping.npc.imagePath || next.actorMappings.npc.portraitPath || 'img';
+        // Item mappings
+        next.itemMappings = next.itemMappings || {};
+        next.itemMappings.namePath = this.setupData.mapping.item.namePath || next.itemMappings.namePath || 'name';
+        next.itemMappings.imagePath = this.setupData.mapping.item.imagePath || next.itemMappings.imagePath || 'img';
+        next.itemMappings.descriptionPath = this.setupData.mapping.item.descPath || next.itemMappings.descriptionPath;
         // Include folders
         next.includeRules = next.includeRules || { filters: { actors: { includeFolders: { pcs: [], npcs: [] } }, items: {}, factions: {} }, sources: {} };
         next.includeRules.filters.actors.includeFolders.pcs = next.includeRules.filters.actors.includeFolders.pcs || [];
@@ -1088,7 +1111,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                         this.setupData.mapping.pc.descPath;
 
                     if (mappingPath) {
-                        foundry.utils.setProperty(actorData, mappingPath, c.description);
+                        // Convert Markdown from Archivist to sanitized HTML for Foundry storage
+                        const html = Utils.markdownToStoredHtml(c.description);
+                        foundry.utils.setProperty(actorData, mappingPath, html);
                     }
                 }
 
@@ -1126,10 +1151,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 const safeType = resolveItemType(i);
 
                 // Create item with description mapped to the user's configured path
+                const rawImage = typeof i.image === 'string' ? i.image.trim() : '';
+                const safeImage = rawImage && /^https?:\/\//i.test(rawImage) ? rawImage : undefined;
                 const itemData = {
                     name: i.name || 'Item',
                     type: safeType,
-                    img: i.image || null,
+                    ...(safeImage ? { img: safeImage } : {}),
                     folder: folderId || null
                 };
 
@@ -1137,7 +1164,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 if (i.description) {
                     const mappingPath = this.setupData.mapping.item.descPath;
                     if (mappingPath) {
-                        foundry.utils.setProperty(itemData, mappingPath, i.description);
+                        const html = Utils.markdownToStoredHtml(i.description);
+                        foundry.utils.setProperty(itemData, mappingPath, html);
                     }
                 }
 
@@ -1297,6 +1325,75 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
      * @param {Event} event - Click event
      * @private
      */
+    /**
+     * Generate and download a sample configuration file
+     */
+    async _onDownloadSampleConfig(event) {
+        event?.preventDefault?.();
+
+        // Generate sample configuration with schema and examples
+        const sampleConfig = {
+            "_schema_version": "1.0",
+            "_description": "Archivist Sync Configuration File - Edit the paths below to match your game system's data structure",
+            "_instructions": {
+                "actorMappings": "Configure how PC and NPC data is mapped from Foundry actors",
+                "itemMappings": "Configure how Item data is mapped from Foundry items",
+                "destinations": "Configure where different entity types are synced to in Archivist"
+            },
+            "actorMappings": {
+                "pc": {
+                    "namePath": "name",
+                    "imagePath": "img",
+                    "descriptionPath": "system.details.biography.value",
+                    "_examples": {
+                        "namePath": "name (actor name field)",
+                        "imagePath": "img (actor image field)",
+                        "descriptionPath": "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)"
+                    }
+                },
+                "npc": {
+                    "namePath": "name",
+                    "imagePath": "img",
+                    "descriptionPath": "system.details.biography.value",
+                    "_examples": {
+                        "namePath": "name (actor name field)",
+                        "imagePath": "img (actor image field)",
+                        "descriptionPath": "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)"
+                    }
+                }
+            },
+            "itemMappings": {
+                "namePath": "name",
+                "imagePath": "img",
+                "descriptionPath": "system.description.value",
+                "_examples": {
+                    "namePath": "name (item name field)",
+                    "imagePath": "img (item image field)",
+                    "descriptionPath": "system.description.value (D&D 5e), system.description (PF2e), system.description.value (other systems)"
+                }
+            },
+            "destinations": {
+                "pc": "pc",
+                "npc": "npc",
+                "item": "item",
+                "location": "location",
+                "faction": "faction",
+                "_options": {
+                    "pc": ["pc", "npc"],
+                    "npc": ["npc", "pc"],
+                    "item": ["item", "note"],
+                    "location": ["location", "note"],
+                    "faction": ["faction", "note"]
+                }
+            }
+        };
+
+        // Open the sample config in a new tab
+        window.open('https://raw.githubusercontent.com/camrun91/archivist-sync/main/archivist-sync-sample-config.json', '_blank');
+
+        ui.notifications.info('Sample configuration opened in new tab.');
+    }
+
     async _onCancel(event) {
         event.preventDefault();
         await this.close();
@@ -1363,8 +1460,6 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 this.setupData.destinations.pc = val('#dest-pc');
                 this.setupData.destinations.npc = val('#dest-npc');
                 this.setupData.destinations.item = val('#dest-item');
-                this.setupData.destinations.location = val('#dest-location');
-                this.setupData.destinations.faction = val('#dest-faction');
             };
 
             // Attach change listeners to all mapping and destination selects
@@ -1372,7 +1467,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 '#map-pc-name', '#map-pc-image', '#map-pc-desc',
                 '#map-npc-name', '#map-npc-image', '#map-npc-desc',
                 '#map-item-name', '#map-item-image', '#map-item-desc',
-                '#dest-pc', '#dest-npc', '#dest-item', '#dest-location', '#dest-faction'
+                '#dest-pc', '#dest-npc', '#dest-item'
             ];
 
             selectors.forEach(selector => {
@@ -1382,6 +1477,209 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                     element.dataset.boundSetup = 'true';
                 }
             });
+
+            // Add file input handler for config loading
+            const configFileInput = this.element.querySelector('#config-file-input');
+            if (configFileInput && !configFileInput.dataset.boundSetup) {
+                configFileInput.addEventListener('change', async (event) => {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    try {
+                        const text = await file.text();
+                        const config = JSON.parse(text);
+
+                        // Apply configuration to form fields
+                        if (config.actorMappings?.pc) {
+                            if (config.actorMappings.pc.namePath) {
+                                const pcNameSelect = this.element.querySelector('#map-pc-name');
+                                if (pcNameSelect) pcNameSelect.value = config.actorMappings.pc.namePath;
+                            }
+                            if (config.actorMappings.pc.imagePath) {
+                                const pcImageSelect = this.element.querySelector('#map-pc-image');
+                                if (pcImageSelect) pcImageSelect.value = config.actorMappings.pc.imagePath;
+                            }
+                            if (config.actorMappings.pc.descriptionPath) {
+                                const pcDescSelect = this.element.querySelector('#map-pc-desc');
+                                if (pcDescSelect) pcDescSelect.value = config.actorMappings.pc.descriptionPath;
+                            }
+                        }
+
+                        if (config.actorMappings?.npc) {
+                            if (config.actorMappings.npc.namePath) {
+                                const npcNameSelect = this.element.querySelector('#map-npc-name');
+                                if (npcNameSelect) npcNameSelect.value = config.actorMappings.npc.namePath;
+                            }
+                            if (config.actorMappings.npc.imagePath) {
+                                const npcImageSelect = this.element.querySelector('#map-npc-image');
+                                if (npcImageSelect) npcImageSelect.value = config.actorMappings.npc.imagePath;
+                            }
+                            if (config.actorMappings.npc.descriptionPath) {
+                                const npcDescSelect = this.element.querySelector('#map-npc-desc');
+                                if (npcDescSelect) npcDescSelect.value = config.actorMappings.npc.descriptionPath;
+                            }
+                        }
+
+                        if (config.itemMappings) {
+                            if (config.itemMappings.namePath) {
+                                const itemNameSelect = this.element.querySelector('#map-item-name');
+                                if (itemNameSelect) itemNameSelect.value = config.itemMappings.namePath;
+                            }
+                            if (config.itemMappings.imagePath) {
+                                const itemImageSelect = this.element.querySelector('#map-item-image');
+                                if (itemImageSelect) itemImageSelect.value = config.itemMappings.imagePath;
+                            }
+                            if (config.itemMappings.descriptionPath) {
+                                const itemDescSelect = this.element.querySelector('#map-item-desc');
+                                if (itemDescSelect) itemDescSelect.value = config.itemMappings.descriptionPath;
+                            }
+                        }
+
+                        // Update internal data
+                        updateMappingData();
+
+                        ui.notifications.info('Configuration loaded successfully.');
+
+                    } catch (error) {
+                        console.error('Failed to load configuration file:', error);
+                        ui.notifications.error('Failed to load configuration file. Please check the file format.');
+                    }
+
+                    // Clear the file input
+                    event.target.value = '';
+                });
+                configFileInput.dataset.boundSetup = 'true';
+            }
+            // Bind preset change validation in Step 4 (if the dropdown exists here)
+            const presetSelect = this.element.querySelector('#ws-system-preset');
+            if (presetSelect && !presetSelect.dataset.boundSetup) {
+                presetSelect.addEventListener('change', async (e) => {
+                    const key = e?.target?.value || '';
+                    if (!key) { this.setupData.systemPreset = ''; return; }
+                    try {
+                        await this._validateOrRejectPreset(key);
+                        this.setupData.systemPreset = key;
+                        this._applyPresetToSetupData(key);
+                        await this.render();
+                        ui.notifications.info(`Applied ${presetSelect.options[presetSelect.selectedIndex].text} preset`);
+                    } catch (err) {
+                        ui.notifications.error(String(err?.message || err || 'Preset unavailable for this system.'));
+                        // revert selection
+                        presetSelect.value = this.setupData.systemPreset || '';
+                    }
+                });
+                presetSelect.dataset.boundSetup = 'true';
+            }
         }
+    }
+
+    /**
+     * Get shared system presets (mirrors sync options dialog)
+     */
+    _getSystemPresets() {
+        return {
+            dnd5e: {
+                name: 'D&D 5e',
+                actorMappings: {
+                    pc: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.details.biography.value' },
+                    npc: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.details.biography.public' }
+                },
+                itemMappings: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.description.value' }
+            },
+            pf2e: {
+                name: 'Pathfinder 2e',
+                actorMappings: {
+                    pc: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.details.biography.value' },
+                    npc: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.details.publicNotes' }
+                },
+                itemMappings: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.description.value' }
+            },
+            coc7: {
+                name: 'Call of Cthulhu 7e',
+                actorMappings: {
+                    pc: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.biography.personal.description' },
+                    npc: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.biography.personal.description' }
+                },
+                itemMappings: { namePath: 'name', imagePath: 'img', descriptionPath: 'system.description.value' }
+            }
+        };
+    }
+
+    /**
+     * Try auto-detect preset based on whether all preset paths exist in system model
+     * Order: dnd5e -> pf2e -> coc7
+     */
+    async _autoDetectPreset() {
+        const order = ['dnd5e', 'pf2e', 'coc7'];
+        for (const key of order) {
+            try {
+                await this._validateOrRejectPreset(key);
+                return key;
+            } catch (_) { /* try next */ }
+        }
+        return '';
+    }
+
+    /**
+     * Validate preset against current system model; throws if invalid
+     */
+    async _validateOrRejectPreset(key) {
+        const presets = this._getSystemPresets();
+        const preset = presets[key];
+        if (!preset) throw new Error('Unknown preset');
+
+        // Validate that each mapping path exists in the system model/property graph
+        const testPaths = [
+            preset.actorMappings?.pc?.namePath,
+            preset.actorMappings?.pc?.imagePath,
+            preset.actorMappings?.pc?.descriptionPath,
+            preset.actorMappings?.npc?.namePath,
+            preset.actorMappings?.npc?.imagePath,
+            preset.actorMappings?.npc?.descriptionPath,
+            preset.itemMappings?.namePath,
+            preset.itemMappings?.imagePath,
+            preset.itemMappings?.descriptionPath
+        ].filter(Boolean);
+
+        // Use our discovered mapping options to validate existence
+        const availableActor = new Set((this.mappingOptions.actor || []).map(o => o.path));
+        const availableItem = new Set((this.mappingOptions.item || []).map(o => o.path));
+
+        const exists = (p) => {
+            if (!p) return false;
+            if (p === 'name' || p === 'img') return true; // safe defaults always exist
+            if (p.startsWith('system.')) {
+                // Try actor first, then item
+                return availableActor.has(p) || availableItem.has(p);
+            }
+            return availableActor.has(p) || availableItem.has(p);
+        };
+
+        const missing = testPaths.filter(p => !exists(p));
+        if (missing.length) {
+            throw new Error(`Preset unavailable: missing properties in this system → ${missing.join(', ')}`);
+        }
+        return true;
+    }
+
+    /**
+     * Apply preset mappings to setupData (does not touch destinations)
+     */
+    _applyPresetToSetupData(key) {
+        const presets = this._getSystemPresets();
+        const preset = presets[key];
+        if (!preset) return;
+        const gp = (o, p, fb = '') => {
+            try { return foundry.utils.getProperty(o, p) ?? fb; } catch (_) { return fb; }
+        };
+        this.setupData.mapping.pc.namePath = gp(preset, 'actorMappings.pc.namePath');
+        this.setupData.mapping.pc.imagePath = gp(preset, 'actorMappings.pc.imagePath');
+        this.setupData.mapping.pc.descPath = gp(preset, 'actorMappings.pc.descriptionPath');
+        this.setupData.mapping.npc.namePath = gp(preset, 'actorMappings.npc.namePath');
+        this.setupData.mapping.npc.imagePath = gp(preset, 'actorMappings.npc.imagePath');
+        this.setupData.mapping.npc.descPath = gp(preset, 'actorMappings.npc.descriptionPath');
+        this.setupData.mapping.item.namePath = gp(preset, 'itemMappings.namePath');
+        this.setupData.mapping.item.imagePath = gp(preset, 'itemMappings.imagePath');
+        this.setupData.mapping.item.descPath = gp(preset, 'itemMappings.descriptionPath');
     }
 }

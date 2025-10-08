@@ -3,6 +3,28 @@
  * All styles are scoped to the module to prevent conflicts with Foundry VTT and other modules
  */
 
+/* ===== CSS Variables / Design Tokens ===== */
+/* Default (Dark Theme) */
+.archivist-sync-dialog,
+.archivist-sync-content,
+.archivist-world-setup,
+.archivist-chat,
+#sidebar .tab#archivist-chat {
+  --arch-bg: rgba(24, 27, 32, 0.96);
+  --arch-bg-alt: rgba(42, 45, 51, 1);
+  --arch-panel: rgba(35, 38, 44, 1);
+  --arch-border: rgba(255, 255, 255, 0.12);
+  --arch-border-soft: rgba(255, 255, 255, 0.08);
+  --arch-text: #e8e8e8;
+  --arch-text-muted: #b9b9b9;
+  --arch-shadow: rgba(0, 0, 0, 0.35);
+  --arch-accent-pull: #3ea8ff;
+  --arch-accent-push: #47d16a;
+  --arch-accent-warn: #ffb020;
+}
+
+/* Light mode disabled: lock to dark palette */
+
 /* Module dialog styling - scoped to our specific dialog */
 .archivist-sync-dialog {
   border: 1px solid var(--arch-border, rgba(255, 255, 255, 0.12));
@@ -126,6 +148,19 @@
 
 .archivist-sync-content select {
   min-width: 160px;
+}
+
+/* Force dark control appearances to avoid theme conflicts */
+.archivist-sync-content select,
+.archivist-sync-content input[type="text"],
+.archivist-sync-content input[type="search"],
+.archivist-sync-content input[type="number"],
+.archivist-sync-content input[type="email"],
+.archivist-sync-content input[type="password"],
+.archivist-sync-content textarea {
+  background: var(--arch-panel) !important;
+  color: var(--arch-text) !important;
+  border: 1px solid var(--arch-border) !important;
 }
 
 .archivist-sync-content .input-row>label,
@@ -507,45 +542,42 @@
 }
 
 .archivist-sync-content .world-info-box .sync-plan-box {
-  border: 2px solid #4a4a4a;
+  border: 1px solid var(--arch-border);
   border-radius: 8px;
   padding: 12px;
-  /* High contrast dark background */
-  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%) !important;
-  /* Force white text for maximum contrast */
-  color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  background: var(--arch-panel);
+  color: var(--arch-text);
+  box-shadow: 0 2px 4px var(--arch-shadow, rgba(0, 0, 0, 0.15));
   position: relative;
 }
 
 /* Ensure high contrast on all text elements */
 .archivist-sync-content .world-info-box .sync-plan-box * {
-  color: #ffffff !important;
+  color: var(--arch-text);
 }
 
 .archivist-sync-content .world-info-box .sync-plan-box strong {
-  color: #ffffff !important;
+  color: var(--arch-text);
   display: block;
   margin-bottom: 8px;
   font-weight: bold;
   font-size: 14px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  background: none !important;
+  background: none;
 }
 
 .archivist-sync-content .world-info-box .sync-plan-box ul {
   margin: 8px 0;
   padding-left: 16px;
-  color: #ffffff !important;
-  background: none !important;
+  color: var(--arch-text);
+  background: none;
 }
 
 .archivist-sync-content .world-info-box .sync-plan-box li {
-  color: #ffffff !important;
+  color: var(--arch-text);
   margin: 3px 0;
   font-size: 13px;
   line-height: 1.4;
-  background: none !important;
+  background: none;
 }
 
 /* Additional fallback for any inherited styles */
@@ -555,8 +587,8 @@
 .archivist-sync-content .world-info-box .sync-plan-box li,
 .archivist-sync-content .world-info-box .sync-plan-box span,
 .archivist-sync-content .world-info-box .sync-plan-box p {
-  color: #ffffff !important;
-  background: none !important;
+  color: var(--arch-text);
+  background: none;
 }
 
 /* Nuclear option: Override any possible inherited text colors */
@@ -566,16 +598,16 @@
 .archivist-sync-dialog .sync-plan-box *,
 .archivist-sync-dialog .world-info-box .sync-plan-box,
 .archivist-sync-dialog .world-info-box .sync-plan-box * {
-  color: #ffffff !important;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7) !important;
+  color: var(--arch-text);
+  text-shadow: none;
 }
 
 /* Ensure boxes have dark background regardless of theme */
 .world-setup-dialog .sync-plan-box,
 .archivist-sync-dialog .sync-plan-box,
 .archivist-sync-dialog .world-info-box .sync-plan-box {
-  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%) !important;
-  border: 2px solid #4a4a4a !important;
+  background: var(--arch-panel);
+  border: 1px solid var(--arch-border);
 }
 
 .archivist-sync-content .world-info p:last-child {
@@ -875,6 +907,42 @@
   }
 }
 
+/* Loading spinner and text styling */
+.archivist-sync-content .loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(0, 0, 0, 0.2) !important;
+  border-top-color: var(--arch-accent-pull, #3ea8ff) !important;
+  border-radius: 50%;
+  animation: archivist-sync-spin 0.8s linear infinite;
+}
+
+.archivist-sync-content .loading-spinner+span {
+  color: var(--arch-text) !important;
+  font-weight: 500;
+}
+
+/* Force dark text for loading messages in world-info-box */
+.archivist-sync-content .world-info-box .loading-spinner {
+  border: 2px solid rgba(0, 0, 0, 0.3) !important;
+  border-top-color: #3ea8ff !important;
+}
+
+.archivist-sync-content .world-info-box .loading-spinner+span,
+.archivist-sync-content .world-info-box span {
+  color: var(--arch-text);
+  text-shadow: none;
+}
+
+/* Additional override for any nested elements */
+.world-setup-dialog .world-info-box .loading-spinner+span,
+.world-setup-dialog .world-info-box div>span {
+  color: var(--arch-text);
+  background: none;
+  text-shadow: none;
+}
+
 /* Custom scrollbar styling for better UX - scoped to our content */
 .archivist-sync-dialog *::-webkit-scrollbar {
   width: 8px;
@@ -891,7 +959,7 @@
 #sidebar .tab#archivist-chat {
   height: 100%;
   /* Try to mimic core sidebar panel background with safe fallbacks */
-  background: var(--sidebar-background, var(--color-bg, var(--app-background, rgba(0, 0, 0, 0.2))));
+  background: rgba(11, 10, 19, 0.75);
   backdrop-filter: var(--app-blur, none);
   padding: 8px;
   box-sizing: border-box;
@@ -1186,12 +1254,12 @@
 
 /* Sync Progress Display */
 .sync-progress-container {
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background: var(--arch-panel);
+  border: 1px solid var(--arch-border);
   border-radius: 8px;
   padding: 20px;
   margin: 15px 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--arch-shadow);
 }
 
 .progress-header {
@@ -1205,7 +1273,7 @@
 
 .progress-header h5 {
   margin: 0;
-  color: #495057;
+  color: var(--arch-text);
   font-size: 16px;
 }
 
@@ -1220,29 +1288,30 @@
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
-  background: #fff;
+  background: var(--arch-bg-alt);
   border-radius: 4px;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--arch-border);
   font-size: 13px;
   min-width: 80px;
+  color: var(--arch-text);
 }
 
 .stat-item.success {
-  background: #d4edda;
-  border-color: #c3e6cb;
-  color: #155724;
+  background: color-mix(in srgb, var(--arch-accent-push, #47d16a), transparent 85%);
+  border-color: var(--arch-accent-push, #47d16a);
+  color: var(--arch-accent-push, #47d16a);
 }
 
 .stat-item.processing {
-  background: #d1ecf1;
-  border-color: #bee5eb;
-  color: #0c5460;
+  background: color-mix(in srgb, var(--arch-accent-pull, #3ea8ff), transparent 85%);
+  border-color: var(--arch-accent-pull, #3ea8ff);
+  color: var(--arch-accent-pull, #3ea8ff);
 }
 
 .stat-item.failed {
-  background: #f8d7da;
-  border-color: #f5c6cb;
-  color: #721c24;
+  background: color-mix(in srgb, #d32f2f, transparent 85%);
+  border-color: #d32f2f;
+  color: #d32f2f;
 }
 
 .stat-label {
@@ -1260,15 +1329,16 @@
 .progress-bar {
   width: 100%;
   height: 24px;
-  background: #e9ecef;
+  background: var(--arch-bg-alt);
+  border: 1px solid var(--arch-border);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 1px 2px var(--arch-shadow);
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #28a745, #20c997);
+  background: linear-gradient(90deg, var(--arch-accent-push, #47d16a), color-mix(in srgb, var(--arch-accent-push, #47d16a), var(--arch-accent-pull, #3ea8ff) 50%));
   border-radius: 12px;
   transition: width 0.3s ease;
   position: relative;
@@ -1306,13 +1376,13 @@
   text-align: center;
   margin-top: 8px;
   font-size: 14px;
-  color: #6c757d;
+  color: var(--arch-text-muted);
   font-weight: 500;
 }
 
 .current-entity {
-  background: #fff;
-  border: 1px solid #dee2e6;
+  background: var(--arch-bg-alt);
+  border: 1px solid var(--arch-border);
   border-radius: 6px;
   padding: 12px;
   margin-top: 10px;
@@ -1320,19 +1390,19 @@
 
 .entity-info {
   font-size: 14px;
-  color: #495057;
+  color: var(--arch-text);
   margin-bottom: 5px;
 }
 
 .entity-info strong {
-  color: #007bff;
+  color: var(--arch-accent-pull, #3ea8ff);
 }
 
 .retry-indicator {
   font-size: 13px;
-  color: #856404;
-  background: #fff3cd;
-  border: 1px solid #ffeaa7;
+  color: var(--arch-accent-warn, #ffb020);
+  background: color-mix(in srgb, var(--arch-accent-warn, #ffb020), transparent 85%);
+  border: 1px solid var(--arch-accent-warn, #ffb020);
   border-radius: 4px;
   padding: 6px 10px;
   margin-top: 8px;

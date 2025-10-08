@@ -61,8 +61,25 @@ export function registerArchivistSidebarTab(sidebarHtml) {
 
         btn.addEventListener('click', (ev) => {
             ev.preventDefault();
-            try { ui.sidebar?.expand?.(); } catch (_) { /* no-op */ }
-            openArchivistChatTab();
+
+            // Check if this tab is already active and sidebar is expanded
+            const sidebar = ui.sidebar;
+            const isActive = btn.getAttribute('aria-selected') === 'true' || btn.classList.contains('active');
+            const isExpanded = sidebar?._expanded;
+
+            // If tab is already active and sidebar is expanded, collapse it
+            if (isActive && isExpanded) {
+                try {
+                    sidebar.collapse();
+                } catch (_) {
+                    // Fallback for older API
+                    try { sidebar.toggleExpanded?.(false); } catch (_) { /* no-op */ }
+                }
+            } else {
+                // Otherwise, expand and open the tab
+                try { sidebar?.expand?.(); } catch (_) { /* no-op */ }
+                openArchivistChatTab();
+            }
         });
 
         li.appendChild(btn);
@@ -97,8 +114,26 @@ export function installArchivistChatDelegates() {
                 || ev.target.closest?.(`#sidebar #sidebar-tabs [data-action="tab"][data-tab="${TAB_ID}"]`)
                 || null);
             if (!btn) return;
-            // Defer slightly to let core toggle states, then render our UI
-            setTimeout(() => { try { openArchivistChatTab(); } catch (_) { } }, 0);
+
+            // Check if this tab is already active and sidebar is expanded
+            const sidebar = ui.sidebar;
+            const isActive = btn.getAttribute('aria-selected') === 'true' || btn.classList.contains('active');
+            const isExpanded = sidebar?._expanded;
+
+            // If tab is already active and sidebar is expanded, collapse it
+            if (isActive && isExpanded) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                try {
+                    sidebar.collapse();
+                } catch (_) {
+                    // Fallback for older API
+                    try { sidebar.toggleExpanded?.(false); } catch (_) { /* no-op */ }
+                }
+            } else {
+                // Otherwise, defer slightly to let core toggle states, then render our UI
+                setTimeout(() => { try { openArchivistChatTab(); } catch (_) { } }, 0);
+            }
         } catch (_) { }
     }, true);
 

@@ -24,6 +24,7 @@ export class SettingsManager {
     this._registerImportConfig();
     this._registerChatHistory();
     this._registerWorldInitialized();
+    this._registerRealtimeSync();
     this._registerMenu();
   }
 
@@ -432,6 +433,26 @@ export class SettingsManager {
         this._onChatAvailabilityChange();
       }
     });
+  }
+
+  /**
+   * Register Real-Time Sync world toggle
+   * @private
+   */
+  _registerRealtimeSync() {
+    const setting = SETTINGS.REALTIME_SYNC_ENABLED;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default
+    });
+  }
+
+  isRealtimeSyncEnabled() {
+    return !!this.getSetting(SETTINGS.REALTIME_SYNC_ENABLED.key);
   }
 }
 
