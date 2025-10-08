@@ -15,27 +15,7 @@
                 --setup-panel: rgba(255, 255, 255, 0.03);
             }
 
-            /* Light Theme */
-            @media (prefers-color-scheme: light) {
-                .world-setup-dialog {
-                    --setup-bg: #f7f8fa;
-                    --setup-bg-alt: #ffffff;
-                    --setup-border: rgba(0, 0, 0, 0.12);
-                    --setup-text: #1c1f24;
-                    --setup-text-muted: #4b5563;
-                    --setup-panel: #ffffff;
-                }
-            }
-
-            body.light .world-setup-dialog,
-            body.theme-light .world-setup-dialog {
-                --setup-bg: #f7f8fa;
-                --setup-bg-alt: #ffffff;
-                --setup-border: rgba(0, 0, 0, 0.12);
-                --setup-text: #1c1f24;
-                --setup-text-muted: #4b5563;
-                --setup-panel: #ffffff;
-            }
+            /* Light mode disabled: always use dark palette */
 
             .world-setup-dialog .window-content {
                 padding: 0;
@@ -44,7 +24,7 @@
 
             .setup-header {
                 background: var(--setup-primary);
-                color: white;
+                color: var(--setup-text);
                 padding: 20px;
                 text-align: center;
             }
@@ -62,7 +42,7 @@
             }
 
             .progress-container {
-                background: rgba(255, 255, 255, 0.2);
+                background: color-mix(in srgb, var(--setup-border), transparent 70%);
                 height: 4px;
                 margin-top: 15px;
                 border-radius: 2px;
@@ -70,7 +50,7 @@
             }
 
             .progress-fill {
-                background: var(--setup-panel);
+                background: var(--setup-primary);
                 height: 100%;
                 transition: width 0.3s ease;
                 border-radius: 2px;
@@ -130,12 +110,12 @@
 
             .step-number.active {
                 background: var(--setup-primary);
-                color: white;
+                color: var(--setup-bg);
             }
 
             .step-number.completed {
                 background: var(--setup-success);
-                color: white;
+                color: var(--setup-bg);
             }
 
             .step-content {
@@ -153,7 +133,7 @@
             }
 
             .step-description {
-                color: #6c757d;
+                color: var(--setup-text-muted);
                 line-height: 1.5;
                 margin-bottom: 20px;
             }
@@ -206,7 +186,7 @@
             }
 
             .setup-btn.primary:hover:not(:disabled) {
-                background: #357abd;
+                background: color-mix(in srgb, var(--setup-primary), black 15%);
             }
 
             .setup-btn.secondary {
@@ -215,7 +195,7 @@
             }
 
             .setup-btn.secondary:hover:not(:disabled) {
-                background: #c6c8ca;
+                background: color-mix(in srgb, var(--setup-border), var(--setup-bg) 60%);
             }
 
             .setup-btn.success {
@@ -224,7 +204,7 @@
             }
 
             .setup-btn.success:hover:not(:disabled) {
-                background: #218838;
+                background: color-mix(in srgb, var(--setup-success), black 15%);
             }
 
             .world-info-box {
@@ -303,9 +283,9 @@
 
             /* Hard contrast for readability across themes */
             .world-setup-dialog .ws-select-row .ws-name {
-                background: #262626 !important;
-                color: #ffffff !important;
-                border: 1px solid #444 !important;
+                background: var(--setup-panel) !important;
+                color: var(--setup-text) !important;
+                border: 1px solid var(--setup-border) !important;
                 border-radius: 4px;
                 padding: 6px 10px;
                 white-space: nowrap;
@@ -314,9 +294,9 @@
             }
 
             .world-setup-dialog .ws-select-row select {
-                background: #262626 !important;
-                color: #ffffff !important;
-                border: 1px solid #444 !important;
+                background: var(--setup-panel) !important;
+                color: var(--setup-text) !important;
+                border: 1px solid var(--setup-border) !important;
                 border-radius: 4px;
                 padding: 8px 10px;
             }
@@ -325,15 +305,15 @@
             .world-setup-dialog .ws-progress-log {
                 max-height: 200px;
                 overflow: auto;
-                background: #1f1f1f !important;
-                color: #ffffff !important;
-                border: 1px solid #444 !important;
+                background: var(--setup-panel) !important;
+                color: var(--setup-text) !important;
+                border: 1px solid var(--setup-border) !important;
                 padding: 8px;
                 border-radius: 6px;
             }
 
             .world-setup-dialog .ws-progress-log * {
-                color: #ffffff !important;
+                color: var(--setup-text) !important;
                 background: transparent !important;
             }
 

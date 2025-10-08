@@ -41,6 +41,7 @@ export class AskChatWindow {
     }
 
     async getData() {
+        try { console.log('[Archivist Sync][AskChatWindow] getData()', { messages: this._messages?.length ?? 0, isStreaming: this._isStreaming }); } catch (_) { }
         // Markdown → HTML → Foundry enrichHTML for assistant messages
         const enriched = [];
         for (const m of this._messages) {
@@ -104,6 +105,21 @@ export class AskChatWindow {
         const form = root?.querySelector?.('.ask-form');
         const input = root?.querySelector?.('.ask-input');
         const clearBtn = root?.querySelector?.('.chat-clear-btn');
+        const handleCopyClick = async (e) => {
+            const btn = e.target?.closest?.('.copy-btn');
+            if (!btn) return;
+            e.preventDefault();
+            try {
+                const msg = btn.closest('.msg');
+                const bubble = msg?.querySelector?.('.bubble');
+                const text = bubble?.innerText || bubble?.textContent || '';
+                if (text) {
+                    await navigator.clipboard?.writeText?.(text);
+                    ui.notifications?.info?.(game.i18n.localize('ARCHIVIST_SYNC.chat.copied') || 'Copied');
+                }
+            } catch (err) { console.warn('[Archivist Sync] Copy failed', err); }
+        };
+        root?.addEventListener?.('click', handleCopyClick);
         form?.addEventListener('submit', (e) => {
             e.preventDefault();
             const text = input?.value?.trim();
@@ -114,10 +130,20 @@ export class AskChatWindow {
         });
 
         clearBtn?.addEventListener('click', async () => {
-            const ok = await Dialog.confirm({
-                title: game.i18n.localize('ARCHIVIST_SYNC.chat.clear'),
-                content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.chat.clearConfirm')}</p>`
-            });
+            let ok = false;
+            try {
+                const DialogV2 = foundry?.applications?.api?.DialogV2;
+                ok = await DialogV2.confirm({
+                    header: game.i18n.localize('ARCHIVIST_SYNC.chat.clear'),
+                    content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.chat.clearConfirm')}</p>`,
+                    yes: { label: game.i18n.localize('Yes') || 'Yes' },
+                    no: { label: game.i18n.localize('No') || 'No' },
+                    modal: true
+                });
+            } catch (e) {
+                console.warn('[Archivist Sync] Dialog confirm failed, defaulting to cancel', e);
+                ok = false;
+            }
             if (!ok) return;
             this._messages = [];
             this._saveHistory();
@@ -126,6 +152,7 @@ export class AskChatWindow {
     }
 
     async render(_force) {
+        try { console.log('[Archivist Sync][AskChatWindow] render()', { hasMount: !!this._mountEl }); } catch (_) { }
         if (!this._mountEl) return;
         const data = await this.getData();
         const html = await foundry.applications.handlebars.renderTemplate('modules/archivist-sync/templates/ask-chat-window.hbs', data);
@@ -134,6 +161,7 @@ export class AskChatWindow {
         try {
             const msgList = this._mountEl.querySelector?.('.messages');
             if (msgList) msgList.scrollTop = msgList.scrollHeight;
+            console.log('[Archivist Sync][AskChatWindow] render() complete');
         } catch (_) { }
     }
 

@@ -17,38 +17,7 @@
       --arch-accent-warn: #ffb020;
     }
 
-    /* Prefer light scheme */
-    @media (prefers-color-scheme: light) {
-      .archivist-sync-content {
-        --arch-bg: #f7f8fa;
-        --arch-bg-alt: #fff;
-        --arch-panel: #fff;
-        --arch-border: rgba(0, 0, 0, 0.12);
-        --arch-border-soft: rgba(0, 0, 0, 0.08);
-        --arch-text: #1c1f24;
-        --arch-text-muted: #4b5563;
-        --arch-shadow: rgba(0, 0, 0, 0.08);
-        --arch-accent-pull: #0b6bcb;
-        --arch-accent-push: #0d8a3c;
-        --arch-accent-warn: #b77400;
-      }
-    }
-
-    /* Optional explicit theme hooks some Foundry themes use */
-    body.light .archivist-sync-content,
-    body.theme-light .archivist-sync-content {
-      --arch-bg: #f7f8fa;
-      --arch-bg-alt: #fff;
-      --arch-panel: #fff;
-      --arch-border: rgba(0, 0, 0, 0.12);
-      --arch-border-soft: rgba(0, 0, 0, 0.08);
-      --arch-text: #1c1f24;
-      --arch-text-muted: #4b5563;
-      --arch-shadow: rgba(0, 0, 0, 0.08);
-      --arch-accent-pull: #0b6bcb;
-      --arch-accent-push: #0d8a3c;
-      --arch-accent-warn: #b77400;
-    }
+    /* Light mode disabled: lock to dark palette */
 
     /* ===== Archivist Sync — Dialog Polish (scoped) ===== */
     .archivist-sync-dialog .window-content {
@@ -579,7 +548,7 @@
     <!-- Normal Mode - Show all tabs -->
     <a class="item" data-tab="world">
       <i class="fas fa-globe"></i>
-      World Options
+      {{localize "ARCHIVIST_SYNC.tabs.world"}}
     </a>
     <a class="item" data-tab="characters">
       <i class="fas fa-users"></i>
@@ -595,16 +564,13 @@
     </a>
     <a class="item" data-tab="items">
       <i class="fas fa-box"></i>
-      Items
+      {{localize "ARCHIVIST_SYNC.labels.items"}}
     </a>
     <a class="item" data-tab="recaps">
       <i class="fas fa-book-open"></i>
-      Recaps
+      {{localize "ARCHIVIST_SYNC.labels.recaps"}}
     </a>
-    <a class="item" data-tab="config">
-      <i class="fas fa-cog"></i>
-      Config
-    </a>
+
 
     {{/if}}
 
@@ -645,8 +611,8 @@
             </ul>
           </div>
 
-          <button type="button" data-action="openWorldSetup" class="btn"
-            style="background: var(--arch-accent-pull); color: white; padding: 12px 24px; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer;">
+          <button type="button" data-action="openWorldSetup" class="btn pull"
+            style="padding: 12px 24px; font-size: 16px; font-weight: 600;">
             <i class="fas fa-rocket"></i>
             Start World Setup
           </button>
@@ -659,38 +625,27 @@
     </div>
     {{else}}
     <!-- Normal Tabs -->
-    <!-- World Options Tab -->
+    <!-- Settings Tab -->
     <div class="tab" data-tab="world">
-      <div class="form-group">
-        <label>{{localize "ARCHIVIST_SYNC.labels.apiStatus"}}</label>
-        <div class="api-status">
-          {{#if isApiConfigured}}
+      {{#if isApiConfigured}}
+
+      <!-- Inline Status Bar -->
+      <div class="form-group"
+        style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--arch-panel); border: 1px solid var(--arch-border); border-radius: 8px; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
           <span class="status-indicator connected">
             <i class="fas fa-check-circle"></i>
             {{localize "ARCHIVIST_SYNC.status.connected"}}
           </span>
-          <small>{{localize "ARCHIVIST_SYNC.labels.apiKey"}}: {{apiKey}}</small>
-          {{else}}
-          <span class="status-indicator disconnected">
-            <i class="fas fa-times-circle"></i>
-            {{localize "ARCHIVIST_SYNC.status.notConfigured"}}
-          </span>
-          <small>{{localize "ARCHIVIST_SYNC.hints.configureApi"}}</small>
-          {{/if}}
+          <small style="opacity: 0.7;">{{localize "ARCHIVIST_SYNC.labels.apiKey"}}: {{apiKey}}</small>
         </div>
-      </div>
-
-      {{#if isApiConfigured}}
-      <div class="form-group">
-        <button type="button" class="sync-worlds-btn" {{#if isLoading}}disabled{{/if}}>
-          {{#if isLoading}}
-          <i class="fas fa-spinner fa-spin"></i>
-          {{localize "ARCHIVIST_SYNC.buttons.syncing"}}
-          {{else}}
-          <i class="fas fa-sync"></i>
-          {{localize "ARCHIVIST_SYNC.buttons.syncWorlds"}}
-          {{/if}}
-        </button>
+        {{#if isWorldSelected}}
+        <div
+          style="display: flex; align-items: center; gap: 8px; border-left: 1px solid var(--arch-border); padding-left: 12px;">
+          <i class="fas fa-globe" style="opacity: 0.7;"></i>
+          <strong>{{selectedWorldName}}</strong>
+        </div>
+        {{/if}}
       </div>
 
       {{#if worlds.length}}
@@ -715,10 +670,6 @@
       {{/if}}
 
       {{#if isWorldSelected}}
-      <div class="current-selection">
-        <h4>{{localize "ARCHIVIST_SYNC.labels.currentSelection"}}</h4>
-        <p><strong>{{selectedWorldName}}</strong> (ID: {{selectedWorldId}})</p>
-      </div>
       <div class="world-options">
         <div class="form-group">
           <button type="button" class="btn run-setup-wizard-btn">
@@ -727,16 +678,295 @@
           </button>
         </div>
         <div class="form-group">
-          <label for="api-key-input">API Key</label>
-          <input id="api-key-input" type="password" placeholder="Enter new API key" />
-          <button type="button" class="btn validate-api-key-btn">
-            <i class="fas fa-key"></i>
-            Validate & Save
-          </button>
-          <small class="api-key-hint">Validation checks the currently selected campaign.</small>
-          <div class="api-key-error" style="display:none;"></div>
+          <label class="toggle">
+            <input class="cfg-realtime-sync" type="checkbox" {{#if realtimeSyncEnabled}}checked{{/if}} />
+            <span>
+              {{localize "ARCHIVIST_SYNC.settings.realtimeSync.name"}}
+            </span>
+          </label>
+          <small>
+            {{localize "ARCHIVIST_SYNC.settings.realtimeSync.hint"}}
+          </small>
         </div>
       </div>
+
+      <!-- Settings: Configuration (merged from Config tab) -->
+      <div class="entities-section">
+        <div class="section-header">
+          <h4><i class="fas fa-cog"></i> Configuration Settings</h4>
+          <div class="actions">
+            <button type="button" class="btn" data-action="downloadSampleConfig">
+              <i class="fas fa-download"></i>
+              Download Sample
+            </button>
+            <button type="button" class="btn" data-action="loadConfig">
+              <i class="fas fa-upload"></i>
+              Load Config
+            </button>
+            <button type="button" class="btn push" data-action="saveConfig">
+              <i class="fas fa-save"></i>
+              Save Config
+            </button>
+          </div>
+        </div>
+
+        <div class="world-section">
+          <div class="world-data-box">
+            <!-- System Presets -->
+            <div class="input-row">
+              <label>System Preset
+                <i class="fas fa-info-circle help-icon"
+                  title="Select a preset configuration for common game systems"></i>
+              </label>
+              <div class="path-selector-container">
+                <select class="cfg-system-preset" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Custom
+                    Configuration</option>
+                  <option value="dnd5e" selected style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    D&D
+                    5e</option>
+                  <option value="pf2e" style="color: var(--arch-text); background-color: var(--arch-panel);">Pathfinder
+                    2e
+                  </option>
+                  <option value="coc7" style="color: var(--arch-text); background-color: var(--arch-panel);">Call of
+                    Cthulhu 7e</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- PC Configuration -->
+            <div class="manual-mapping-section">
+              <h5
+                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+                <i class="fas fa-user"></i> Player Character Mapping
+              </h5>
+              <div class="input-row">
+                <label>PC Name Path
+                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains PC name"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-pc-name path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>PC Image Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains PC image/avatar"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-pc-img path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>PC Description Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains PC biography/description text"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-pc-desc path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+
+              <!-- NPC Configuration -->
+              <h5
+                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+                <i class="fas fa-users"></i> Non-Player Character Mapping
+              </h5>
+              <div class="input-row">
+                <label>NPC Name Path
+                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains NPC name"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-npc-name path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>NPC Image Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains NPC image/avatar"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-npc-img path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>NPC Description Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains NPC biography/description text"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-npc-desc path-selector"
+                    style="color: var(--arch-text); background-color: var(--arch-panel);">
+                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
+                      property
+                      path...</option>
+                    {{#each actorStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}"
+                      style="color: var(--arch-text); background-color: var(--arch-panel);">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+
+              <!-- Item Configuration -->
+              <h5
+                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+                <i class="fas fa-box"></i> Item Mapping
+              </h5>
+              <div class="input-row">
+                <label>Item Name Path
+                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains Item name"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-item-name path-selector">
+                    <option value="">Select a property path...</option>
+                    {{#each itemStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>Item Image Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains Item image/icon"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-item-img path-selector">
+                    <option value="">Select a property path...</option>
+                    {{#each itemStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+              <div class="input-row">
+                <label>Item Description Path
+                  <i class="fas fa-info-circle help-icon"
+                    title="Select the property path that contains Item description text"></i>
+                </label>
+                <div class="path-selector-container">
+                  <select class="cfg-item-desc path-selector">
+                    <option value="">Select a property path...</option>
+                    {{#each itemStringProperties}}
+                    <option value="{{this.path}}" title="{{this.preview}}">
+                      {{this.path}} — {{this.preview}}
+                    </option>
+                    {{/each}}
+                  </select>
+                </div>
+              </div>
+            </div> <!-- End manual-mapping-section -->
+
+            <!-- Destination Configuration -->
+            <h5
+              style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
+              <i class="fas fa-arrow-right"></i> Sync Destinations
+            </h5>
+            <div class="input-row">
+              <label>PC Destination
+                <i class="fas fa-info-circle help-icon" title="Where to sync Player Characters"></i>
+              </label>
+              <select class="cfg-dest-pc" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
+                </option>
+                {{#each actorFolders}}
+                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  {{this.name}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <div class="input-row">
+              <label>NPC Destination
+                <i class="fas fa-info-circle help-icon" title="Where to sync Non-Player Characters"></i>
+              </label>
+              <select class="cfg-dest-npc" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
+                </option>
+                {{#each actorFolders}}
+                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  {{this.name}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <div class="input-row">
+              <label>Item Destination
+                <i class="fas fa-info-circle help-icon" title="Where to sync Items"></i>
+              </label>
+              <select class="cfg-dest-item" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
+                </option>
+                {{#each itemFolders}}
+                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
+                  {{this.name}}</option>
+                {{/each}}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="sync-controls">
         <button type="button" class="btn pull sync-from-archivist-btn" {{#if syncInProgress}}disabled{{/if}}>
           {{#if syncInProgress}}<i class="fas fa-spinner fa-spin"></i>{{else}}<i class="fas fa-download"></i>{{/if}}
@@ -748,6 +978,11 @@
         </button>
       </div>
       {{/if}}
+      {{else}}
+      <div class="warning-message">
+        <i class="fas fa-exclamation-triangle"></i>
+        <p>{{localize "ARCHIVIST_SYNC.warnings.apiNotConfigured"}}</p>
+      </div>
       {{/if}}
     </div>
 
@@ -823,25 +1058,25 @@
               {{#if this.length}}
               <div class="preview-bucket" data-kind="{{@key}}">
                 <h4 style="margin:0 0 6px 0; font-size:13px;">{{@key}}</h4>
-                <table class="importer-preview-table" style="width:100%; border-collapse: collapse;">
+                <table class="importer-preview-table">
                   <thead>
                     <tr>
-                      <th style="text-align:left; padding:4px 6px;">Include</th>
-                      <th style="text-align:left; padding:4px 6px;">Name</th>
-                      <th style="text-align:left; padding:4px 6px;">Type</th>
-                      <th style="text-align:left; padding:4px 6px;">Confidence</th>
-                      <th style="text-align:left; padding:4px 6px;">Fields</th>
+                      <th>Include</th>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Confidence</th>
+                      <th>Fields</th>
                     </tr>
                   </thead>
                   <tbody>
                     {{#each this}}
                     <tr>
-                      <td style="padding:4px 6px; vertical-align: top;">
+                      <td>
                         <input type="checkbox" class="importer-include" data-uuid="{{uuid}}" {{#if
                           include}}checked{{/if}} />
                       </td>
-                      <td style="padding:4px 6px; vertical-align: top; min-width:160px;">{{name}}</td>
-                      <td style="padding:4px 6px; vertical-align: top;">
+                      <td style="min-width:160px;">{{name}}</td>
+                      <td>
                         <select class="importer-type-select" data-uuid="{{uuid}}">
                           <optgroup label="Character">
                             <option value="Character:PC" {{#if (eq uiType "Character:PC" )}}selected{{/if}}>PC
@@ -856,8 +1091,8 @@
                           <option value="Note" {{#if (eq targetType "Note" )}}selected{{/if}}>Note</option>
                         </select>
                       </td>
-                      <td style="padding:4px 6px; vertical-align: top;">{{score}}%</td>
-                      <td style="padding:4px 6px; vertical-align: top;">
+                      <td>{{score}}%</td>
+                      <td>
                         <div style="display:grid; gap:8px;">
                           {{#each fields}}
                           <div class="field-map-row"
@@ -1443,291 +1678,7 @@
       {{/if}}
     </div>
 
-    <!-- Config Tab -->
-    <div class="tab" data-tab="config">
-      {{#if isWorldSelected}}
-      <div class="entities-section">
-        <div class="section-header">
-          <h4><i class="fas fa-cog"></i> Configuration Settings</h4>
-          <div class="actions">
-            <button type="button" class="btn" data-action="downloadSampleConfig">
-              <i class="fas fa-download"></i>
-              Download Sample
-            </button>
-            <button type="button" class="btn" data-action="loadConfig">
-              <i class="fas fa-upload"></i>
-              Load Config
-            </button>
-            <button type="button" class="btn push" data-action="saveConfig">
-              <i class="fas fa-save"></i>
-              Save Config
-            </button>
-          </div>
-        </div>
 
-        <div class="world-section">
-          <div class="world-data-box">
-            <!-- System Presets -->
-            <div class="input-row">
-              <label>System Preset
-                <i class="fas fa-info-circle help-icon"
-                  title="Select a preset configuration for common game systems"></i>
-              </label>
-              <div class="path-selector-container">
-                <select class="cfg-system-preset" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                  <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Custom
-                    Configuration</option>
-                  <option value="dnd5e" selected style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    D&D
-                    5e</option>
-                  <option value="pf2e" style="color: var(--arch-text); background-color: var(--arch-panel);">Pathfinder
-                    2e
-                  </option>
-                  <option value="coc7" style="color: var(--arch-text); background-color: var(--arch-panel);">Call of
-                    Cthulhu 7e</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- PC Configuration -->
-            <div class="manual-mapping-section">
-              <h5
-                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
-                <i class="fas fa-user"></i> Player Character Mapping
-              </h5>
-              <div class="input-row">
-                <label>PC Name Path
-                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains PC name"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-pc-name path-selector"
-                    style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
-                      property
-                      path...</option>
-                    {{#each actorStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}"
-                      style="color: var(--arch-text); background-color: var(--arch-panel);">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-              <div class="input-row">
-                <label>PC Image Path
-                  <i class="fas fa-info-circle help-icon"
-                    title="Select the property path that contains PC image/avatar"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-pc-img path-selector"
-                    style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
-                      property
-                      path...</option>
-                    {{#each actorStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}"
-                      style="color: var(--arch-text); background-color: var(--arch-panel);">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-              <div class="input-row">
-                <label>PC Description Path
-                  <i class="fas fa-info-circle help-icon"
-                    title="Select the property path that contains PC biography/description text"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-pc-desc path-selector"
-                    style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
-                      property
-                      path...</option>
-                    {{#each actorStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}"
-                      style="color: var(--arch-text); background-color: var(--arch-panel);">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-
-              <!-- NPC Configuration -->
-              <h5
-                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
-                <i class="fas fa-users"></i> Non-Player Character Mapping
-              </h5>
-              <div class="input-row">
-                <label>NPC Name Path
-                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains NPC name"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-npc-name path-selector"
-                    style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
-                      property
-                      path...</option>
-                    {{#each actorStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}"
-                      style="color: var(--arch-text); background-color: var(--arch-panel);">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-              <div class="input-row">
-                <label>NPC Image Path
-                  <i class="fas fa-info-circle help-icon"
-                    title="Select the property path that contains NPC image/avatar"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-npc-img path-selector"
-                    style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
-                      property
-                      path...</option>
-                    {{#each actorStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}"
-                      style="color: var(--arch-text); background-color: var(--arch-panel);">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-              <div class="input-row">
-                <label>NPC Description Path
-                  <i class="fas fa-info-circle help-icon"
-                    title="Select the property path that contains NPC biography/description text"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-npc-desc path-selector"
-                    style="color: var(--arch-text); background-color: var(--arch-panel);">
-                    <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Select a
-                      property
-                      path...</option>
-                    {{#each actorStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}"
-                      style="color: var(--arch-text); background-color: var(--arch-panel);">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-
-              <!-- Item Configuration -->
-              <h5
-                style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
-                <i class="fas fa-box"></i> Item Mapping
-              </h5>
-              <div class="input-row">
-                <label>Item Name Path
-                  <i class="fas fa-info-circle help-icon" title="Select the property path that contains Item name"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-item-name path-selector">
-                    <option value="">Select a property path...</option>
-                    {{#each itemStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-              <div class="input-row">
-                <label>Item Image Path
-                  <i class="fas fa-info-circle help-icon"
-                    title="Select the property path that contains Item image/icon"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-item-img path-selector">
-                    <option value="">Select a property path...</option>
-                    {{#each itemStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-              <div class="input-row">
-                <label>Item Description Path
-                  <i class="fas fa-info-circle help-icon"
-                    title="Select the property path that contains Item description text"></i>
-                </label>
-                <div class="path-selector-container">
-                  <select class="cfg-item-desc path-selector">
-                    <option value="">Select a property path...</option>
-                    {{#each itemStringProperties}}
-                    <option value="{{this.path}}" title="{{this.preview}}">
-                      {{this.path}} — {{this.preview}}
-                    </option>
-                    {{/each}}
-                  </select>
-                </div>
-              </div>
-            </div> <!-- End manual-mapping-section -->
-
-            <!-- Destination Configuration -->
-            <h5
-              style="margin: 20px 0 12px 0; padding-bottom: 8px; border-bottom: 1px solid var(--arch-border); color: var(--arch-text);">
-              <i class="fas fa-arrow-right"></i> Sync Destinations
-            </h5>
-            <div class="input-row">
-              <label>PC Destination
-                <i class="fas fa-info-circle help-icon" title="Where to sync Player Characters"></i>
-              </label>
-              <select class="cfg-dest-pc" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
-                </option>
-                {{#each actorFolders}}
-                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                  {{this.name}}</option>
-                {{/each}}
-              </select>
-            </div>
-            <div class="input-row">
-              <label>NPC Destination
-                <i class="fas fa-info-circle help-icon" title="Where to sync Non-Player Characters"></i>
-              </label>
-              <select class="cfg-dest-npc" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
-                </option>
-                {{#each actorFolders}}
-                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                  {{this.name}}</option>
-                {{/each}}
-              </select>
-            </div>
-            <div class="input-row">
-              <label>Item Destination
-                <i class="fas fa-info-circle help-icon" title="Where to sync Items"></i>
-              </label>
-              <select class="cfg-dest-item" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                <option value="" style="color: var(--arch-text); background-color: var(--arch-panel);">Root (Default)
-                </option>
-                {{#each itemFolders}}
-                <option value="{{this.id}}" style="color: var(--arch-text); background-color: var(--arch-panel);">
-                  {{this.name}}</option>
-                {{/each}}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-      {{else}}
-      <div class="warning-message">
-        <i class="fas fa-exclamation-triangle"></i>
-        <p>{{localize "ARCHIVIST_SYNC.warnings.selectWorldFirst"}}</p>
-      </div>
-      {{/if}}
-    </div>
     {{/if}}
 
   </div>

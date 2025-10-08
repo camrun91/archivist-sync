@@ -345,7 +345,7 @@ export class ImporterService {
         // Process Items
         console.log(`${CONFIG.MODULE_TITLE} | Processing ${usedItems.length} items...`);
         for (let i = 0; i < usedItems.length; i++) {
-            await processEntity(usedItems[i], mapItemToArchivist, 'Item');
+            await processEntity(usedItems[i], (item) => mapItemToArchivist(item, config), 'Item');
 
             // Add small delay every 10 entities to prevent overwhelming the API
             if ((i + 1) % 10 === 0 && i < usedItems.length - 1) {

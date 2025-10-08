@@ -168,10 +168,13 @@ export class Utils {
   static toApiFactionPayload(journal, worldId) {
     const raw = String(journal?.img || '').trim();
     const image = raw.startsWith('https://') ? raw : undefined;
+    const text = this._extractJournalText(journal);
+    // Strip leading image since we set it as a separate property
+    const cleanedText = this.stripLeadingImage(text);
     return {
       name: journal.name,
       // Journal pages store HTML — convert to Markdown for API
-      description: toMarkdownIfHtml(this._extractJournalText(journal)),
+      description: toMarkdownIfHtml(cleanedText),
       ...(image ? { image } : {}),
       campaign_id: worldId
     };
@@ -185,9 +188,12 @@ export class Utils {
   static toApiLocationPayload(journal, worldId) {
     const raw = String(journal?.img || '').trim();
     const image = raw.startsWith('https://') ? raw : undefined;
+    const text = this._extractJournalText(journal);
+    // Strip leading image since we set it as a separate property
+    const cleanedText = this.stripLeadingImage(text);
     return {
       name: journal.name,
-      description: toMarkdownIfHtml(this._extractJournalText(journal)),
+      description: toMarkdownIfHtml(cleanedText),
       ...(image ? { image } : {}),
       campaign_id: worldId
     };
@@ -203,6 +209,26 @@ export class Utils {
     const textPage = pages.find(p => p.type === 'text');
     // Foundry v10+ stores text in page.text.content
     return textPage?.text?.content || journal.content || '';
+  }
+
+  /**
+   * Remove a single leading image from Markdown or HTML at the top of text.
+   * Handles patterns like: \n![alt](url)\n, <img ...>, or wrapped in <p>.
+   * @param {string} text
+   * @returns {string}
+   */
+  static stripLeadingImage(text) {
+    const s = String(text || '');
+    if (!s) return '';
+    // Common patterns: Markdown image at start, possibly followed by blank line
+    const mdImg = /^(?:\s*)!\[[^\]]*\]\([^\)]+\)\s*(?:\n+)?/;
+    if (mdImg.test(s)) return s.replace(mdImg, '').trimStart();
+    // HTML <img> possibly wrapped in <p> at the very start
+    const htmlImgP = /^(?:\s*)<p[^>]*>\s*<img\b[^>]*>\s*<\/p>\s*/i;
+    if (htmlImgP.test(s)) return s.replace(htmlImgP, '').trimStart();
+    const htmlImg = /^(?:\s*)<img\b[^>]*>\s*/i;
+    if (htmlImg.test(s)) return s.replace(htmlImg, '').trimStart();
+    return s;
   }
 
   /**

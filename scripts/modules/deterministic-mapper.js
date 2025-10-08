@@ -23,10 +23,15 @@ export function mapActorToArchivist(actor, config, type) {
     return { targetType: 'Character', payload: { title: actor?.name, description, portraitUrl: image }, labels, score: 1 };
 }
 
-export function mapItemToArchivist(item) {
-    const description = item?.system?.description?.value || item?.system?.description || '';
-    const image = item?.img;
-    return { targetType: 'Item', payload: { name: item?.name, description, imageUrl: image }, labels: [], score: 1 };
+export function mapItemToArchivist(item, config) {
+    const itemCfg = config?.itemMappings;
+    const descriptionPath = itemCfg?.descriptionPath || 'system.description.value';
+    const imagePath = itemCfg?.imagePath || 'img';
+    const namePath = itemCfg?.namePath || 'name';
+    const description = coalesce(readPath(item, descriptionPath), '');
+    const image = coalesce(readPath(item, imagePath), item?.img);
+    const name = coalesce(readPath(item, namePath), item?.name);
+    return { targetType: 'Item', payload: { name, description, imageUrl: image }, labels: [], score: 1 };
 }
 
 export function mapJournalToFaction(journal) {

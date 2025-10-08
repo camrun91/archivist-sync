@@ -23,6 +23,20 @@ function normalizeText(value) {
     return toMarkdownIfHtml(s);
 }
 
+function stripLeadingImage(text) {
+    const s = String(text || '');
+    if (!s) return '';
+    // Common patterns: Markdown image at start, possibly followed by blank line
+    const mdImg = /^(?:\s*)!\[[^\]]*\]\([^\)]+\)\s*(?:\n+)?/;
+    if (mdImg.test(s)) return s.replace(mdImg, '').trimStart();
+    // HTML <img> possibly wrapped in <p> at the very start
+    const htmlImgP = /^(?:\s*)<p[^>]*>\s*<img\b[^>]*>\s*<\/p>\s*/i;
+    if (htmlImgP.test(s)) return s.replace(htmlImgP, '').trimStart();
+    const htmlImg = /^(?:\s*)<img\b[^>]*>\s*/i;
+    if (htmlImg.test(s)) return s.replace(htmlImg, '').trimStart();
+    return s;
+}
+
 function buildApiPayload(worldId, srcDoc, mapped) {
     const p = mapped?.payload || {};
     if (mapped?.targetType === 'Character') {
@@ -36,16 +50,20 @@ function buildApiPayload(worldId, srcDoc, mapped) {
     }
     if (mapped?.targetType === 'Faction') {
         const name = coalesce(p.name, p.title, srcDoc?.name, 'Faction');
-        const description = normalizeText(coalesce(p.description, ''));
+        let description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
+        // Strip leading image if we have a separate image property
+        if (image) description = stripLeadingImage(description);
         const payload = { name, description, campaign_id: worldId };
         if (image && /^https:\/\//i.test(String(image))) payload.image = image;
         return payload;
     }
     if (mapped?.targetType === 'Location') {
         const name = coalesce(p.name, p.title, srcDoc?.name, 'Location');
-        const description = normalizeText(coalesce(p.description, ''));
+        let description = normalizeText(coalesce(p.description, ''));
         const image = coalesce(p.imageUrl, p.image);
+        // Strip leading image if we have a separate image property
+        if (image) description = stripLeadingImage(description);
         const payload = { name, description, campaign_id: worldId };
         if (image && /^https:\/\//i.test(String(image))) payload.image = image;
         return payload;

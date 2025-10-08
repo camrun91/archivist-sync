@@ -1032,6 +1032,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Store simple portrait/img hints
         next.actorMappings.pc.portraitPath = this.setupData.mapping.pc.imagePath || next.actorMappings.pc.portraitPath || 'img';
         next.actorMappings.npc.portraitPath = this.setupData.mapping.npc.imagePath || next.actorMappings.npc.portraitPath || 'img';
+        // Item mappings
+        next.itemMappings = next.itemMappings || {};
+        next.itemMappings.namePath = this.setupData.mapping.item.namePath || next.itemMappings.namePath || 'name';
+        next.itemMappings.imagePath = this.setupData.mapping.item.imagePath || next.itemMappings.imagePath || 'img';
+        next.itemMappings.descriptionPath = this.setupData.mapping.item.descPath || next.itemMappings.descriptionPath;
         // Include folders
         next.includeRules = next.includeRules || { filters: { actors: { includeFolders: { pcs: [], npcs: [] } }, items: {}, factions: {} }, sources: {} };
         next.includeRules.filters.actors.includeFolders.pcs = next.includeRules.filters.actors.includeFolders.pcs || [];
@@ -1146,10 +1151,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 const safeType = resolveItemType(i);
 
                 // Create item with description mapped to the user's configured path
+                const rawImage = typeof i.image === 'string' ? i.image.trim() : '';
+                const safeImage = rawImage && /^https?:\/\//i.test(rawImage) ? rawImage : undefined;
                 const itemData = {
                     name: i.name || 'Item',
                     type: safeType,
-                    img: i.image || null,
+                    ...(safeImage ? { img: safeImage } : {}),
                     folder: folderId || null
                 };
 

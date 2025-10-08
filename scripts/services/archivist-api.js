@@ -1,4 +1,5 @@
 import { CONFIG } from '../modules/config.js';
+import { toMarkdownIfHtml } from '../modules/importer-normalizer.js';
 
 /**
  * Service class for handling all Archivist API interactions
@@ -12,6 +13,66 @@ export class ArchivistApiService {
     this._requestCount = 0;
     /** @type {number} */
     this._batchStartTime = 0;
+  }
+
+  /**
+   * Sanitize a text field to Markdown (convert HTML if needed).
+   * @param {any} value
+   * @returns {string}
+   */
+  _sanitizeText(value) {
+    try { return toMarkdownIfHtml?.(value) ?? ''; } catch (_) { return String(value ?? ''); }
+  }
+
+  /**
+   * Remove a single leading image from Markdown or HTML at the top of description.
+   * Handles patterns like: \n![alt](url)\n, <img ...>, or wrapped in <p>.
+   * @param {string} text
+   * @returns {string}
+   */
+  _stripLeadingImage(text) {
+    const s = String(text || '');
+    if (!s) return '';
+    // Common patterns: Markdown image at start, possibly followed by blank line
+    const mdImg = /^(?:\s*)!\[[^\]]*\]\([^\)]+\)\s*(?:\n+)?/;
+    if (mdImg.test(s)) return s.replace(mdImg, '').trimStart();
+    // HTML <img> possibly wrapped in <p> at the very start
+    const htmlImgP = /^(?:\s*)<p[^>]*>\s*<img\b[^>]*>\s*<\/p>\s*/i;
+    if (htmlImgP.test(s)) return s.replace(htmlImgP, '').trimStart();
+    const htmlImg = /^(?:\s*)<img\b[^>]*>\s*/i;
+    if (htmlImg.test(s)) return s.replace(htmlImg, '').trimStart();
+    return s;
+  }
+
+  /**
+   * Normalize payload text fields to Markdown and optionally strip leading image.
+   * - Converts known text fields that can contain rich text (description, summary)
+   * - Optionally removes leading image for faction/location descriptions
+   * @param {object} payload
+   * @param {{ stripImageFromDescription?: boolean }} opts
+   * @returns {object}
+   */
+  _normalizePayload(payload, opts = {}) {
+    const p = payload ? { ...payload } : {};
+    if ('description' in p) {
+      p.description = this._sanitizeText(p.description);
+      if (opts.stripImageFromDescription) {
+        p.description = this._stripLeadingImage(p.description);
+      }
+    }
+    if ('summary' in p) {
+      p.summary = this._sanitizeText(p.summary);
+    }
+    if ('title' in p && typeof p.title === 'string') {
+      p.title = String(p.title);
+    }
+    if ('name' in p && typeof p.name === 'string') {
+      p.name = String(p.name);
+    }
+    if ('character_name' in p && typeof p.character_name === 'string') {
+      p.character_name = String(p.character_name);
+    }
+    return p;
   }
 
   /**
@@ -69,7 +130,11 @@ export class ArchivistApiService {
 
     while (attempt <= maxRetries) {
       try {
-        const response = await fetch(url, { ...options, headers });
+        const method = String(options?.method || 'GET').toUpperCase();
+        const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+        const fetchOptions = { ...options, headers, mode: 'cors', cache: 'no-store' };
+        if (isWrite) fetchOptions.keepalive = true;
+        const response = await fetch(url, fetchOptions);
 
         // Handle successful responses (non-429)
         if (response.status !== 429) {
@@ -129,12 +194,13 @@ export class ArchivistApiService {
    * @returns {object} Headers object
    */
   _createHeaders(apiKey, options = {}) {
+    const method = String(options?.method || '').toUpperCase();
     const h = {
-      'Accept': 'application/json',
-      'x-api-key': apiKey
+      'Accept': '*/*',
+      'x-api-key': apiKey,
+      'X-Requested-With': 'XMLHttpRequest'
     };
     // Only set Content-Type when we actually send a body (avoids preflight on simple GETs)
-    const method = String(options?.method || '').toUpperCase();
     const hasBody = !!options?.body || method === 'POST' || method === 'PUT' || method === 'PATCH';
     if (hasBody) h['Content-Type'] = 'application/json';
     return h;
@@ -211,9 +277,10 @@ export class ArchivistApiService {
    */
   async createCampaign(apiKey, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/campaigns`, {
         method: 'POST',
-        body: JSON.stringify({ title: payload.title, description: payload.description || '' })
+        body: JSON.stringify({ title: norm.title, description: norm.description || '' })
       });
       return { success: true, data };
     } catch (error) {
@@ -251,7 +318,8 @@ export class ArchivistApiService {
    */
   async syncCampaignTitle(apiKey, campaignId, titleData) {
     try {
-      const requestData = { title: titleData.title, description: titleData.description || '' };
+      const norm = this._normalizePayload(titleData);
+      const requestData = { title: norm.title, description: norm.description || '' };
       const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, {
         method: 'PATCH',
         body: JSON.stringify(requestData)
@@ -299,9 +367,10 @@ export class ArchivistApiService {
    */
   async createCharacter(apiKey, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters`, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
@@ -331,9 +400,10 @@ export class ArchivistApiService {
    */
   async updateCharacter(apiKey, characterId, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
@@ -367,9 +437,10 @@ export class ArchivistApiService {
 
   async createFaction(apiKey, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/factions`, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
@@ -393,14 +464,27 @@ export class ArchivistApiService {
 
   async updateFaction(apiKey, factionId, payload) {
     try {
+      const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
       const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to update faction:`, error);
       return { success: false, message: error.message || 'Failed to update faction' };
+    }
+  }
+
+  async deleteFaction(apiKey, factionId) {
+    try {
+      const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
+        method: 'DELETE'
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete faction:`, error);
+      return { success: false, message: error.message || 'Failed to delete faction' };
     }
   }
 
@@ -458,9 +542,10 @@ export class ArchivistApiService {
    */
   async updateSession(apiKey, sessionId, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
@@ -471,9 +556,10 @@ export class ArchivistApiService {
 
   async createLocation(apiKey, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/locations`, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
@@ -497,14 +583,27 @@ export class ArchivistApiService {
 
   async updateLocation(apiKey, locationId, payload) {
     try {
+      const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
       const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to update location:`, error);
       return { success: false, message: error.message || 'Failed to update location' };
+    }
+  }
+
+  async deleteLocation(apiKey, locationId) {
+    try {
+      const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
+        method: 'DELETE'
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete location:`, error);
+      return { success: false, message: error.message || 'Failed to delete location' };
     }
   }
 
@@ -536,9 +635,10 @@ export class ArchivistApiService {
    */
   async createItem(apiKey, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/items`, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
@@ -565,14 +665,27 @@ export class ArchivistApiService {
    */
   async updateItem(apiKey, itemId, payload) {
     try {
+      const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(norm)
       });
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to update item:`, error);
       return { success: false, message: error.message || 'Failed to update item' };
+    }
+  }
+
+  async deleteItem(apiKey, itemId) {
+    try {
+      const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
+        method: 'DELETE'
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete item:`, error);
+      return { success: false, message: error.message || 'Failed to delete item' };
     }
   }
 

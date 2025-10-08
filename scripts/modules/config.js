@@ -4,7 +4,7 @@
 export const CONFIG = {
   MODULE_ID: 'archivist-sync',
   MODULE_TITLE: 'Archivist Sync',
-  API_BASE_URL: 'https://archivist-api-production.up.railway.app/v1'
+  API_BASE_URL: 'https://api.myarchivist.ai/v1'
 };
 
 /**
@@ -82,6 +82,15 @@ export const SETTINGS = {
     config: false,
     type: Boolean,
     default: false
+  }
+  , REALTIME_SYNC_ENABLED: {
+    key: 'realtimeSyncEnabled',
+    name: 'ARCHIVIST_SYNC.Settings.RealtimeSync.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.RealtimeSync.Hint',
+    scope: 'world',
+    config: false,
+    type: Boolean,
+    default: true
   }
 };
 

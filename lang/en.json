@@ -31,9 +31,9 @@
       }
     },
     "chat": {
+      "copied": "Copied to clipboard",
       "title": "Archivist Chat",
       "placeholder": "Ask a question about your campaign...",
-      "send": "Send",
       "clear": "Clear Chat",
       "clearConfirm": "This will delete your local chat history for this world. Continue?",
       "streaming": "Streaming...",
@@ -66,7 +66,7 @@
       }
     },
     "tabs": {
-      "world": "World Selection",
+      "world": "Settings",
       "importer": "Importer",
       "characters": "Characters",
       "factions": "Factions",
@@ -95,6 +95,8 @@
       "npcs": "NPCs",
       "factions": "Factions",
       "locations": "Locations",
+      "items": "Items",
+      "recaps": "Recaps",
       "mappingOverride": "Mapping Override (JSON)",
       "importProgress": "Import Progress"
     },
@@ -104,7 +106,7 @@
     },
     "buttons": {
       "syncing": "Syncing...",
-      "syncWorlds": "Sync Worlds",
+      "syncWorlds": "Fetch Archivist Campaigns",
       "saveSelection": "Save Selection",
       "syncTitle": "Sync Title to Archivist",
       "syncFromFoundry": "→ Sync to Archivist",
@@ -117,7 +119,8 @@
       "runImport": "Run Import",
       "createWorld": "Create World",
       "loadMapping": "Load",
-      "saveMapping": "Save"
+      "saveMapping": "Save",
+      "save": "Save"
     },
     "options": {
       "selectWorld": "-- Select a World --"
@@ -199,8 +202,8 @@
         "keyValid": "Key is valid!"
       },
       "step3": {
-        "title": "Select Your Campaign World",
-        "description": "Now let's connect to your Archivist campaign world. Click 'Sync Worlds' to fetch your available campaigns.",
+        "title": "Select Your Archivist Campaign",
+        "description": "Now let's connect to your Archivist campaign. Click 'Fetch Archivist Campaigns' to fetch your available campaigns.",
         "worldSelected": "Perfect! Your world is selected and ready."
       },
       "step4": {
@@ -219,8 +222,8 @@
         "saveAndContinue": "Save & Continue"
       },
       "select": {
-        "title": "Select Documents to Sync",
-        "description": "Choose existing Foundry documents to export or link. You can skip this step if you're only importing.",
+        "title": "Select Foundry Documents to Sync",
+        "description": "Choose existing Foundry documents to export or link. You can skip this step if you're only importing to Foundry from Archivist.",
         "placeholder": "Selection UI coming next: PCs, NPCs, Items, Locations, Factions with matching suggestions."
       },
       "summary": {
@@ -228,6 +231,12 @@
         "description": "We will create and link journal entries in the Archivist directory and perform the selected operations.",
         "placeholder": "Summary UI coming next with counts and details.",
         "beginSync": "Begin Sync"
+      }
+    },
+    "settings": {
+      "realtimeSync": {
+        "name": "Real‑Time Sync (auto‑update Archivist)",
+        "hint": "When enabled, changes you make in Foundry (create, edit, or delete Actors, Items, and designated Faction/Location journal pages) are immediately mirrored to Archivist. Recaps are read‑only: creating a Recaps page will not create a Game Session, and deleting a Recaps page will not delete a Game Session in Archivist."
       }
     }
   }
