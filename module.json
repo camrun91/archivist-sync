@@ -4,8 +4,8 @@
   "description": "A simple Foundry VTT module for fetching world data from an API endpoint using an API key.",
   "authors": [
     {
-      "name": "Your Name",
-      "email": "your.email@example.com"
+      "name": "Cameron Llewellyn",
+      "email": "cameron.b.llewellyn@gmail.com"
     }
   ],
   "version": "1.0.0",
@@ -57,11 +57,11 @@
       "path": "lang/en.json"
     }
   ],
-  "url": "https://github.com/yourusername/archivist-sync",
-  "manifest": "https://github.com/yourusername/archivist-sync/releases/latest/download/module.json",
-  "download": "https://github.com/yourusername/archivist-sync/archive/refs/heads/main.zip",
+  "url": "https://github.com/camrun91/archivist-sync",
+  "manifest": "https://github.com/camrun91/archivist-sync/releases/latest/download/module.json",
+  "download": "https://github.com/camrun91/archivist-sync/archive/refs/heads/main.zip",
   "license": "MIT",
   "readme": "README.md",
-  "bugs": "https://github.com/yourusername/archivist-sync/issues",
+  "bugs": "https://github.com/camrun91/archivist-sync/issues",
   "changelog": "CHANGELOG.md"
 }
