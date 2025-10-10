@@ -1,20 +1,25 @@
-import { CONFIG } from '../modules/config.js';
-import { settingsManager } from '../modules/settings-manager.js';
-import { archivistApi } from '../services/archivist-api.js';
-import { Utils } from '../modules/utils.js';
-import { toMarkdownIfHtml } from '../modules/importer-normalizer.js';
+import { CONFIG } from "../modules/config.js";
+import { settingsManager } from "../modules/settings-manager.js";
+import { archivistApi } from "../services/archivist-api.js";
+import { Utils } from "../modules/utils.js";
+import { toMarkdownIfHtml } from "../modules/importer-normalizer.js";
 // Ask Chat removed from Sync Options dialog
-import { WorldSetupDialog } from './world-setup-dialog.js';
-import { writeBestBiography, writeBestJournalDescription } from '../modules/field-mapper.js';
-import { importerService } from '../services/importer-service.js';
-import { getActorCandidates } from '../modules/actor-filters.js';
+import { WorldSetupDialog } from "./world-setup-dialog.js";
+import {
+  writeBestBiography,
+  writeBestJournalDescription,
+} from "../modules/field-mapper.js";
+import { importerService } from "../services/importer-service.js";
+import { getActorCandidates } from "../modules/actor-filters.js";
 
 /**
  * Sync Options Dialog - Tabbed interface for world synchronization
  * Provides three main functions: World Selection, Title Sync, Character Mapping
  * Uses Foundry VTT Application v2 API with HandlebarsApplicationMixin
  */
-export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplicationMixin(foundry.applications.api.ApplicationV2) {
+export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplicationMixin(
+  foundry.applications.api.ApplicationV2
+) {
   constructor() {
     super();
     this.worlds = [];
@@ -24,15 +29,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     this.selectedWorldData = null; // Store full data for selected world
     this.isLoading = false;
     this.syncInProgress = false;
-    this.activeTab = 'world';
-    this.importerSampleJson = '';
+    this.activeTab = "world";
+    this.importerSampleJson = "";
     this.importerPreview = [];
     this.importerGroups = { Actor: [], Journal: [], Scene: [], Item: [] };
     this.importerOptions = {}; // by uuid → field options
     this.thresholdA = 0.6;
     this.thresholdB = 0.3;
-    this.importerViewMode = 'all'; // 'sample' | 'all'
-    this.importerActiveKind = 'All'; // 'All' | 'Actor' | 'Journal' | 'Scene' | 'Item'
+    this.importerViewMode = "all"; // 'sample' | 'all'
+    this.importerActiveKind = "All"; // 'All' | 'Actor' | 'Journal' | 'Scene' | 'Item'
 
     // Progress tracking for sync operations
     this.syncProgress = {
@@ -40,9 +45,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       processed: 0,
       succeeded: 0,
       failed: 0,
-      currentType: '',
-      currentEntity: '',
-      phase: 'idle' // 'idle', 'processing', 'retrying', 'complete'
+      currentType: "",
+      currentEntity: "",
+      phase: "idle", // 'idle', 'processing', 'retrying', 'complete'
     };
     // Unified list rows per tab
     this.charactersRows = [];
@@ -51,7 +56,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     this.itemsRows = [];
     this.recapsRows = [];
     // Tab loading guards
-    this._tabLoaded = { characters: false, factions: false, locations: false, items: false, recaps: false };
+    this._tabLoaded = {
+      characters: false,
+      factions: false,
+      locations: false,
+      items: false,
+      recaps: false,
+    };
     this._loadingTabs = new Set();
     this._isClosed = false;
   }
@@ -60,7 +71,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    * Read current import config safely
    */
   _getImportConfig() {
-    try { return settingsManager.getImportConfig?.() || {}; } catch (_) { return {}; }
+    try {
+      return settingsManager.getImportConfig?.() || {};
+    } catch (_) {
+      return {};
+    }
   }
 
   /**
@@ -69,11 +84,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    * @param {('Actor'|'Item'|'JournalEntry')} type
    */
   _getFolderIdByName(name, type) {
-    const n = String(name || '').trim();
+    const n = String(name || "").trim();
     if (!n) return null;
     try {
-      const folders = (game.folders?.contents || []).filter(f => f.type === type);
-      const found = folders.find(f => String(f.name || '').toLowerCase() === n.toLowerCase());
+      const folders = (game.folders?.contents || []).filter(
+        (f) => f.type === type
+      );
+      const found = folders.find(
+        (f) => String(f.name || "").toLowerCase() === n.toLowerCase()
+      );
       return found?.id || null;
     } catch (_) {
       return null;
@@ -86,9 +105,12 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   _getPreferredActorFolderId(kind) {
     const cfg = this._getImportConfig();
-    const arr = cfg?.includeRules?.filters?.actors?.includeFolders?.[kind === 'pc' ? 'pcs' : 'npcs'];
-    const preferredName = Array.isArray(arr) && arr.length ? arr[0] : '';
-    return this._getFolderIdByName(preferredName, 'Actor');
+    const arr =
+      cfg?.includeRules?.filters?.actors?.includeFolders?.[
+        kind === "pc" ? "pcs" : "npcs"
+      ];
+    const preferredName = Array.isArray(arr) && arr.length ? arr[0] : "";
+    return this._getFolderIdByName(preferredName, "Actor");
   }
 
   /**
@@ -97,8 +119,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   _getPreferredItemFolderId() {
     const cfg = this._getImportConfig();
     const arr = cfg?.includeRules?.filters?.items?.includeWorldItemFolders;
-    const preferredName = Array.isArray(arr) && arr.length ? arr[0] : '';
-    return this._getFolderIdByName(preferredName, 'Item');
+    const preferredName = Array.isArray(arr) && arr.length ? arr[0] : "";
+    return this._getFolderIdByName(preferredName, "Item");
   }
 
   /**
@@ -110,16 +132,30 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const cfg = this._getImportConfig();
     const m = cfg?.itemMappings || {};
     const get = (p, fallback) => {
-      try { return p ? foundry.utils.getProperty(item, p) : fallback; } catch (_) { return fallback; }
+      try {
+        return p ? foundry.utils.getProperty(item, p) : fallback;
+      } catch (_) {
+        return fallback;
+      }
     };
-    const name = String(get(m.namePath || 'name', item?.name || 'Item') || 'Item');
-    const imgPath = m.imagePath || 'img';
-    const rawImg = String(get(imgPath, item?.img || '') || '').trim();
-    const image = rawImg && rawImg.startsWith('https://') ? rawImg : undefined;
-    const descPath = m.descriptionPath || 'system.description.value';
-    const rawDesc = get(descPath, item?.system?.description?.value || item?.system?.description || '');
-    const desc = typeof rawDesc === 'string' ? rawDesc : '';
-    return { name, description: toMarkdownIfHtml(desc), ...(image ? { image } : {}), campaign_id: worldId };
+    const name = String(
+      get(m.namePath || "name", item?.name || "Item") || "Item"
+    );
+    const imgPath = m.imagePath || "img";
+    const rawImg = String(get(imgPath, item?.img || "") || "").trim();
+    const image = rawImg && rawImg.startsWith("https://") ? rawImg : undefined;
+    const descPath = m.descriptionPath || "system.description.value";
+    const rawDesc = get(
+      descPath,
+      item?.system?.description?.value || item?.system?.description || ""
+    );
+    const desc = typeof rawDesc === "string" ? rawDesc : "";
+    return {
+      name,
+      description: toMarkdownIfHtml(desc),
+      ...(image ? { image } : {}),
+      campaign_id: worldId,
+    };
   }
 
   /**
@@ -130,13 +166,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _writeItemFromApi(item, source) {
     const cfg = this._getImportConfig();
     const m = cfg?.itemMappings || {};
-    const descriptionHtml = Utils.markdownToStoredHtml(source?.description || '');
+    const descriptionHtml = Utils.markdownToStoredHtml(
+      source?.description || ""
+    );
     const updates = {};
     // name and img are always top-level on Item
     if (source?.name) updates.name = String(source.name);
     if (source?.image) updates.img = String(source.image);
     // description path is configurable
-    const descPath = m.descriptionPath || 'system.description.value';
+    const descPath = m.descriptionPath || "system.description.value";
     if (descPath) foundry.utils.setProperty(updates, descPath, descriptionHtml);
     await item.update(updates);
   }
@@ -146,18 +184,18 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    * @returns {Object} Application configuration
    */
   static DEFAULT_OPTIONS = {
-    id: 'archivist-sync-options',
-    tag: 'dialog',
+    id: "archivist-sync-options",
+    tag: "dialog",
     window: {
-      title: 'ARCHIVIST_SYNC.dialog.title',
-      icon: 'fas fa-sync-alt',
-      resizable: true
+      title: "ARCHIVIST_SYNC.dialog.title",
+      icon: "fas fa-sync-alt",
+      resizable: true,
     },
     position: {
       width: 600,
-      height: 850
+      height: 850,
     },
-    classes: ['archivist-sync-dialog'],
+    classes: ["archivist-sync-dialog"],
     actions: {
       syncWorlds: SyncOptionsDialog.prototype._onSyncWorlds,
       saveWorldSelection: SyncOptionsDialog.prototype._onSaveWorldSelection,
@@ -178,8 +216,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       loadConfig: SyncOptionsDialog.prototype._onLoadConfig,
       downloadSampleConfig: SyncOptionsDialog.prototype._onDownloadSampleConfig,
       pullItems: SyncOptionsDialog.prototype._onPullItems,
-      pushItems: SyncOptionsDialog.prototype._onPushItems
-    }
+      pushItems: SyncOptionsDialog.prototype._onPushItems,
+    },
   };
 
   /**
@@ -187,8 +225,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   static PARTS = {
     window: {
-      template: 'modules/archivist-sync/templates/sync-options-dialog.hbs'
-    }
+      template: "modules/archivist-sync/templates/sync-options-dialog.hbs",
+    },
   };
 
   /**
@@ -197,7 +235,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   async _prepareContext() {
     // Ensure the world initialization flag exists before gating UI
-    try { await settingsManager.ensureWorldInitializationFlag(); } catch (_) { /* no-op */ }
+    try {
+      await settingsManager.ensureWorldInitializationFlag();
+    } catch (_) {
+      /* no-op */
+    }
     const apiKey = settingsManager.getApiKey();
     const selectedWorldId = settingsManager.getSelectedWorldId();
     const selectedWorldName = settingsManager.getSelectedWorldName();
@@ -211,7 +253,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       isWorldInitialized,
       // Show setup mode if world is not initialized
       showSetupMode: !isWorldInitialized,
-      apiKey: apiKey ? '***' + apiKey.slice(-4) : '',
+      apiKey: apiKey ? "***" + apiKey.slice(-4) : "",
       worlds: this.worlds,
       selectedWorldId,
       selectedWorldName,
@@ -225,33 +267,43 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       syncInProgress: this.syncInProgress,
       syncProgress: {
         ...this.syncProgress,
-        progressPercentage: this.syncProgress.total > 0 ? Math.round((this.syncProgress.processed / this.syncProgress.total) * 100) : 0
+        progressPercentage:
+          this.syncProgress.total > 0
+            ? Math.round(
+                (this.syncProgress.processed / this.syncProgress.total) * 100
+              )
+            : 0,
       },
       foundryWorldTitle: game.world.title,
-      foundryWorldDescription: game.world.description || '',
-      importerSampleJson: this.importerSampleJson || '',
-      importerGroups: this.importerGroups || { Actor: [], Journal: [], Scene: [], Item: [] },
-      importerOptions: this.importerOptions || {}
-      , thresholdA: this.thresholdA
-      , thresholdB: this.thresholdB
-      , mappingOverrideJson: settingsManager.getMappingOverride() || ''
+      foundryWorldDescription: game.world.description || "",
+      importerSampleJson: this.importerSampleJson || "",
+      importerGroups: this.importerGroups || {
+        Actor: [],
+        Journal: [],
+        Scene: [],
+        Item: [],
+      },
+      importerOptions: this.importerOptions || {},
+      thresholdA: this.thresholdA,
+      thresholdB: this.thresholdB,
+      mappingOverrideJson: settingsManager.getMappingOverride() || "",
       // New wizard data
-      , actorStringProperties: this._getActorStringProperties()
-      , itemStringProperties: this._getItemStringProperties()
-      , actorFolders: this._getAvailableFolders('Actor')
-      , journalFolders: this._getAvailableFolders('JournalEntry')
-      , itemFolders: this._getAvailableFolders('Item')
-      , charactersRows: this.charactersRows || []
-      , factionsRows: this.factionsRows || []
-      , locationsRows: this.locationsRows || []
-      , itemsRows: this.itemsRows || []
-      , recapsRows: this.recapsRows || []
-      , isLoadingCharacters: this._loadingTabs?.has('characters') || false
-      , isLoadingFactions: this._loadingTabs?.has('factions') || false
-      , isLoadingLocations: this._loadingTabs?.has('locations') || false
-      , isLoadingItems: this._loadingTabs?.has('items') || false
-      , isLoadingRecaps: this._loadingTabs?.has('recaps') || false
-      , realtimeSyncEnabled: settingsManager.isRealtimeSyncEnabled?.() || false
+      actorStringProperties: this._getActorStringProperties(),
+      itemStringProperties: this._getItemStringProperties(),
+      actorFolders: this._getAvailableFolders("Actor"),
+      journalFolders: this._getAvailableFolders("JournalEntry"),
+      itemFolders: this._getAvailableFolders("Item"),
+      charactersRows: this.charactersRows || [],
+      factionsRows: this.factionsRows || [],
+      locationsRows: this.locationsRows || [],
+      itemsRows: this.itemsRows || [],
+      recapsRows: this.recapsRows || [],
+      isLoadingCharacters: this._loadingTabs?.has("characters") || false,
+      isLoadingFactions: this._loadingTabs?.has("factions") || false,
+      isLoadingLocations: this._loadingTabs?.has("locations") || false,
+      isLoadingItems: this._loadingTabs?.has("items") || false,
+      isLoadingRecaps: this._loadingTabs?.has("recaps") || false,
+      realtimeSyncEnabled: settingsManager.isRealtimeSyncEnabled?.() || false,
     };
   }
 
@@ -261,7 +313,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   updateSyncProgress(updates) {
     Object.assign(this.syncProgress, updates);
     if (!this._isClosed) {
-      try { this.render(); } catch (_) { /* ignore after close */ }
+      try {
+        this.render();
+      } catch (_) {
+        /* ignore after close */
+      }
     }
   }
 
@@ -274,45 +330,54 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       processed: 0,
       succeeded: 0,
       failed: 0,
-      currentType: '',
-      currentEntity: '',
-      phase: 'idle'
+      currentType: "",
+      currentEntity: "",
+      phase: "idle",
     };
   }
 
   _normalizeFieldValue(value) {
     try {
-      if (value == null) return '';
-      if (typeof value === 'string') return value;
-      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      if (value == null) return "";
+      if (typeof value === "string") return value;
+      if (typeof value === "number" || typeof value === "boolean")
+        return String(value);
       if (Array.isArray(value)) {
         const joined = value
-          .map(v => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') ? String(v) : '')
+          .map((v) =>
+            typeof v === "string" ||
+            typeof v === "number" ||
+            typeof v === "boolean"
+              ? String(v)
+              : ""
+          )
           .filter(Boolean)
-          .join(', ');
+          .join(", ");
         if (joined) return joined;
       }
-      if (typeof value === 'object') {
+      if (typeof value === "object") {
         // Prefer common content-like fields
-        if (typeof value.value === 'string' && value.value.trim().length) return value.value;
-        if (typeof value.public === 'string' && value.public.trim().length) return value.public;
+        if (typeof value.value === "string" && value.value.trim().length)
+          return value.value;
+        if (typeof value.public === "string" && value.public.trim().length)
+          return value.public;
         // Depth-first search up to 3 levels for first string leaf
         const stack = [{ v: value, d: 0 }];
         while (stack.length) {
           const { v, d } = stack.pop();
           if (d > 3 || v == null) continue;
-          if (typeof v === 'string' && v.trim().length) return v;
-          if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+          if (typeof v === "string" && v.trim().length) return v;
+          if (typeof v === "number" || typeof v === "boolean") return String(v);
           if (Array.isArray(v)) {
             for (const el of v) stack.push({ v: el, d: d + 1 });
-          } else if (typeof v === 'object') {
+          } else if (typeof v === "object") {
             for (const k of Object.keys(v)) stack.push({ v: v[k], d: d + 1 });
           }
         }
       }
-      return '';
+      return "";
     } catch (_) {
-      return '';
+      return "";
     }
   }
 
@@ -325,17 +390,21 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const allProperties = new Map();
 
     // Helper to discover properties recursively
-    const discoverProps = (obj, basePath = '', depth = 0) => {
-      if (!obj || depth > 6 || typeof obj !== 'object') return [];
+    const discoverProps = (obj, basePath = "", depth = 0) => {
+      if (!obj || depth > 6 || typeof obj !== "object") return [];
       const results = [];
       for (const [key, value] of Object.entries(obj)) {
         const path = basePath ? `${basePath}.${key}` : key;
-        if (typeof value === 'string' && value.trim().length > 0) {
+        if (typeof value === "string" && value.trim().length > 0) {
           results.push({
             path,
-            preview: value.length > 50 ? value.substring(0, 47) + '...' : value
+            preview: value.length > 50 ? value.substring(0, 47) + "..." : value,
           });
-        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        } else if (
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
           results.push(...discoverProps(value, path, depth + 1));
         }
       }
@@ -343,61 +412,71 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     };
 
     // 1. Sample existing actors
-    const existingActors = (game.actors?.contents || []).filter(a =>
-      a.type === 'character' || a.type === 'npc'
+    const existingActors = (game.actors?.contents || []).filter(
+      (a) => a.type === "character" || a.type === "npc"
     );
     for (const actor of existingActors.slice(0, 2)) {
       try {
         const props = discoverProps(actor.toObject());
-        props.forEach(p => allProperties.set(p.path, p));
-      } catch (e) { /* ignore */ }
+        props.forEach((p) => allProperties.set(p.path, p));
+      } catch (e) {
+        /* ignore */
+      }
     }
 
     // 2. Try system data model templates
-    const actorTypes = ['character', 'npc'];
+    const actorTypes = ["character", "npc"];
     for (const type of actorTypes) {
       try {
         if (game.system?.model?.Actor?.[type]) {
           const template = game.system.model.Actor[type];
           const props = discoverProps(template);
-          props.forEach(p => {
-            const systemPath = p.path.startsWith('system.') ? p.path : `system.${p.path}`;
+          props.forEach((p) => {
+            const systemPath = p.path.startsWith("system.")
+              ? p.path
+              : `system.${p.path}`;
             if (!allProperties.has(systemPath)) {
-              allProperties.set(systemPath, { path: systemPath, preview: `${p.preview} (template)` });
+              allProperties.set(systemPath, {
+                path: systemPath,
+                preview: `${p.preview} (template)`,
+              });
             }
           });
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        /* ignore */
+      }
     }
 
     // 3. Add known common paths as fallback
     const knownPaths = [
-      { path: 'name', preview: 'Actor name' },
-      { path: 'img', preview: 'Actor image' },
-      { path: 'system.details.biography.value', preview: 'Full biography' },
-      { path: 'system.details.biography.public', preview: 'Public biography' },
-      { path: 'system.details.trait', preview: 'Personality traits' },
-      { path: 'system.details.ideal', preview: 'Ideals' },
-      { path: 'system.details.bond', preview: 'Bonds' },
-      { path: 'system.details.flaw', preview: 'Flaws' },
-      { path: 'system.details.appearance', preview: 'Physical appearance' },
-      { path: 'system.description.value', preview: 'Description text' }
+      { path: "name", preview: "Actor name" },
+      { path: "img", preview: "Actor image" },
+      { path: "system.details.biography.value", preview: "Full biography" },
+      { path: "system.details.biography.public", preview: "Public biography" },
+      { path: "system.details.trait", preview: "Personality traits" },
+      { path: "system.details.ideal", preview: "Ideals" },
+      { path: "system.details.bond", preview: "Bonds" },
+      { path: "system.details.flaw", preview: "Flaws" },
+      { path: "system.details.appearance", preview: "Physical appearance" },
+      { path: "system.description.value", preview: "Description text" },
     ];
-    knownPaths.forEach(p => {
+    knownPaths.forEach((p) => {
       if (!allProperties.has(p.path)) allProperties.set(p.path, p);
     });
 
     // 4. Sort with priority
     const priorityFields = [
-      'name', 'img',
-      'system.details.biography.value',
-      'system.details.biography.public',
-      'system.details.trait',
-      'system.details.ideal',
-      'system.details.bond',
-      'system.details.flaw',
-      'system.details.appearance',
-      'system.description.value'
+      "name",
+      "img",
+      "system.details.biography.value",
+      "system.details.biography.public",
+      "system.details.trait",
+      "system.details.ideal",
+      "system.details.bond",
+      "system.details.flaw",
+      "system.details.appearance",
+      "system.description.value",
     ];
 
     return Array.from(allProperties.values()).sort((a, b) => {
@@ -406,7 +485,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
       if (aPriority !== -1) return -1;
       if (bPriority !== -1) return 1;
-      const depthDiff = a.path.split('.').length - b.path.split('.').length;
+      const depthDiff = a.path.split(".").length - b.path.split(".").length;
       return depthDiff !== 0 ? depthDiff : a.path.localeCompare(b.path);
     });
   }
@@ -420,17 +499,21 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const allProperties = new Map();
 
     // Helper to discover properties recursively
-    const discoverProps = (obj, basePath = '', depth = 0) => {
-      if (!obj || depth > 6 || typeof obj !== 'object') return [];
+    const discoverProps = (obj, basePath = "", depth = 0) => {
+      if (!obj || depth > 6 || typeof obj !== "object") return [];
       const results = [];
       for (const [key, value] of Object.entries(obj)) {
         const path = basePath ? `${basePath}.${key}` : key;
-        if (typeof value === 'string' && value.trim().length > 0) {
+        if (typeof value === "string" && value.trim().length > 0) {
           results.push({
             path,
-            preview: value.length > 50 ? value.substring(0, 47) + '...' : value
+            preview: value.length > 50 ? value.substring(0, 47) + "..." : value,
           });
-        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+        } else if (
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value)
+        ) {
           results.push(...discoverProps(value, path, depth + 1));
         }
       }
@@ -442,49 +525,69 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     for (const item of existingItems.slice(0, 2)) {
       try {
         const props = discoverProps(item.toObject());
-        props.forEach(p => allProperties.set(p.path, p));
-      } catch (e) { /* ignore */ }
+        props.forEach((p) => allProperties.set(p.path, p));
+      } catch (e) {
+        /* ignore */
+      }
     }
 
     // 2. Try system data model templates
-    const itemTypes = ['weapon', 'equipment', 'consumable', 'spell', 'feat', 'loot'];
+    const itemTypes = [
+      "weapon",
+      "equipment",
+      "consumable",
+      "spell",
+      "feat",
+      "loot",
+    ];
     for (const type of itemTypes.slice(0, 3)) {
       try {
         if (game.system?.model?.Item?.[type]) {
           const template = game.system.model.Item[type];
           const props = discoverProps(template);
-          props.forEach(p => {
-            const systemPath = p.path.startsWith('system.') ? p.path : `system.${p.path}`;
+          props.forEach((p) => {
+            const systemPath = p.path.startsWith("system.")
+              ? p.path
+              : `system.${p.path}`;
             if (!allProperties.has(systemPath)) {
-              allProperties.set(systemPath, { path: systemPath, preview: `${p.preview} (template)` });
+              allProperties.set(systemPath, {
+                path: systemPath,
+                preview: `${p.preview} (template)`,
+              });
             }
           });
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        /* ignore */
+      }
     }
 
     // 3. Add known common paths as fallback
     const knownPaths = [
-      { path: 'name', preview: 'Item name' },
-      { path: 'img', preview: 'Item image' },
-      { path: 'system.description.value', preview: 'Item description' },
-      { path: 'system.description.short', preview: 'Short description' },
-      { path: 'system.description.chat', preview: 'Chat description' },
-      { path: 'system.source', preview: 'Item source' },
-      { path: 'system.requirements', preview: 'Requirements' },
-      { path: 'system.chatFlavor', preview: 'Chat flavor text' },
-      { path: 'system.unidentified.description', preview: 'Unidentified description' }
+      { path: "name", preview: "Item name" },
+      { path: "img", preview: "Item image" },
+      { path: "system.description.value", preview: "Item description" },
+      { path: "system.description.short", preview: "Short description" },
+      { path: "system.description.chat", preview: "Chat description" },
+      { path: "system.source", preview: "Item source" },
+      { path: "system.requirements", preview: "Requirements" },
+      { path: "system.chatFlavor", preview: "Chat flavor text" },
+      {
+        path: "system.unidentified.description",
+        preview: "Unidentified description",
+      },
     ];
-    knownPaths.forEach(p => {
+    knownPaths.forEach((p) => {
       if (!allProperties.has(p.path)) allProperties.set(p.path, p);
     });
 
     // 4. Sort with priority
     const priorityFields = [
-      'name', 'img',
-      'system.description.value',
-      'system.description.short',
-      'system.description.chat'
+      "name",
+      "img",
+      "system.description.value",
+      "system.description.short",
+      "system.description.chat",
     ];
 
     return Array.from(allProperties.values()).sort((a, b) => {
@@ -493,7 +596,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       if (aPriority !== -1 && bPriority !== -1) return aPriority - bPriority;
       if (aPriority !== -1) return -1;
       if (bPriority !== -1) return 1;
-      const depthDiff = a.path.split('.').length - b.path.split('.').length;
+      const depthDiff = a.path.split(".").length - b.path.split(".").length;
       return depthDiff !== 0 ? depthDiff : a.path.localeCompare(b.path);
     });
   }
@@ -506,11 +609,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   _getAvailableFolders(type) {
     const folders = game.folders?.contents || [];
     return folders
-      .filter(folder => folder.type === type)
-      .map(folder => ({
+      .filter((folder) => folder.type === type)
+      .map((folder) => ({
         id: folder.id,
         name: folder.name,
-        depth: folder.depth || 0
+        depth: folder.depth || 0,
       }))
       .sort((a, b) => {
         // Sort by depth first, then by name
@@ -518,9 +621,6 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         return a.name.localeCompare(b.name);
       });
   }
-
-
-
 
   /**
    * Actions performed after initial render
@@ -539,59 +639,102 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const invalidateAndMaybeReload = (tabName) => {
         try {
           // Invalidate cache for the tab
-          if (this._tabLoaded && tabName in this._tabLoaded) this._tabLoaded[tabName] = false;
+          if (this._tabLoaded && tabName in this._tabLoaded)
+            this._tabLoaded[tabName] = false;
           // If the tab is currently active, reload immediately
-          if (this.activeTab === tabName) this._loadRowsForTab(tabName)?.catch?.(() => { });
-        } catch (_) { /* no-op */ }
+          if (this.activeTab === tabName)
+            this._loadRowsForTab(tabName)?.catch?.(() => {});
+        } catch (_) {
+          /* no-op */
+        }
       };
       // Items
-      Hooks.on('createItem', () => invalidateAndMaybeReload('items'));
-      Hooks.on('updateItem', () => invalidateAndMaybeReload('items'));
-      Hooks.on('deleteItem', () => invalidateAndMaybeReload('items'));
+      Hooks.on("createItem", () => invalidateAndMaybeReload("items"));
+      Hooks.on("updateItem", () => invalidateAndMaybeReload("items"));
+      Hooks.on("deleteItem", () => invalidateAndMaybeReload("items"));
       // Actors (characters tab)
-      Hooks.on('createActor', () => invalidateAndMaybeReload('characters'));
-      Hooks.on('updateActor', () => invalidateAndMaybeReload('characters'));
-      Hooks.on('deleteActor', () => invalidateAndMaybeReload('characters'));
+      Hooks.on("createActor", () => invalidateAndMaybeReload("characters"));
+      Hooks.on("updateActor", () => invalidateAndMaybeReload("characters"));
+      Hooks.on("deleteActor", () => invalidateAndMaybeReload("characters"));
       // Journals (factions/locations/recaps live in journal containers/pages)
-      Hooks.on('createJournalEntry', () => { invalidateAndMaybeReload('factions'); invalidateAndMaybeReload('locations'); invalidateAndMaybeReload('recaps'); });
-      Hooks.on('updateJournalEntry', () => { invalidateAndMaybeReload('factions'); invalidateAndMaybeReload('locations'); invalidateAndMaybeReload('recaps'); });
-      Hooks.on('deleteJournalEntry', () => { invalidateAndMaybeReload('factions'); invalidateAndMaybeReload('locations'); invalidateAndMaybeReload('recaps'); });
-      Hooks.on('createJournalEntryPage', () => { invalidateAndMaybeReload('factions'); invalidateAndMaybeReload('locations'); invalidateAndMaybeReload('recaps'); });
-      Hooks.on('updateJournalEntryPage', () => { invalidateAndMaybeReload('factions'); invalidateAndMaybeReload('locations'); invalidateAndMaybeReload('recaps'); });
-      Hooks.on('deleteJournalEntryPage', () => { invalidateAndMaybeReload('factions'); invalidateAndMaybeReload('locations'); invalidateAndMaybeReload('recaps'); });
+      Hooks.on("createJournalEntry", () => {
+        invalidateAndMaybeReload("factions");
+        invalidateAndMaybeReload("locations");
+        invalidateAndMaybeReload("recaps");
+      });
+      Hooks.on("updateJournalEntry", () => {
+        invalidateAndMaybeReload("factions");
+        invalidateAndMaybeReload("locations");
+        invalidateAndMaybeReload("recaps");
+      });
+      Hooks.on("deleteJournalEntry", () => {
+        invalidateAndMaybeReload("factions");
+        invalidateAndMaybeReload("locations");
+        invalidateAndMaybeReload("recaps");
+      });
+      Hooks.on("createJournalEntryPage", () => {
+        invalidateAndMaybeReload("factions");
+        invalidateAndMaybeReload("locations");
+        invalidateAndMaybeReload("recaps");
+      });
+      Hooks.on("updateJournalEntryPage", () => {
+        invalidateAndMaybeReload("factions");
+        invalidateAndMaybeReload("locations");
+        invalidateAndMaybeReload("recaps");
+      });
+      Hooks.on("deleteJournalEntryPage", () => {
+        invalidateAndMaybeReload("factions");
+        invalidateAndMaybeReload("locations");
+        invalidateAndMaybeReload("recaps");
+      });
     }
 
     // Load actors for character mapping
-    console.log('Loading actors for character mapping...');
-    console.log('ACTORS', game.actors)
-    this.actors = game.actors.filter(actor =>
-      actor.type === 'character' || actor.type === 'npc'
-    ).map(actor => ({
-      id: actor.id,
-      name: actor.name,
-      type: actor.type,
-      img: actor.img || 'icons/svg/mystery-man.svg'
-    }));
+    console.log("Loading actors for character mapping...");
+    console.log("ACTORS", game.actors);
+    this.actors = game.actors
+      .filter((actor) => actor.type === "character" || actor.type === "npc")
+      .map((actor) => ({
+        id: actor.id,
+        name: actor.name,
+        type: actor.type,
+        img: actor.img || "icons/svg/mystery-man.svg",
+      }));
 
     // Separate actors by type for better organization
-    this.playerCharacters = this.actors.filter(actor => actor.type === 'character');
-    this.npcs = this.actors.filter(actor => actor.type === 'npc');
+    this.playerCharacters = this.actors.filter(
+      (actor) => actor.type === "character"
+    );
+    this.npcs = this.actors.filter((actor) => actor.type === "npc");
 
     // Load factions and locations from journals (include images for UI)
     const factionJournals = Utils.getFactionJournals();
     const locationJournals = Utils.getLocationJournals();
-    this.factionJournals = factionJournals.map(j => ({ id: j.id, name: j.name, img: j.img || 'icons/svg/book.svg', archivistId: j.getFlag(CONFIG.MODULE_ID, 'archivistId') || '' }));
-    this.locationJournals = locationJournals.map(j => ({ id: j.id, name: j.name, img: j.img || 'icons/svg/house.svg', archivistId: j.getFlag(CONFIG.MODULE_ID, 'archivistId') || '' }));
+    this.factionJournals = factionJournals.map((j) => ({
+      id: j.id,
+      name: j.name,
+      img: j.img || "icons/svg/book.svg",
+      archivistId: j.getFlag(CONFIG.MODULE_ID, "archivistId") || "",
+    }));
+    this.locationJournals = locationJournals.map((j) => ({
+      id: j.id,
+      name: j.name,
+      img: j.img || "icons/svg/house.svg",
+      archivistId: j.getFlag(CONFIG.MODULE_ID, "archivistId") || "",
+    }));
 
     // Load selected world data if a world is already selected
     const selectedWorldId = settingsManager.getSelectedWorldId();
-    console.log('Dialog render - selectedWorldId:', selectedWorldId);
-    console.log('Dialog render - existing selectedWorldData:', this.selectedWorldData);
+    console.log("Dialog render - selectedWorldId:", selectedWorldId);
+    console.log(
+      "Dialog render - existing selectedWorldData:",
+      this.selectedWorldData
+    );
 
     if (selectedWorldId && !this.selectedWorldData) {
-      console.log('Loading world data on dialog render...');
+      console.log("Loading world data on dialog render...");
       this._loadSelectedWorldData(selectedWorldId).then(() => {
-        console.log('World data loading completed, re-rendering...');
+        console.log("World data loading completed, re-rendering...");
         // Re-render to show the loaded data
         if (this.selectedWorldData) {
           this.render(false);
@@ -600,180 +743,284 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     }
 
     // Attach event listeners directly to elements
-    html.querySelector('.sync-worlds-btn')?.addEventListener('click', this._onSyncWorlds.bind(this));
-    html.querySelector('#world-select')?.addEventListener('change', this._onWorldSelectChange.bind(this));
-    html.querySelector('.save-selection-btn')?.addEventListener('click', this._onSaveWorldSelection.bind(this));
-    html.querySelector('.sync-title-btn')?.addEventListener('click', this._onSyncTitle.bind(this));
+    html
+      .querySelector(".sync-worlds-btn")
+      ?.addEventListener("click", this._onSyncWorlds.bind(this));
+    html
+      .querySelector("#world-select")
+      ?.addEventListener("change", this._onWorldSelectChange.bind(this));
+    html
+      .querySelector(".save-selection-btn")
+      ?.addEventListener("click", this._onSaveWorldSelection.bind(this));
+    html
+      .querySelector(".sync-title-btn")
+      ?.addEventListener("click", this._onSyncTitle.bind(this));
 
     // New sync buttons with debug logging
-    const syncToBtn = html.querySelector('.sync-to-archivist-btn');
-    const syncFromBtn = html.querySelector('.sync-from-archivist-btn');
+    const syncToBtn = html.querySelector(".sync-to-archivist-btn");
+    const syncFromBtn = html.querySelector(".sync-from-archivist-btn");
     // Ask Chat button removed
 
     if (syncToBtn) {
-      console.log('Found sync-to-archivist-btn, attaching listener');
-      syncToBtn.addEventListener('click', this._onSyncToArchivist.bind(this));
+      console.log("Found sync-to-archivist-btn, attaching listener");
+      syncToBtn.addEventListener("click", this._onSyncToArchivist.bind(this));
     } else {
-      console.log('sync-to-archivist-btn not found in DOM');
+      console.log("sync-to-archivist-btn not found in DOM");
     }
 
     if (syncFromBtn) {
-      console.log('Found sync-from-archivist-btn, attaching listener');
-      syncFromBtn.addEventListener('click', this._onSyncFromArchivist.bind(this));
+      console.log("Found sync-from-archivist-btn, attaching listener");
+      syncFromBtn.addEventListener(
+        "click",
+        this._onSyncFromArchivist.bind(this)
+      );
     } else {
-      console.log('sync-from-archivist-btn not found in DOM');
+      console.log("sync-from-archivist-btn not found in DOM");
     }
 
     // no-op
 
-    html.querySelector('.push-characters-btn')?.addEventListener('click', this._onSyncCharacters.bind(this));
-    html.querySelector('.pull-characters-btn')?.addEventListener('click', this._onPullCharacters.bind(this));
+    html
+      .querySelector(".push-characters-btn")
+      ?.addEventListener("click", this._onSyncCharacters.bind(this));
+    html
+      .querySelector(".pull-characters-btn")
+      ?.addEventListener("click", this._onPullCharacters.bind(this));
 
     // Deterministic sync button
-    html.querySelector('.deterministic-sync-btn')?.addEventListener('click', this._onDeterministicSync.bind(this));
+    html
+      .querySelector(".deterministic-sync-btn")
+      ?.addEventListener("click", this._onDeterministicSync.bind(this));
 
     // Wizard load/save/test
-    html.querySelector('.wizard-load-config')?.addEventListener('click', this._onWizardLoad.bind(this));
-    html.querySelector('.wizard-save-config')?.addEventListener('click', this._onWizardSave.bind(this));
-    html.querySelector('.wizard-test-paths')?.addEventListener('click', this._onWizardTest.bind(this));
+    html
+      .querySelector(".wizard-load-config")
+      ?.addEventListener("click", this._onWizardLoad.bind(this));
+    html
+      .querySelector(".wizard-save-config")
+      ?.addEventListener("click", this._onWizardSave.bind(this));
+    html
+      .querySelector(".wizard-test-paths")
+      ?.addEventListener("click", this._onWizardTest.bind(this));
 
     // Per-item actions (event delegation for dynamically updated lists)
     if (!html.dataset.rowHandlersBound) {
-      html.addEventListener('click', async (e) => {
+      html.addEventListener("click", async (e) => {
         // Only handle row-level buttons for individual item sync
-        const rowActorPush = e.target.closest?.('.row-actor-push');
-        const rowActorPull = e.target.closest?.('.row-actor-pull');
-        const rowItemPush = e.target.closest?.('.row-item-push');
-        const rowItemPull = e.target.closest?.('.row-item-pull');
-        const rowFactionPush = e.target.closest?.('.row-faction-push');
-        const rowFactionPull = e.target.closest?.('.row-faction-pull');
-        const rowLocationPush = e.target.closest?.('.row-location-push');
-        const rowLocationPull = e.target.closest?.('.row-location-pull');
-        const rowRecapPush = e.target.closest?.('.row-recap-push');
-        const rowRecapPull = e.target.closest?.('.row-recap-pull');
+        const rowActorPush = e.target.closest?.(".row-actor-push");
+        const rowActorPull = e.target.closest?.(".row-actor-pull");
+        const rowItemPush = e.target.closest?.(".row-item-push");
+        const rowItemPull = e.target.closest?.(".row-item-pull");
+        const rowFactionPush = e.target.closest?.(".row-faction-push");
+        const rowFactionPull = e.target.closest?.(".row-faction-pull");
+        const rowLocationPush = e.target.closest?.(".row-location-push");
+        const rowLocationPull = e.target.closest?.(".row-location-pull");
+        const rowRecapPush = e.target.closest?.(".row-recap-push");
+        const rowRecapPull = e.target.closest?.(".row-recap-pull");
 
         // Stop event propagation to prevent triggering header buttons
-        if (rowActorPush) { e.stopPropagation(); return this._pushSingleActor(rowActorPush.dataset.actorId); }
-        if (rowActorPull) { e.stopPropagation(); return this._pullSingleCharacterByArchivistId(rowActorPull.dataset.archivistId); }
-        if (rowItemPush) { e.stopPropagation(); return this._pushSingleItem(rowItemPush.dataset.itemId); }
-        if (rowItemPull) { e.stopPropagation(); return this._pullSingleItemByArchivistId(rowItemPull.dataset.archivistId); }
-        if (rowFactionPush) { e.stopPropagation(); return this._pushSingleFactionPage(rowFactionPush.dataset.pageId); }
-        if (rowFactionPull) { e.stopPropagation(); return this._pullSingleFactionByArchivistId(rowFactionPull.dataset.archivistId); }
-        if (rowLocationPush) { e.stopPropagation(); return this._pushSingleLocationPage(rowLocationPush.dataset.pageId); }
-        if (rowLocationPull) { e.stopPropagation(); return this._pullSingleLocationByArchivistId(rowLocationPull.dataset.archivistId); }
-        if (rowRecapPush) { e.stopPropagation(); return this._pushSingleRecapPage(rowRecapPush.dataset.pageId); }
-        if (rowRecapPull) { e.stopPropagation(); return this._pullSingleRecap(rowRecapPull.dataset.sessionId); }
+        if (rowActorPush) {
+          e.stopPropagation();
+          return this._pushSingleActor(rowActorPush.dataset.actorId);
+        }
+        if (rowActorPull) {
+          e.stopPropagation();
+          return this._pullSingleCharacterByArchivistId(
+            rowActorPull.dataset.archivistId
+          );
+        }
+        if (rowItemPush) {
+          e.stopPropagation();
+          return this._pushSingleItem(rowItemPush.dataset.itemId);
+        }
+        if (rowItemPull) {
+          e.stopPropagation();
+          return this._pullSingleItemByArchivistId(
+            rowItemPull.dataset.archivistId
+          );
+        }
+        if (rowFactionPush) {
+          e.stopPropagation();
+          return this._pushSingleFactionPage(rowFactionPush.dataset.pageId);
+        }
+        if (rowFactionPull) {
+          e.stopPropagation();
+          return this._pullSingleFactionByArchivistId(
+            rowFactionPull.dataset.archivistId
+          );
+        }
+        if (rowLocationPush) {
+          e.stopPropagation();
+          return this._pushSingleLocationPage(rowLocationPush.dataset.pageId);
+        }
+        if (rowLocationPull) {
+          e.stopPropagation();
+          return this._pullSingleLocationByArchivistId(
+            rowLocationPull.dataset.archivistId
+          );
+        }
+        if (rowRecapPush) {
+          e.stopPropagation();
+          return this._pushSingleRecapPage(rowRecapPush.dataset.pageId);
+        }
+        if (rowRecapPull) {
+          e.stopPropagation();
+          return this._pullSingleRecap(rowRecapPull.dataset.sessionId);
+        }
       });
-      html.dataset.rowHandlersBound = 'true';
+      html.dataset.rowHandlersBound = "true";
     }
 
     // Auto-save Real-Time Sync toggle when changed
-    html.querySelector('.cfg-realtime-sync')?.addEventListener('change', async (event) => {
-      try {
-        const enabled = !!event.target.checked;
-        await settingsManager.setSetting(CONFIG.MODULE_ID ? 'realtimeSyncEnabled' : 'realtimeSyncEnabled', enabled);
-        ui.notifications.info(enabled ? 'Real-Time Sync enabled' : 'Real-Time Sync disabled');
-      } catch (e) {
-        console.warn('Failed to save realtime sync setting', e);
-        // Revert checkbox on error
-        event.target.checked = !enabled;
-      }
-    });
+    html
+      .querySelector(".cfg-realtime-sync")
+      ?.addEventListener("change", async (event) => {
+        try {
+          const enabled = !!event.target.checked;
+          await settingsManager.setSetting(
+            CONFIG.MODULE_ID ? "realtimeSyncEnabled" : "realtimeSyncEnabled",
+            enabled
+          );
+          ui.notifications.info(
+            enabled ? "Real-Time Sync enabled" : "Real-Time Sync disabled"
+          );
+        } catch (e) {
+          console.warn("Failed to save realtime sync setting", e);
+          // Revert checkbox on error
+          event.target.checked = !enabled;
+        }
+      });
 
-    html.querySelector('.push-factions-btn')?.addEventListener('click', this._onPushFactions.bind(this));
-    html.querySelector('.pull-factions-btn')?.addEventListener('click', this._onPullFactions.bind(this));
+    html
+      .querySelector(".push-factions-btn")
+      ?.addEventListener("click", this._onPushFactions.bind(this));
+    html
+      .querySelector(".pull-factions-btn")
+      ?.addEventListener("click", this._onPullFactions.bind(this));
 
-    html.querySelector('.push-locations-btn')?.addEventListener('click', this._onPushLocations.bind(this));
-    html.querySelector('.pull-locations-btn')?.addEventListener('click', this._onPullLocations.bind(this));
+    html
+      .querySelector(".push-locations-btn")
+      ?.addEventListener("click", this._onPushLocations.bind(this));
+    html
+      .querySelector(".pull-locations-btn")
+      ?.addEventListener("click", this._onPullLocations.bind(this));
 
     // (Map button removed)
 
     // World Options & Config actions
-    html.querySelector('.run-setup-wizard-btn')?.addEventListener('click', this._onOpenWorldSetup.bind(this));
-    html.querySelector('.validate-api-key-btn')?.addEventListener('click', this._onValidateApiKey.bind(this));
-    html.querySelector('.cfg-load')?.addEventListener('click', this._onLoadConfig.bind(this));
-    html.querySelector('.cfg-save')?.addEventListener('click', this._onSaveConfig.bind(this));
+    html
+      .querySelector(".run-setup-wizard-btn")
+      ?.addEventListener("click", this._onOpenWorldSetup.bind(this));
+    html
+      .querySelector(".validate-api-key-btn")
+      ?.addEventListener("click", this._onValidateApiKey.bind(this));
+    html
+      .querySelector(".cfg-load")
+      ?.addEventListener("click", this._onLoadConfig.bind(this));
+    html
+      .querySelector(".cfg-save")
+      ?.addEventListener("click", this._onSaveConfig.bind(this));
 
     // System preset dropdown with validation
-    const presetSelect = html.querySelector('.cfg-system-preset');
+    const presetSelect = html.querySelector(".cfg-system-preset");
     if (presetSelect && !presetSelect.dataset.bound) {
       // initialize previous value
-      presetSelect.dataset.prev = presetSelect.value || '';
-      presetSelect.addEventListener('change', (e) => {
+      presetSelect.dataset.prev = presetSelect.value || "";
+      presetSelect.addEventListener("change", (e) => {
         const selectedKey = e.target.value;
-        const manualMappingSection = html.querySelector('.manual-mapping-section');
+        const manualMappingSection = html.querySelector(
+          ".manual-mapping-section"
+        );
 
         if (!selectedKey) {
           // Custom: show manual mapping
-          if (manualMappingSection) manualMappingSection.style.display = 'block';
-          presetSelect.dataset.prev = '';
+          if (manualMappingSection)
+            manualMappingSection.style.display = "block";
+          presetSelect.dataset.prev = "";
           return;
         }
 
         try {
           this._validatePresetOrThrow(selectedKey);
           this._applySystemPreset(selectedKey);
-          if (manualMappingSection) manualMappingSection.style.display = 'none';
+          if (manualMappingSection) manualMappingSection.style.display = "none";
           presetSelect.dataset.prev = selectedKey;
         } catch (err) {
-          ui.notifications.error(String(err?.message || 'Preset unavailable for this system.'));
+          ui.notifications.error(
+            String(err?.message || "Preset unavailable for this system.")
+          );
           // revert to previous value
-          e.target.value = presetSelect.dataset.prev || '';
+          e.target.value = presetSelect.dataset.prev || "";
         }
       });
-      presetSelect.dataset.bound = 'true';
+      presetSelect.dataset.bound = "true";
     }
 
     // On load, set manual mapping visibility based on current preset selection
     setTimeout(() => {
-      const manualMappingSection = html.querySelector('.manual-mapping-section');
+      const manualMappingSection = html.querySelector(
+        ".manual-mapping-section"
+      );
       if (presetSelect && manualMappingSection) {
-        manualMappingSection.style.display = presetSelect.value === '' ? 'block' : 'none';
+        manualMappingSection.style.display =
+          presetSelect.value === "" ? "block" : "none";
       }
     }, 100);
 
     // Items tab actions
-    html.querySelector('.push-items-btn')?.addEventListener('click', this._onPushItems.bind(this));
-    html.querySelector('.pull-items-btn')?.addEventListener('click', this._onPullItems.bind(this));
+    html
+      .querySelector(".push-items-btn")
+      ?.addEventListener("click", this._onPushItems.bind(this));
+    html
+      .querySelector(".pull-items-btn")
+      ?.addEventListener("click", this._onPullItems.bind(this));
 
     // Recaps tab actions
-    html.querySelector('.push-recaps-btn')?.addEventListener('click', this._onPushRecaps.bind(this));
-    html.querySelector('.pull-recaps-btn')?.addEventListener('click', this._onPullRecaps.bind(this));
+    html
+      .querySelector(".push-recaps-btn")
+      ?.addEventListener("click", this._onPushRecaps.bind(this));
+    html
+      .querySelector(".pull-recaps-btn")
+      ?.addEventListener("click", this._onPullRecaps.bind(this));
 
     // remove importer delegated change handler
     if (!html.dataset.changeHandlersBound) {
-      html.addEventListener('change', async (e) => {
+      html.addEventListener("change", async (e) => {
         // no-op for importer
         return;
       });
-      html.dataset.changeHandlersBound = 'true';
+      html.dataset.changeHandlersBound = "true";
     }
 
     // Importer kind tab switching and initial state
     const applyKindFilter = (kind) => {
-      const buckets = html.querySelectorAll('.preview-bucket');
-      buckets.forEach(b => {
+      const buckets = html.querySelectorAll(".preview-bucket");
+      buckets.forEach((b) => {
         const bk = b.dataset.kind;
-        b.style.display = (kind === 'All' || kind === bk) ? '' : 'none';
+        b.style.display = kind === "All" || kind === bk ? "" : "none";
       });
-      html.querySelectorAll('.importer-kind-tab').forEach(x => {
-        if ((x.dataset.kind || '') === kind) x.classList.add('active'); else x.classList.remove('active');
+      html.querySelectorAll(".importer-kind-tab").forEach((x) => {
+        if ((x.dataset.kind || "") === kind) x.classList.add("active");
+        else x.classList.remove("active");
       });
     };
-    html.querySelectorAll('.importer-kind-tab')?.forEach(btn => {
-      btn.addEventListener('click', (ev) => {
-        const kind = ev.currentTarget?.dataset?.kind || 'All';
+    html.querySelectorAll(".importer-kind-tab")?.forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        const kind = ev.currentTarget?.dataset?.kind || "All";
         this.importerActiveKind = kind;
         applyKindFilter(kind);
       });
     });
     // Apply initial filter on render
-    applyKindFilter(this.importerActiveKind || 'All');
+    applyKindFilter(this.importerActiveKind || "All");
 
     // Preload rows for current active tab
-    const active = this.activeTab || 'world';
+    const active = this.activeTab || "world";
     // Only attempt once per tab; do not re-trigger on re-render
-    if (!this._tabLoaded?.[active]) this._loadRowsForTab(active).catch(err => console.warn('Failed to load rows for tab', active, err));
+    if (!this._tabLoaded?.[active])
+      this._loadRowsForTab(active).catch((err) =>
+        console.warn("Failed to load rows for tab", active, err)
+      );
   }
 
   /**
@@ -782,21 +1029,36 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _pushSingleActor(actorId) {
     try {
       const actor = game.actors.get(actorId);
-      if (!actor) return ui.notifications.warn('Actor not found');
+      if (!actor) return ui.notifications.warn("Actor not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const payload = Utils.toApiCharacterPayload(actor, worldId);
       const existingId = Utils.getActorArchivistId(actor);
-      this.syncInProgress = true; if (!this._isClosed) { try { this.render(); } catch (_) { } }
-      if (existingId) await archivistApi.updateCharacter(apiKey, existingId, payload);
+      this.syncInProgress = true;
+      if (!this._isClosed) {
+        try {
+          this.render();
+        } catch (_) {}
+      }
+      if (existingId)
+        await archivistApi.updateCharacter(apiKey, existingId, payload);
       else {
         const created = await archivistApi.createCharacter(apiKey, payload);
-        if (created.success && created.data?.id) await Utils.setActorArchivistId(actor, created.data.id);
+        if (created.success && created.data?.id)
+          await Utils.setActorArchivistId(actor, created.data.id);
       }
       ui.notifications.info(`Synced ${actor.name}`);
     } catch (e) {
-      console.error(e); ui.notifications.error('Failed to sync actor');
-    } finally { this.syncInProgress = false; if (!this._isClosed) { try { this.render(); } catch (_) { } } }
+      console.error(e);
+      ui.notifications.error("Failed to sync actor");
+    } finally {
+      this.syncInProgress = false;
+      if (!this._isClosed) {
+        try {
+          this.render();
+        } catch (_) {}
+      }
+    }
   }
 
   /**
@@ -804,21 +1066,34 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   async _pullSingleCharacterByArchivistId(archivistId) {
     try {
-      this.syncInProgress = true; if (!this._isClosed) { try { this.render(); } catch (_) { } }
+      this.syncInProgress = true;
+      if (!this._isClosed) {
+        try {
+          this.render();
+        } catch (_) {}
+      }
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listCharacters(apiKey, worldId);
-      const c = (Array.isArray(list?.data) ? list.data : []).find(x => String(x.id) === String(archivistId));
-      if (!c) return ui.notifications.warn('Character not found in Archivist');
-      const existing = (game.actors?.contents ?? game.actors ?? []).find(a => String(a.getFlag(CONFIG.MODULE_ID, 'archivistId')) === String(archivistId));
+      const c = (Array.isArray(list?.data) ? list.data : []).find(
+        (x) => String(x.id) === String(archivistId)
+      );
+      if (!c) return ui.notifications.warn("Character not found in Archivist");
+      const existing = (game.actors?.contents ?? game.actors ?? []).find(
+        (a) =>
+          String(a.getFlag(CONFIG.MODULE_ID, "archivistId")) ===
+          String(archivistId)
+      );
       const cfg = settingsManager.getImportConfig();
       // Determine actor type from existing or default to PC
-      const actorType = existing?.type === 'npc' ? 'npc' : 'pc';
-      const descPath = cfg?.actorMappings?.[actorType]?.descriptionPath || 'system.details.biography.value';
+      const actorType = existing?.type === "npc" ? "npc" : "pc";
+      const descPath =
+        cfg?.actorMappings?.[actorType]?.descriptionPath ||
+        "system.details.biography.value";
       if (existing) {
         // Update existing description/name minimally
         const name = c.character_name || c.name || existing.name;
-        const html = Utils.markdownToStoredHtml(String(c.description || ''));
+        const html = Utils.markdownToStoredHtml(String(c.description || ""));
         const updates = { name };
         foundry.utils.setProperty(updates, descPath, html);
         await existing.update(updates);
@@ -826,40 +1101,54 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       } else {
         // Create new actor (default to character)
         const actorData = {
-          name: c.character_name || c.name || 'Character',
-          type: 'character',
-          img: c.image || null
+          name: c.character_name || c.name || "Character",
+          type: "character",
+          img: c.image || null,
         };
-        const html = Utils.markdownToStoredHtml(String(c.description || ''));
+        const html = Utils.markdownToStoredHtml(String(c.description || ""));
         foundry.utils.setProperty(actorData, descPath, html);
         const actor = await Actor.create(actorData, { render: false });
-        try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id); } catch (_) { }
+        try {
+          await actor.setFlag(CONFIG.MODULE_ID, "archivistId", c.id);
+        } catch (_) {}
         ui.notifications.info(`Imported character: ${actor.name}`);
       }
       // Refresh rows
-      this._tabLoaded.characters = false; await this._loadCharacterRows();
-    } catch (e) { console.error(e); ui.notifications.error('Failed to pull character'); }
-    finally { this.syncInProgress = false; this.render(); }
+      this._tabLoaded.characters = false;
+      await this._loadCharacterRows();
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to pull character");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   async _pushSingleFaction(journalId) {
     try {
       const j = game.journal.get(journalId);
-      if (!j) return ui.notifications.warn('Journal not found');
+      if (!j) return ui.notifications.warn("Journal not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const payload = Utils.toApiFactionPayload(j, worldId);
       const meta = Utils.getJournalArchivistMeta(j);
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       if (meta.id) await archivistApi.updateFaction(apiKey, meta.id, payload);
       else {
         const created = await archivistApi.createFaction(apiKey, payload);
-        if (created.success && created.data?.id) await Utils.setJournalArchivistMeta(j, created.data.id, 'faction');
+        if (created.success && created.data?.id)
+          await Utils.setJournalArchivistMeta(j, created.data.id, "faction");
       }
       ui.notifications.info(`Synced ${j.name}`);
     } catch (e) {
-      console.error(e); ui.notifications.error('Failed to sync faction');
-    } finally { this.syncInProgress = false; this.render(); }
+      console.error(e);
+      ui.notifications.error("Failed to sync faction");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   /**
@@ -867,44 +1156,66 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   async _pullSingleFactionByArchivistId(archivistId) {
     try {
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listFactions(apiKey, worldId);
-      const f = (Array.isArray(list?.data) ? list.data : []).find(x => String(x.id) === String(archivistId));
-      if (!f) return ui.notifications.warn('Faction not found in Archivist');
-      const container = await Utils.ensureRootJournalContainer('Factions');
-      const html = String(f.description || '').trim();
+      const f = (Array.isArray(list?.data) ? list.data : []).find(
+        (x) => String(x.id) === String(archivistId)
+      );
+      if (!f) return ui.notifications.warn("Faction not found in Archivist");
+      const container = await Utils.ensureRootJournalContainer("Factions");
+      const html = String(f.description || "").trim();
       await Utils.upsertContainerTextPage(container, {
-        name: f.name || 'Faction',
+        name: f.name || "Faction",
         html,
-        imageUrl: typeof f.image === 'string' && f.image.trim().length ? f.image.trim() : null,
-        flags: { archivistId: f.id, archivistType: 'faction', archivistWorldId: worldId }
+        imageUrl:
+          typeof f.image === "string" && f.image.trim().length
+            ? f.image.trim()
+            : null,
+        flags: {
+          archivistId: f.id,
+          archivistType: "faction",
+          archivistWorldId: worldId,
+        },
       });
-      ui.notifications.info(`Imported faction: ${f.name || 'Faction'}`);
-      this._tabLoaded.factions = false; await this._loadFactionRows();
-    } catch (e) { console.error(e); ui.notifications.error('Failed to pull faction'); }
-    finally { this.syncInProgress = false; this.render(); }
+      ui.notifications.info(`Imported faction: ${f.name || "Faction"}`);
+      this._tabLoaded.factions = false;
+      await this._loadFactionRows();
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to pull faction");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   async _pushSingleLocation(journalId) {
     try {
       const j = game.journal.get(journalId);
-      if (!j) return ui.notifications.warn('Journal not found');
+      if (!j) return ui.notifications.warn("Journal not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const payload = Utils.toApiLocationPayload(j, worldId);
       const meta = Utils.getJournalArchivistMeta(j);
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       if (meta.id) await archivistApi.updateLocation(apiKey, meta.id, payload);
       else {
         const created = await archivistApi.createLocation(apiKey, payload);
-        if (created.success && created.data?.id) await Utils.setJournalArchivistMeta(j, created.data.id, 'location');
+        if (created.success && created.data?.id)
+          await Utils.setJournalArchivistMeta(j, created.data.id, "location");
       }
       ui.notifications.info(`Synced ${j.name}`);
     } catch (e) {
-      console.error(e); ui.notifications.error('Failed to sync location');
-    } finally { this.syncInProgress = false; this.render(); }
+      console.error(e);
+      ui.notifications.error("Failed to sync location");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   /**
@@ -912,24 +1223,40 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   async _pullSingleLocationByArchivistId(archivistId) {
     try {
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listLocations(apiKey, worldId);
-      const l = (Array.isArray(list?.data) ? list.data : []).find(x => String(x.id) === String(archivistId));
-      if (!l) return ui.notifications.warn('Location not found in Archivist');
-      const container = await Utils.ensureRootJournalContainer('Locations');
-      const html = String(l.description || '').trim();
+      const l = (Array.isArray(list?.data) ? list.data : []).find(
+        (x) => String(x.id) === String(archivistId)
+      );
+      if (!l) return ui.notifications.warn("Location not found in Archivist");
+      const container = await Utils.ensureRootJournalContainer("Locations");
+      const html = String(l.description || "").trim();
       await Utils.upsertContainerTextPage(container, {
-        name: l.name || 'Location',
+        name: l.name || "Location",
         html,
-        imageUrl: typeof l.image === 'string' && l.image.trim().length ? l.image.trim() : null,
-        flags: { archivistId: l.id, archivistType: 'location', archivistWorldId: worldId }
+        imageUrl:
+          typeof l.image === "string" && l.image.trim().length
+            ? l.image.trim()
+            : null,
+        flags: {
+          archivistId: l.id,
+          archivistType: "location",
+          archivistWorldId: worldId,
+        },
       });
-      ui.notifications.info(`Imported location: ${l.name || 'Location'}`);
-      this._tabLoaded.locations = false; await this._loadLocationRows();
-    } catch (e) { console.error(e); ui.notifications.error('Failed to pull location'); }
-    finally { this.syncInProgress = false; this.render(); }
+      ui.notifications.info(`Imported location: ${l.name || "Location"}`);
+      this._tabLoaded.locations = false;
+      await this._loadLocationRows();
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to pull location");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   /**
@@ -937,44 +1264,68 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   async _pullSingleItemByArchivistId(archivistId) {
     try {
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listItems(apiKey, worldId);
-      const it = (Array.isArray(list?.data) ? list.data : []).find(x => String(x.id) === String(archivistId));
-      if (!it) return ui.notifications.warn('Item not found in Archivist');
+      const it = (Array.isArray(list?.data) ? list.data : []).find(
+        (x) => String(x.id) === String(archivistId)
+      );
+      if (!it) return ui.notifications.warn("Item not found in Archivist");
       // Try find existing by flag
-      const existing = (game.items?.contents ?? game.items ?? []).find(i => String(i.getFlag(CONFIG.MODULE_ID, 'archivistId')) === String(archivistId));
+      const existing = (game.items?.contents ?? game.items ?? []).find(
+        (i) =>
+          String(i.getFlag(CONFIG.MODULE_ID, "archivistId")) ===
+          String(archivistId)
+      );
       const cfg = settingsManager.getImportConfig();
       const folderId = cfg?.destinations?.item || null;
       const resolveItemType = (src) => {
         try {
-          const raw = String(src?.type ?? src?.item_type ?? src?.category ?? '').trim().toLowerCase();
-          const candidates = ['weapon', 'equipment', 'consumable', 'spell', 'feat', 'tool', 'loot', 'backpack'];
+          const raw = String(src?.type ?? src?.item_type ?? src?.category ?? "")
+            .trim()
+            .toLowerCase();
+          const candidates = [
+            "weapon",
+            "equipment",
+            "consumable",
+            "spell",
+            "feat",
+            "tool",
+            "loot",
+            "backpack",
+          ];
           if (candidates.includes(raw)) return raw;
-          if (/weapon/.test(raw)) return 'weapon';
-          if (/armor|equipment/.test(raw)) return 'equipment';
-          if (/consum/.test(raw)) return 'consumable';
-          if (/spell/.test(raw)) return 'spell';
-          if (/feat|ability/.test(raw)) return 'feat';
-          if (/tool/.test(raw)) return 'tool';
-          if (/pack|bag|backpack/.test(raw)) return 'backpack';
-          return 'loot';
-        } catch (_) { return 'loot'; }
+          if (/weapon/.test(raw)) return "weapon";
+          if (/armor|equipment/.test(raw)) return "equipment";
+          if (/consum/.test(raw)) return "consumable";
+          if (/spell/.test(raw)) return "spell";
+          if (/feat|ability/.test(raw)) return "feat";
+          if (/tool/.test(raw)) return "tool";
+          if (/pack|bag|backpack/.test(raw)) return "backpack";
+          return "loot";
+        } catch (_) {
+          return "loot";
+        }
       };
       const safeType = resolveItemType(it);
-      const apiImage = typeof it.image === 'string' ? it.image.trim() : '';
-      const safeImage = apiImage && /^https?:\/\//i.test(apiImage) ? apiImage : undefined;
+      const apiImage = typeof it.image === "string" ? it.image.trim() : "";
+      const safeImage =
+        apiImage && /^https?:\/\//i.test(apiImage) ? apiImage : undefined;
       const itemData = {
-        name: it.name || 'Item',
+        name: it.name || "Item",
         type: safeType,
         // Do not overwrite with null/empty; only set when a valid URL is provided
         ...(safeImage ? { img: safeImage } : {}),
-        folder: folderId || null
+        folder: folderId || null,
       };
       // Description path resolution: prefer explicit itemMappings, then legacy mapping.item.descPath, then common item default
-      const descMd = typeof it.description === 'string' ? it.description : '';
-      const descPath = cfg?.itemMappings?.descriptionPath || cfg?.mapping?.item?.descPath || 'system.description.value';
+      const descMd = typeof it.description === "string" ? it.description : "";
+      const descPath =
+        cfg?.itemMappings?.descriptionPath ||
+        cfg?.mapping?.item?.descPath ||
+        "system.description.value";
       if (descMd && descPath) {
         const html = Utils.markdownToStoredHtml(descMd);
         foundry.utils.setProperty(itemData, descPath, html);
@@ -984,12 +1335,20 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         ui.notifications.info(`Updated item: ${existing.name}`);
       } else {
         const created = await Item.create(itemData, { render: false });
-        try { await created.setFlag(CONFIG.MODULE_ID, 'archivistId', it.id); } catch (_) { }
+        try {
+          await created.setFlag(CONFIG.MODULE_ID, "archivistId", it.id);
+        } catch (_) {}
         ui.notifications.info(`Imported item: ${created.name}`);
       }
-      this._tabLoaded.items = false; await this._loadItemRows();
-    } catch (e) { console.error(e); ui.notifications.error('Failed to pull item'); }
-    finally { this.syncInProgress = false; this.render(); }
+      this._tabLoaded.items = false;
+      await this._loadItemRows();
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to pull item");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   /**
@@ -998,19 +1357,26 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   _initializeTabs(html) {
     // Restore previously active tab (default to 'world')
-    const desired = this.activeTab || 'world';
-    const tabEl = html.querySelector(`.tabs .item[data-tab="${desired}"]`) || html.querySelector('.tabs .item[data-tab="world"]');
-    const contentEl = html.querySelector(`.tab[data-tab="${desired}"]`) || html.querySelector('.tab[data-tab="world"]');
-    if (tabEl) tabEl.classList.add('active');
-    if (contentEl) contentEl.classList.add('active');
+    const desired = this.activeTab || "world";
+    const tabEl =
+      html.querySelector(`.tabs .item[data-tab="${desired}"]`) ||
+      html.querySelector('.tabs .item[data-tab="world"]');
+    const contentEl =
+      html.querySelector(`.tab[data-tab="${desired}"]`) ||
+      html.querySelector('.tab[data-tab="world"]');
+    if (tabEl) tabEl.classList.add("active");
+    if (contentEl) contentEl.classList.add("active");
 
     // Tab click handlers
-    html.querySelectorAll('.tabs .item').forEach(tab => {
-      tab.addEventListener('click', (event) => {
+    html.querySelectorAll(".tabs .item").forEach((tab) => {
+      tab.addEventListener("click", (event) => {
         const tabName = event.currentTarget.dataset.tab;
         this.activeTab = tabName;
         this._activateTab(html, tabName);
-        if (!this._tabLoaded?.[tabName]) this._loadRowsForTab(tabName).catch(err => console.warn('Failed to load rows for tab', tabName, err));
+        if (!this._tabLoaded?.[tabName])
+          this._loadRowsForTab(tabName).catch((err) =>
+            console.warn("Failed to load rows for tab", tabName, err)
+          );
       });
     });
   }
@@ -1022,15 +1388,21 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   _activateTab(html, tabName) {
     // Remove active class from all tabs and content
-    html.querySelectorAll('.tabs .item').forEach(tab => tab.classList.remove('active'));
-    html.querySelectorAll('.tab').forEach(content => content.classList.remove('active'));
+    html
+      .querySelectorAll(".tabs .item")
+      .forEach((tab) => tab.classList.remove("active"));
+    html
+      .querySelectorAll(".tab")
+      .forEach((content) => content.classList.remove("active"));
 
     // Add active class to selected tab and content
-    const selectedTab = html.querySelector(`.tabs .item[data-tab="${tabName}"]`);
+    const selectedTab = html.querySelector(
+      `.tabs .item[data-tab="${tabName}"]`
+    );
     const selectedContent = html.querySelector(`.tab[data-tab="${tabName}"]`);
 
-    if (selectedTab) selectedTab.classList.add('active');
-    if (selectedContent) selectedContent.classList.add('active');
+    if (selectedTab) selectedTab.classList.add("active");
+    if (selectedContent) selectedContent.classList.add("active");
   }
 
   async _loadRowsForTab(tabName) {
@@ -1039,11 +1411,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     if (this._tabLoaded?.[tabName]) return;
     if (this._loadingTabs?.has(tabName)) return;
     this._loadingTabs.add(tabName);
-    if (tabName === 'characters') return this._loadCharacterRows();
-    if (tabName === 'factions') return this._loadFactionRows();
-    if (tabName === 'locations') return this._loadLocationRows();
-    if (tabName === 'items') return this._loadItemRows();
-    if (tabName === 'recaps') return this._loadRecapRows();
+    if (tabName === "characters") return this._loadCharacterRows();
+    if (tabName === "factions") return this._loadFactionRows();
+    if (tabName === "locations") return this._loadLocationRows();
+    if (tabName === "items") return this._loadItemRows();
+    if (tabName === "recaps") return this._loadRecapRows();
   }
 
   async _loadCharacterRows() {
@@ -1052,44 +1424,87 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listCharacters(apiKey, worldId);
       const apiChars = Array.isArray(list?.data) ? list.data : [];
-      const actors = (game.actors?.contents ?? game.actors ?? []).filter(a => a.type === 'character' || a.type === 'npc');
+      const actors = (game.actors?.contents ?? game.actors ?? []).filter(
+        (a) => a.type === "character" || a.type === "npc"
+      );
       const foundryByArchivistId = new Map();
       for (const a of actors) {
-        const id = a.getFlag(CONFIG.MODULE_ID, 'archivistId');
+        const id = a.getFlag(CONFIG.MODULE_ID, "archivistId");
         if (id) foundryByArchivistId.set(String(id), a);
       }
       const rows = [];
       for (const c of apiChars) {
         const a = foundryByArchivistId.get(String(c.id));
-        if (a) rows.push({ type: 'character', name: a.name, img: a.img || 'icons/svg/mystery-man.svg', linked: true, actorId: a.id, archivistId: c.id, canPush: true, canPull: true });
+        if (a)
+          rows.push({
+            type: "character",
+            name: a.name,
+            img: a.img || "icons/svg/mystery-man.svg",
+            linked: true,
+            actorId: a.id,
+            archivistId: c.id,
+            canPush: true,
+            canPull: true,
+          });
       }
       for (const a of actors) {
-        const id = a.getFlag(CONFIG.MODULE_ID, 'archivistId');
-        if (!id) rows.push({ type: 'character', name: a.name, img: a.img || 'icons/svg/mystery-man.svg', linked: false, actorId: a.id, archivistId: '', canPush: true, canPull: false });
+        const id = a.getFlag(CONFIG.MODULE_ID, "archivistId");
+        if (!id)
+          rows.push({
+            type: "character",
+            name: a.name,
+            img: a.img || "icons/svg/mystery-man.svg",
+            linked: false,
+            actorId: a.id,
+            archivistId: "",
+            canPush: true,
+            canPull: false,
+          });
       }
-      const linkedIds = new Set(rows.filter(r => r.linked).map(r => String(r.archivistId)));
+      const linkedIds = new Set(
+        rows.filter((r) => r.linked).map((r) => String(r.archivistId))
+      );
       for (const c of apiChars) {
         if (!linkedIds.has(String(c.id))) {
-          const name = c.character_name || c.name || 'Character';
-          const imageUrl = (typeof c.image === 'string' && c.image.trim().length) ? c.image.trim() : null;
-          rows.push({ type: 'character', name, img: imageUrl || 'icons/svg/mystery-man.svg', linked: false, actorId: '', archivistId: c.id, canPush: false, canPull: true });
+          const name = c.character_name || c.name || "Character";
+          const imageUrl =
+            typeof c.image === "string" && c.image.trim().length
+              ? c.image.trim()
+              : null;
+          rows.push({
+            type: "character",
+            name,
+            img: imageUrl || "icons/svg/mystery-man.svg",
+            linked: false,
+            actorId: "",
+            archivistId: c.id,
+            canPush: false,
+            canPull: true,
+          });
         }
       }
-      rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      rows.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
       this.charactersRows = rows;
       this._tabLoaded.characters = true;
       // Minimize rerenders: update only this tab content
       this.render(false);
-    } catch (e) { console.warn('Failed loading character rows', e); }
-    finally { this._loadingTabs.delete('characters'); }
+    } catch (e) {
+      console.warn("Failed loading character rows", e);
+    } finally {
+      this._loadingTabs.delete("characters");
+    }
   }
 
   _getContainerPagesByName(name) {
     try {
       const journals = game.journal?.contents || [];
-      const container = journals.find(x => x.name === name && !x.folder);
+      const container = journals.find((x) => x.name === name && !x.folder);
       return container?.pages?.contents || [];
-    } catch (_) { return []; }
+    } catch (_) {
+      return [];
+    }
   }
 
   async _loadFactionRows() {
@@ -1098,32 +1513,76 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listFactions(apiKey, worldId);
       const apiItems = Array.isArray(list?.data) ? list.data : [];
-      const pages = this._getContainerPagesByName('Factions');
+      const pages = this._getContainerPagesByName("Factions");
       const foundryByArchivistId = new Map();
       const orphans = [];
       for (const p of pages) {
         const meta = Utils.getPageArchivistMeta(p);
-        if (meta?.id) foundryByArchivistId.set(String(meta.id), p); else orphans.push(p);
+        if (meta?.id) foundryByArchivistId.set(String(meta.id), p);
+        else orphans.push(p);
       }
       const rows = [];
       for (const f of apiItems) {
         const p = foundryByArchivistId.get(String(f.id));
-        if (p) rows.push({ type: 'faction', name: p.name, img: p?.parent?.img || 'icons/svg/book.svg', linked: true, pageId: p.id, archivistId: f.id, canPush: true, canPull: true });
+        if (p)
+          rows.push({
+            type: "faction",
+            name: p.name,
+            img: p?.parent?.img || "icons/svg/book.svg",
+            linked: true,
+            pageId: p.id,
+            archivistId: f.id,
+            canPush: true,
+            canPull: true,
+          });
       }
-      for (const p of orphans) rows.push({ type: 'faction', name: p.name, img: p?.parent?.img || 'icons/svg/book.svg', linked: false, pageId: p.id, archivistId: '', canPush: true, canPull: false });
-      const linkedIds = new Set(rows.filter(r => r.linked).map(r => String(r.archivistId)));
+      for (const p of orphans)
+        rows.push({
+          type: "faction",
+          name: p.name,
+          img: p?.parent?.img || "icons/svg/book.svg",
+          linked: false,
+          pageId: p.id,
+          archivistId: "",
+          canPush: true,
+          canPull: false,
+        });
+      const linkedIds = new Set(
+        rows.filter((r) => r.linked).map((r) => String(r.archivistId))
+      );
       for (const f of apiItems) {
         if (!linkedIds.has(String(f.id))) {
-          const imageUrl = (typeof f.image === 'string' && f.image.trim().length) ? f.image.trim() : (typeof f.cover_image === 'string' && f.cover_image.trim().length) ? f.cover_image.trim() : (typeof f.thumbnail === 'string' && f.thumbnail.trim().length) ? f.thumbnail.trim() : null;
-          rows.push({ type: 'faction', name: f.name || 'Faction', img: imageUrl || 'icons/svg/book.svg', linked: false, pageId: '', archivistId: f.id, canPush: false, canPull: true });
+          const imageUrl =
+            typeof f.image === "string" && f.image.trim().length
+              ? f.image.trim()
+              : typeof f.cover_image === "string" && f.cover_image.trim().length
+              ? f.cover_image.trim()
+              : typeof f.thumbnail === "string" && f.thumbnail.trim().length
+              ? f.thumbnail.trim()
+              : null;
+          rows.push({
+            type: "faction",
+            name: f.name || "Faction",
+            img: imageUrl || "icons/svg/book.svg",
+            linked: false,
+            pageId: "",
+            archivistId: f.id,
+            canPush: false,
+            canPull: true,
+          });
         }
       }
-      rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      rows.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
       this.factionsRows = rows;
       this._tabLoaded.factions = true;
       this.render(false);
-    } catch (e) { console.warn('Failed loading faction rows', e); }
-    finally { this._loadingTabs.delete('factions'); }
+    } catch (e) {
+      console.warn("Failed loading faction rows", e);
+    } finally {
+      this._loadingTabs.delete("factions");
+    }
   }
 
   async _loadLocationRows() {
@@ -1132,32 +1591,76 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listLocations(apiKey, worldId);
       const apiItems = Array.isArray(list?.data) ? list.data : [];
-      const pages = this._getContainerPagesByName('Locations');
+      const pages = this._getContainerPagesByName("Locations");
       const foundryByArchivistId = new Map();
       const orphans = [];
       for (const p of pages) {
         const meta = Utils.getPageArchivistMeta(p);
-        if (meta?.id) foundryByArchivistId.set(String(meta.id), p); else orphans.push(p);
+        if (meta?.id) foundryByArchivistId.set(String(meta.id), p);
+        else orphans.push(p);
       }
       const rows = [];
       for (const l of apiItems) {
         const p = foundryByArchivistId.get(String(l.id));
-        if (p) rows.push({ type: 'location', name: p.name, img: p?.parent?.img || 'icons/svg/house.svg', linked: true, pageId: p.id, archivistId: l.id, canPush: true, canPull: true });
+        if (p)
+          rows.push({
+            type: "location",
+            name: p.name,
+            img: p?.parent?.img || "icons/svg/house.svg",
+            linked: true,
+            pageId: p.id,
+            archivistId: l.id,
+            canPush: true,
+            canPull: true,
+          });
       }
-      for (const p of orphans) rows.push({ type: 'location', name: p.name, img: p?.parent?.img || 'icons/svg/house.svg', linked: false, pageId: p.id, archivistId: '', canPush: true, canPull: false });
-      const linkedIds = new Set(rows.filter(r => r.linked).map(r => String(r.archivistId)));
+      for (const p of orphans)
+        rows.push({
+          type: "location",
+          name: p.name,
+          img: p?.parent?.img || "icons/svg/house.svg",
+          linked: false,
+          pageId: p.id,
+          archivistId: "",
+          canPush: true,
+          canPull: false,
+        });
+      const linkedIds = new Set(
+        rows.filter((r) => r.linked).map((r) => String(r.archivistId))
+      );
       for (const l of apiItems) {
         if (!linkedIds.has(String(l.id))) {
-          const imageUrl = (typeof l.image === 'string' && l.image.trim().length) ? l.image.trim() : (typeof l.cover_image === 'string' && l.cover_image.trim().length) ? l.cover_image.trim() : (typeof l.thumbnail === 'string' && l.thumbnail.trim().length) ? l.thumbnail.trim() : null;
-          rows.push({ type: 'location', name: l.name || 'Location', img: imageUrl || 'icons/svg/house.svg', linked: false, pageId: '', archivistId: l.id, canPush: false, canPull: true });
+          const imageUrl =
+            typeof l.image === "string" && l.image.trim().length
+              ? l.image.trim()
+              : typeof l.cover_image === "string" && l.cover_image.trim().length
+              ? l.cover_image.trim()
+              : typeof l.thumbnail === "string" && l.thumbnail.trim().length
+              ? l.thumbnail.trim()
+              : null;
+          rows.push({
+            type: "location",
+            name: l.name || "Location",
+            img: imageUrl || "icons/svg/house.svg",
+            linked: false,
+            pageId: "",
+            archivistId: l.id,
+            canPush: false,
+            canPull: true,
+          });
         }
       }
-      rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      rows.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
       this.locationsRows = rows;
       this._tabLoaded.locations = true;
       this.render(false);
-    } catch (e) { console.warn('Failed loading location rows', e); }
-    finally { this._loadingTabs.delete('locations'); }
+    } catch (e) {
+      console.warn("Failed loading location rows", e);
+    } finally {
+      this._loadingTabs.delete("locations");
+    }
   }
 
   async _loadItemRows() {
@@ -1166,32 +1669,74 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listItems(apiKey, worldId);
       const apiItems = Array.isArray(list?.data) ? list.data : [];
-      const items = (game.items?.contents ?? game.items ?? []);
+      const items = game.items?.contents ?? game.items ?? [];
       const foundryByArchivistId = new Map();
       const orphans = [];
       for (const it of items) {
-        const id = it.getFlag(CONFIG.MODULE_ID, 'archivistId');
-        if (id) foundryByArchivistId.set(String(id), it); else orphans.push(it);
+        const id = it.getFlag(CONFIG.MODULE_ID, "archivistId");
+        if (id) foundryByArchivistId.set(String(id), it);
+        else orphans.push(it);
       }
       const rows = [];
       for (const it of apiItems) {
         const f = foundryByArchivistId.get(String(it.id));
-        if (f) rows.push({ type: 'item', name: f.name, img: f.img || 'icons/svg/item-bag.svg', linked: true, itemId: f.id, archivistId: it.id, canPush: true, canPull: true });
+        if (f)
+          rows.push({
+            type: "item",
+            name: f.name,
+            img: f.img || "icons/svg/item-bag.svg",
+            linked: true,
+            itemId: f.id,
+            archivistId: it.id,
+            canPush: true,
+            canPull: true,
+          });
       }
-      for (const f of orphans) rows.push({ type: 'item', name: f.name, img: f.img || 'icons/svg/item-bag.svg', linked: false, itemId: f.id, archivistId: '', canPush: true, canPull: false });
-      const linkedIds = new Set(rows.filter(r => r.linked).map(r => String(r.archivistId)));
+      for (const f of orphans)
+        rows.push({
+          type: "item",
+          name: f.name,
+          img: f.img || "icons/svg/item-bag.svg",
+          linked: false,
+          itemId: f.id,
+          archivistId: "",
+          canPush: true,
+          canPull: false,
+        });
+      const linkedIds = new Set(
+        rows.filter((r) => r.linked).map((r) => String(r.archivistId))
+      );
       for (const it of apiItems) {
         if (!linkedIds.has(String(it.id))) {
-          const imageUrl = (typeof it.image === 'string' && it.image.trim().length) ? it.image.trim() : (typeof it.thumbnail === 'string' && it.thumbnail.trim().length) ? it.thumbnail.trim() : null;
-          rows.push({ type: 'item', name: it.name || 'Item', img: imageUrl || 'icons/svg/item-bag.svg', linked: false, itemId: '', archivistId: it.id, canPush: false, canPull: true });
+          const imageUrl =
+            typeof it.image === "string" && it.image.trim().length
+              ? it.image.trim()
+              : typeof it.thumbnail === "string" && it.thumbnail.trim().length
+              ? it.thumbnail.trim()
+              : null;
+          rows.push({
+            type: "item",
+            name: it.name || "Item",
+            img: imageUrl || "icons/svg/item-bag.svg",
+            linked: false,
+            itemId: "",
+            archivistId: it.id,
+            canPush: false,
+            canPull: true,
+          });
         }
       }
-      rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      rows.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
       this.itemsRows = rows;
       this._tabLoaded.items = true;
       this.render(false);
-    } catch (e) { console.warn('Failed loading item rows', e); }
-    finally { this._loadingTabs.delete('items'); }
+    } catch (e) {
+      console.warn("Failed loading item rows", e);
+    } finally {
+      this._loadingTabs.delete("items");
+    }
   }
 
   async _loadRecapRows() {
@@ -1199,55 +1744,112 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listSessions(apiKey, worldId);
-      const sessions = (Array.isArray(list?.data) ? list.data : []).filter(s => !!s.session_date);
-      sessions.sort((a, b) => new Date(a.session_date).getTime() - new Date(b.session_date).getTime());
-      const pages = this._getContainerPagesByName('Recaps');
+      const sessions = (Array.isArray(list?.data) ? list.data : []).filter(
+        (s) => !!s.session_date
+      );
+      sessions.sort(
+        (a, b) =>
+          new Date(a.session_date).getTime() -
+          new Date(b.session_date).getTime()
+      );
+      const pages = this._getContainerPagesByName("Recaps");
       const foundryByArchivistId = new Map();
       const orphans = [];
       for (const p of pages) {
         const meta = Utils.getPageArchivistMeta(p);
-        if (meta?.id) foundryByArchivistId.set(String(meta.id), p); else orphans.push(p);
+        if (meta?.id) foundryByArchivistId.set(String(meta.id), p);
+        else orphans.push(p);
       }
       const rows = [];
       for (const s of sessions) {
         const p = foundryByArchivistId.get(String(s.id));
-        if (p) rows.push({ type: 'recap', name: p.name, img: p?.parent?.img || '', linked: true, pageId: p.id, archivistId: s.id, canPush: true, canPull: true, sessionId: s.id });
+        if (p)
+          rows.push({
+            type: "recap",
+            name: p.name,
+            img: p?.parent?.img || "",
+            linked: true,
+            pageId: p.id,
+            archivistId: s.id,
+            canPush: true,
+            canPull: true,
+            sessionId: s.id,
+          });
       }
-      for (const p of orphans) rows.push({ type: 'recap', name: p.name, img: p?.parent?.img || '', linked: false, pageId: p.id, archivistId: '', canPush: false, canPull: false });
-      const linkedIds = new Set(rows.filter(r => r.linked).map(r => String(r.archivistId)));
+      for (const p of orphans)
+        rows.push({
+          type: "recap",
+          name: p.name,
+          img: p?.parent?.img || "",
+          linked: false,
+          pageId: p.id,
+          archivistId: "",
+          canPush: false,
+          canPull: false,
+        });
+      const linkedIds = new Set(
+        rows.filter((r) => r.linked).map((r) => String(r.archivistId))
+      );
       for (const s of sessions) {
-        if (!linkedIds.has(String(s.id))) rows.push({ type: 'recap', name: s.title || 'Session', img: '', linked: false, pageId: '', archivistId: s.id, canPush: false, canPull: true, sessionId: s.id });
+        if (!linkedIds.has(String(s.id)))
+          rows.push({
+            type: "recap",
+            name: s.title || "Session",
+            img: "",
+            linked: false,
+            pageId: "",
+            archivistId: s.id,
+            canPush: false,
+            canPull: true,
+            sessionId: s.id,
+          });
       }
       this.recapsRows = rows;
       this._tabLoaded.recaps = true;
       this.render(false);
-    } catch (e) { console.warn('Failed loading recap rows', e); }
-    finally { this._loadingTabs.delete('recaps'); }
+    } catch (e) {
+      console.warn("Failed loading recap rows", e);
+    } finally {
+      this._loadingTabs.delete("recaps");
+    }
   }
 
-  _flattenEntityPaths(obj, prefix = '$', depth = 0) {
+  _flattenEntityPaths(obj, prefix = "$", depth = 0) {
     const entries = [];
     if (depth > 3) return entries;
     if (obj == null) return entries;
     if (Array.isArray(obj)) {
       // Surface array as joined string where possible
-      const str = obj.map(v => (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') ? v : '').filter(Boolean).join(', ');
+      const str = obj
+        .map((v) =>
+          typeof v === "string" ||
+          typeof v === "number" ||
+          typeof v === "boolean"
+            ? v
+            : ""
+        )
+        .filter(Boolean)
+        .join(", ");
       if (str) entries.push({ path: prefix, value: str });
       return entries;
     }
-    if (typeof obj !== 'object') {
+    if (typeof obj !== "object") {
       entries.push({ path: prefix, value: obj });
       return entries;
     }
     for (const [k, v] of Object.entries(obj)) {
       const p = `${prefix}.${k}`;
       if (v == null) continue;
-      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+      if (
+        typeof v === "string" ||
+        typeof v === "number" ||
+        typeof v === "boolean"
+      ) {
         entries.push({ path: p, value: v });
       } else if (Array.isArray(v)) {
         const sub = this._flattenEntityPaths(v, p, depth + 1);
         entries.push(...sub);
-      } else if (typeof v === 'object') {
+      } else if (typeof v === "object") {
         const sub = this._flattenEntityPaths(v, p, depth + 1);
         entries.push(...sub);
       }
@@ -1260,26 +1862,42 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const optionsByUuid = {};
     const corrections = importerService.getCorrections();
     for (const r of sample) {
-      const e = r.entity; const p = r.proposal || { targetType: 'Note', payload: {} };
+      const e = r.entity;
+      const p = r.proposal || { targetType: "Note", payload: {} };
       const uuid = e.sourcePath;
       const include = r.include !== false;
       // Field rows
-      const fields = Object.entries(p.payload || {}).map(([key, value]) => ({ key, value: this._normalizeFieldValue(value) }));
+      const fields = Object.entries(p.payload || {}).map(([key, value]) => ({
+        key,
+        value: this._normalizeFieldValue(value),
+      }));
       // Build options list per field using flattened entity
-      const flattened = this._flattenEntityPaths(e, '$');
-      const defaultOptions = flattened.slice(0, 24).map(({ path, value }) => ({ path, label: `${path} — ${String(value).slice(0, 40)}` }));
+      const flattened = this._flattenEntityPaths(e, "$");
+      const defaultOptions = flattened
+        .slice(0, 24)
+        .map(({ path, value }) => ({
+          path,
+          label: `${path} — ${String(value).slice(0, 40)}`,
+        }));
       const fieldOverrides = corrections?.byUuid?.[uuid]?.fieldPaths || {};
-      const fieldRows = fields.map(f => {
-        const selectedPath = fieldOverrides[f.key] || '';
-        const options = [{ path: '', label: '(auto)' }, ...defaultOptions].map(o => ({ ...o, selected: o.path === selectedPath }));
+      const fieldRows = fields.map((f) => {
+        const selectedPath = fieldOverrides[f.key] || "";
+        const options = [{ path: "", label: "(auto)" }, ...defaultOptions].map(
+          (o) => ({ ...o, selected: o.path === selectedPath })
+        );
         return { key: f.key, value: f.value, options };
       });
       // Derive UI type: split Character into PC/NPC when labels reveal it or correction exists
-      let uiType = p.targetType || 'Note';
+      let uiType = p.targetType || "Note";
       const corrected = corrections?.byUuid?.[uuid];
-      const labelSet = new Set((p.labels || []).map(l => String(l).toUpperCase()));
-      const charType = (corrected?.characterType || (labelSet.has('PC') ? 'PC' : (labelSet.has('NPC') ? 'NPC' : '')));
-      if (p.targetType === 'Character') uiType = charType ? `Character:${charType}` : 'Character:PC';
+      const labelSet = new Set(
+        (p.labels || []).map((l) => String(l).toUpperCase())
+      );
+      const charType =
+        corrected?.characterType ||
+        (labelSet.has("PC") ? "PC" : labelSet.has("NPC") ? "NPC" : "");
+      if (p.targetType === "Character")
+        uiType = charType ? `Character:${charType}` : "Character:PC";
       const row = {
         uuid,
         name: e.name,
@@ -1289,8 +1907,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         targetType: p.targetType,
         uiType,
         // Clamp percent to [0,100]
-        score: Math.max(0, Math.min(100, Math.round((Number(p.score || 0)) * 100))),
-        fields: fieldRows
+        score: Math.max(
+          0,
+          Math.min(100, Math.round(Number(p.score || 0) * 100))
+        ),
+        fields: fieldRows,
       };
       if (!groups[e.kind]) groups[e.kind] = [];
       groups[e.kind].push(row);
@@ -1301,7 +1922,10 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
   async _refreshImporterPreview() {
     const sampleSize = Math.max(1, this.importerPreview?.length || 30);
-    const data = (this.importerViewMode === 'all') ? importerService.all() : importerService.sample(sampleSize);
+    const data =
+      this.importerViewMode === "all"
+        ? importerService.all()
+        : importerService.sample(sampleSize);
     this.importerPreview = data;
     const built = this._buildPreviewData(data);
     this.importerGroups = built.groups;
@@ -1313,23 +1937,28 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event?.preventDefault?.();
     try {
       if (!settingsManager.isWorldSelected()) {
-        ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+        ui.notifications.warn(
+          game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+        );
         return;
       }
-      this.syncInProgress = true; this.render();
-      this.importerViewMode = 'sample';
+      this.syncInProgress = true;
+      this.render();
+      this.importerViewMode = "sample";
       const data = importerService.sample(30);
       this.importerPreview = data;
       const built = this._buildPreviewData(data);
       this.importerGroups = built.groups;
       this.importerOptions = built.optionsByUuid;
-      this.importerSampleJson = '';
+      this.importerSampleJson = "";
       this.render();
-      ui.notifications.info('Data loaded');
+      ui.notifications.info("Data loaded");
     } catch (e) {
-      console.error(e); ui.notifications.error(Utils.formatError(e));
+      console.error(e);
+      ui.notifications.error(Utils.formatError(e));
     } finally {
-      this.syncInProgress = false; this.render();
+      this.syncInProgress = false;
+      this.render();
     }
   }
 
@@ -1337,80 +1966,89 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event?.preventDefault?.();
     try {
       if (!settingsManager.isWorldSelected()) {
-        ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+        ui.notifications.warn(
+          game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+        );
         return;
       }
       // Confirmation: importer will create new records and ignores existing IDs
       const confirmed = await Dialog.confirm({
-        title: 'Create New Records in Archivist?',
-        content: '<p>This importer will CREATE NEW records in Archivist and ignores any Archivist IDs found on Actors/Journals/Scenes. This may create duplicates if your world has been synced before.</p><p>If you want to update existing records instead, cancel and use the Sync tabs (Characters/Factions/Locations).</p>',
+        title: "Create New Records in Archivist?",
+        content:
+          "<p>This importer will CREATE NEW records in Archivist and ignores any Archivist IDs found on Actors/Journals/Scenes. This may create duplicates if your world has been synced before.</p><p>If you want to update existing records instead, cancel and use the Sync tabs (Characters/Factions/Locations).</p>",
         yes: () => true,
-        no: () => false
+        no: () => false,
       });
       if (!confirmed) return;
       const root = this.element;
-      const aEl = root.querySelector('.import-threshold-a');
-      const bEl = root.querySelector('.import-threshold-b');
+      const aEl = root.querySelector(".import-threshold-a");
+      const bEl = root.querySelector(".import-threshold-b");
       const a = Number(aEl?.value ?? this.thresholdA);
       const b = Number(bEl?.value ?? this.thresholdB);
       this.thresholdA = isFinite(a) ? a : this.thresholdA;
       this.thresholdB = isFinite(b) ? b : this.thresholdB;
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       // Wire progress updates to UI
       const el = this.element;
-      const bar = el.querySelector('.import-progress-bar');
-      const text = el.querySelector('.import-progress-text');
+      const bar = el.querySelector(".import-progress-bar");
+      const text = el.querySelector(".import-progress-text");
       const updateUi = (p) => {
         if (!bar || !text || !p) return;
         const total = Math.max(1, Number(p.total || 0));
         const completed = Number(p.completed || 0);
         const percent = Math.round((completed / total) * 100);
-        bar.max = 100; bar.value = isFinite(percent) ? percent : 0;
+        bar.max = 100;
+        bar.value = isFinite(percent) ? percent : 0;
         text.textContent = `${completed} / ${total}  —  ${percent}%  (auto:${p.autoImported}|q:${p.queued}|drop:${p.dropped}|err:${p.errors})`;
       };
       const result = await importerService.runImport({
         thresholdA: this.thresholdA,
         thresholdB: this.thresholdB,
-        onProgress: updateUi
+        onProgress: updateUi,
       });
       updateUi({ ...result, completed: result.total });
-      ui.notifications.info(`Import complete: ${result.autoImported} auto, ${result.queued} queued, ${result.dropped} dropped, ${result.errors} errors.`);
+      ui.notifications.info(
+        `Import complete: ${result.autoImported} auto, ${result.queued} queued, ${result.dropped} dropped, ${result.errors} errors.`
+      );
     } catch (e) {
-      console.error(e); ui.notifications.error(Utils.formatError(e));
+      console.error(e);
+      ui.notifications.error(Utils.formatError(e));
     } finally {
-      this.syncInProgress = false; this.render();
+      this.syncInProgress = false;
+      this.render();
     }
   }
 
   async _onMappingLoad(event) {
     event?.preventDefault?.();
     try {
-      const area = this.element.querySelector('.mapping-override-json');
+      const area = this.element.querySelector(".mapping-override-json");
       if (!area) return;
       const val = area.value;
       // Validate JSON before saving
       JSON.parse(val);
       await settingsManager.setMappingOverride(val);
-      ui.notifications.info('Mapping loaded');
+      ui.notifications.info("Mapping loaded");
     } catch (e) {
-      ui.notifications.error('Invalid JSON');
+      ui.notifications.error("Invalid JSON");
     }
   }
 
   async _onMappingSave(event) {
     event?.preventDefault?.();
     try {
-      const val = settingsManager.getMappingOverride() || '{}';
-      const blob = new Blob([val], { type: 'application/json' });
+      const val = settingsManager.getMappingOverride() || "{}";
+      const blob = new Blob([val], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `archivist-mapping-${game.world.id}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      ui.notifications.info('Mapping saved to file');
+      ui.notifications.info("Mapping saved to file");
     } catch (e) {
-      ui.notifications.error('Failed to save mapping');
+      ui.notifications.error("Failed to save mapping");
     }
   }
 
@@ -1427,10 +2065,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
       // Close the current sync options dialog to avoid confusion
       await this.close();
-
     } catch (error) {
-      console.error('Error opening world setup dialog:', error);
-      ui.notifications.error('Failed to open world setup dialog');
+      console.error("Error opening world setup dialog:", error);
+      ui.notifications.error("Failed to open world setup dialog");
     }
   }
 
@@ -1438,30 +2075,41 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event?.preventDefault?.();
     try {
       if (!settingsManager.isApiConfigured()) {
-        ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.apiNotConfigured'));
+        ui.notifications.warn(
+          game.i18n.localize("ARCHIVIST_SYNC.warnings.apiNotConfigured")
+        );
         return;
       }
       const title = game.world.title;
-      const description = game.world.description || '';
-      this.syncInProgress = true; this.render();
-      const res = await archivistApi.createCampaign(settingsManager.getApiKey(), { title, description });
-      if (!res.success) throw new Error(res.message || 'Create failed');
+      const description = game.world.description || "";
+      this.syncInProgress = true;
+      this.render();
+      const res = await archivistApi.createCampaign(
+        settingsManager.getApiKey(),
+        { title, description }
+      );
+      if (!res.success) throw new Error(res.message || "Create failed");
       // Prefer selecting using returned id immediately
       const createdId = res?.data?.id;
-      const createdName = res?.data?.name || res?.data?.title || title || 'World';
+      const createdName =
+        res?.data?.name || res?.data?.title || title || "World";
       if (createdId) {
         await settingsManager.setSelectedWorld(createdId, createdName);
         await this._loadSelectedWorldData(createdId);
       }
       // Refresh worlds list for UI dropdown
-      const worlds = await archivistApi.fetchCampaignsList(settingsManager.getApiKey());
+      const worlds = await archivistApi.fetchCampaignsList(
+        settingsManager.getApiKey()
+      );
       if (worlds.success) this.worlds = worlds.data || [];
-      ui.notifications.info('Archivist campaign created');
+      ui.notifications.info("Archivist campaign created");
       this.render();
     } catch (e) {
-      console.error(e); ui.notifications.error(Utils.formatError(e));
+      console.error(e);
+      ui.notifications.error(Utils.formatError(e));
     } finally {
-      this.syncInProgress = false; this.render();
+      this.syncInProgress = false;
+      this.render();
     }
   }
 
@@ -1473,7 +2121,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event.preventDefault();
 
     if (!settingsManager.isApiConfigured()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.apiNotConfigured'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.apiNotConfigured")
+      );
       return;
     }
 
@@ -1486,26 +2136,35 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
       if (response.success) {
         this.worlds = response.data || [];
-        console.log('Worlds loaded:', this.worlds);
+        console.log("Worlds loaded:", this.worlds);
         // Validate currently selected world still exists
         const selectedId = settingsManager.getSelectedWorldId();
-        if (selectedId && !this.worlds.find(w => w.id === selectedId)) {
-          await settingsManager.setSelectedWorld('', '');
+        if (selectedId && !this.worlds.find((w) => w.id === selectedId)) {
+          await settingsManager.setSelectedWorld("", "");
           this.selectedWorldData = null;
         }
         if ((this.worlds?.length || 0) === 0) {
-          await settingsManager.setSelectedWorld('', '');
+          await settingsManager.setSelectedWorld("", "");
           this.selectedWorldData = null;
-          ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.noWorldsFound'));
+          ui.notifications.warn(
+            game.i18n.localize("ARCHIVIST_SYNC.warnings.noWorldsFound")
+          );
         } else {
-          ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldsLoaded'));
+          ui.notifications.info(
+            game.i18n.localize("ARCHIVIST_SYNC.messages.worldsLoaded")
+          );
         }
       } else {
-        ui.notifications.error(response.message || game.i18n.localize('ARCHIVIST_SYNC.errors.fetchFailed'));
+        ui.notifications.error(
+          response.message ||
+            game.i18n.localize("ARCHIVIST_SYNC.errors.fetchFailed")
+        );
       }
     } catch (error) {
-      console.error('Error fetching worlds:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.fetchFailed'));
+      console.error("Error fetching worlds:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.fetchFailed")
+      );
     } finally {
       this.isLoading = false;
       this.render();
@@ -1518,7 +2177,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   _onWorldSelectChange(event) {
     const worldId = event.target.value;
-    const saveButton = event.target.closest('.tab').querySelector('.save-selection-btn');
+    const saveButton = event.target
+      .closest(".tab")
+      .querySelector(".save-selection-btn");
 
     if (worldId && saveButton) {
       saveButton.disabled = false;
@@ -1534,33 +2195,44 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onSaveWorldSelection(event) {
     event.preventDefault();
 
-    const worldSelect = event.target.closest('.tab').querySelector('#world-select');
+    const worldSelect = event.target
+      .closest(".tab")
+      .querySelector("#world-select");
     const worldId = worldSelect.value;
 
     if (!worldId) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorld'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorld")
+      );
       return;
     }
 
-    const selectedWorld = this.worlds.find(w => w.id === worldId);
+    const selectedWorld = this.worlds.find((w) => w.id === worldId);
     if (!selectedWorld) {
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.worldNotFound'));
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.worldNotFound")
+      );
       return;
     }
 
     try {
-      const displayName = selectedWorld?.name || selectedWorld?.title || 'World';
+      const displayName =
+        selectedWorld?.name || selectedWorld?.title || "World";
       await settingsManager.setSelectedWorld(worldId, displayName);
 
       // Load detailed data for the selected world
       await this._loadSelectedWorldData(worldId);
 
-      ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldSaved'));
+      ui.notifications.info(
+        game.i18n.localize("ARCHIVIST_SYNC.messages.worldSaved")
+      );
       settingsManager.refreshSettingsUi();
       this.render();
     } catch (error) {
-      console.error('Error saving world selection:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.saveFailed'));
+      console.error("Error saving world selection:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.saveFailed")
+      );
     }
   }
 
@@ -1569,33 +2241,38 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    * @param {string} worldId - The world ID to load data for
    */
   async _loadSelectedWorldData(worldId) {
-    console.log('_loadSelectedWorldData called with worldId:', worldId);
-    console.log('isApiConfigured:', settingsManager.isApiConfigured());
+    console.log("_loadSelectedWorldData called with worldId:", worldId);
+    console.log("isApiConfigured:", settingsManager.isApiConfigured());
 
     if (!worldId || !settingsManager.isApiConfigured()) {
-      console.log('Skipping world data load: missing worldId or API not configured');
+      console.log(
+        "Skipping world data load: missing worldId or API not configured"
+      );
       this.selectedWorldData = null;
       return;
     }
 
-    console.log('Loading world data for ID:', worldId);
+    console.log("Loading world data for ID:", worldId);
     try {
       const apiKey = settingsManager.getApiKey();
-      console.log('Using API key:', apiKey ? '***' + apiKey.slice(-4) : 'none');
+      console.log("Using API key:", apiKey ? "***" + apiKey.slice(-4) : "none");
 
       const response = await archivistApi.fetchCampaignDetails(apiKey, worldId);
-      console.log('API response:', response);
+      console.log("API response:", response);
 
       if (response.success) {
         this.selectedWorldData = response.data;
-        console.log('Selected world data loaded successfully:', this.selectedWorldData);
-        Utils.log('Selected world data loaded:', this.selectedWorldData);
+        console.log(
+          "Selected world data loaded successfully:",
+          this.selectedWorldData
+        );
+        Utils.log("Selected world data loaded:", this.selectedWorldData);
       } else {
-        console.warn('Failed to load world details:', response.message);
+        console.warn("Failed to load world details:", response.message);
         this.selectedWorldData = null;
       }
     } catch (error) {
-      console.error('Error loading world details:', error);
+      console.error("Error loading world details:", error);
       this.selectedWorldData = null;
     }
   }
@@ -1608,7 +2285,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event.preventDefault();
 
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
 
@@ -1620,22 +2299,37 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const titleData = {
         title: game.world.title,
-        description: game.world.description || ''
+        description: game.world.description || "",
       };
 
-      const response = await archivistApi.syncCampaignTitle(apiKey, worldId, titleData);
+      const response = await archivistApi.syncCampaignTitle(
+        apiKey,
+        worldId,
+        titleData
+      );
 
       if (response.success) {
-        ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.titleSynced'));
+        ui.notifications.info(
+          game.i18n.localize("ARCHIVIST_SYNC.messages.titleSynced")
+        );
       } else {
-        ui.notifications.error(response.message || game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+        ui.notifications.error(
+          response.message ||
+            game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+        );
       }
     } catch (error) {
-      console.error('Error syncing title:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error syncing title:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
-      if (!this._isClosed) { try { this.render(); } catch (_) { } }
+      if (!this._isClosed) {
+        try {
+          this.render();
+        } catch (_) {}
+      }
     }
   }
 
@@ -1647,11 +2341,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event.preventDefault();
 
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
 
-    console.log('Sync to Archivist button clicked!');
+    console.log("Sync to Archivist button clicked!");
 
     this.syncInProgress = true;
     this.render();
@@ -1662,9 +2358,14 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
       // Always sync campaign title first
       try {
-        const titleData = { title: game.world.title, description: game.world.description || '' };
+        const titleData = {
+          title: game.world.title,
+          description: game.world.description || "",
+        };
         await archivistApi.syncCampaignTitle(apiKey, worldId, titleData);
-      } catch (_) { /* non-fatal */ }
+      } catch (_) {
+        /* non-fatal */
+      }
 
       // Push Actors (PCs and NPCs): respect configured destination folders
       const cfg = this._getImportConfig();
@@ -1672,7 +2373,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const actors = [];
       if (cfg?.actorMappings?.pc?.enabled !== false) actors.push(...pcs);
       if (cfg?.actorMappings?.npc?.enabled) actors.push(...npcs);
-      let actorsCreated = 0; let actorsUpdated = 0;
+      let actorsCreated = 0;
+      let actorsUpdated = 0;
       for (const actor of actors) {
         const payload = Utils.toApiCharacterPayload(actor, worldId);
         const existingId = Utils.getActorArchivistId(actor);
@@ -1690,32 +2392,40 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
       // Push Items: respect configured world item destination folder (root-only when none)
       const itemsCfg = cfg?.includeRules?.filters?.items || {};
-      const worldFolders = Array.isArray(itemsCfg.includeWorldItemFolders) ? itemsCfg.includeWorldItemFolders : [];
+      const worldFolders = Array.isArray(itemsCfg.includeWorldItemFolders)
+        ? itemsCfg.includeWorldItemFolders
+        : [];
       const items = [];
       if (worldFolders.length) {
         const include = new Set(worldFolders.filter(Boolean));
-        for (const it of (game.items?.contents || game.items || [])) {
+        for (const it of game.items?.contents || game.items || []) {
           const folder = it?.folder;
-          if (folder && (include.has(folder.id) || include.has(folder.name))) items.push(it);
+          if (folder && (include.has(folder.id) || include.has(folder.name)))
+            items.push(it);
         }
       } else {
         // Root-only when no destination selected
-        for (const it of (game.items?.contents || game.items || [])) {
+        for (const it of game.items?.contents || game.items || []) {
           if (!it?.folder) items.push(it);
         }
       }
-      let itemsCreated = 0; let itemsUpdated = 0;
+      let itemsCreated = 0;
+      let itemsUpdated = 0;
       for (const item of items) {
         const payload = this._toApiItemPayload(item, worldId);
-        const existingId = item.getFlag(CONFIG.MODULE_ID, 'archivistId');
+        const existingId = item.getFlag(CONFIG.MODULE_ID, "archivistId");
         if (existingId) {
           await archivistApi.updateItem(apiKey, existingId, payload);
           itemsUpdated += 1;
         } else {
           const created = await archivistApi.createItem(apiKey, payload);
           if (created?.success && created?.data?.id) {
-            await item.setFlag(CONFIG.MODULE_ID, 'archivistId', created.data.id);
-            await item.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+            await item.setFlag(
+              CONFIG.MODULE_ID,
+              "archivistId",
+              created.data.id
+            );
+            await item.setFlag(CONFIG.MODULE_ID, "archivistWorldId", worldId);
             itemsCreated += 1;
           }
         }
@@ -1724,7 +2434,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       // Push Recaps (sessions): PATCH only for linked pages (never create)
       let recapsUpdated = 0;
       try {
-        const recapPages = this._getContainerPagesByName('Recaps');
+        const recapPages = this._getContainerPagesByName("Recaps");
         for (const p of recapPages) {
           const meta = Utils.getPageArchivistMeta(p);
           if (!meta?.id) continue; // Only linked recaps
@@ -1738,14 +2448,20 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             console.warn(`Failed to push recap ${title}:`, e);
           }
         }
-      } catch (_) { /* ignore */ }
+      } catch (_) {
+        /* ignore */
+      }
 
-      ui.notifications.info(`Pushed to Archivist — Actors: ${actorsCreated} created, ${actorsUpdated} updated; Items: ${itemsCreated} created, ${itemsUpdated} updated; Recaps: ${recapsUpdated} updated`);
+      ui.notifications.info(
+        `Pushed to Archivist — Actors: ${actorsCreated} created, ${actorsUpdated} updated; Items: ${itemsCreated} created, ${itemsUpdated} updated; Recaps: ${recapsUpdated} updated`
+      );
       await this._loadSelectedWorldData(worldId);
       this.render();
     } catch (error) {
-      console.error('Error syncing to Archivist:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error syncing to Archivist:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -1760,18 +2476,21 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event.preventDefault();
 
     if (!settingsManager.isWorldSelected() || !this.selectedWorldData) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
 
-    console.log('Sync from Archivist button clicked!');
+    console.log("Sync from Archivist button clicked!");
 
     // Show confirmation dialog before overwriting Foundry data
     const confirmed = await Dialog.confirm({
-      title: 'Confirm Sync from Archivist',
-      content: '<p>This will overwrite the current Foundry world title and description with data from Archivist. Are you sure?</p>',
+      title: "Confirm Sync from Archivist",
+      content:
+        "<p>This will overwrite the current Foundry world title and description with data from Archivist. Are you sure?</p>",
       yes: () => true,
-      no: () => false
+      no: () => false,
     });
 
     if (!confirmed) {
@@ -1788,10 +2507,12 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       await this._onPullLocations(event);
       await this._onPullItems(event);
       await this._onPullRecaps(event);
-      ui.notifications.info('Pulled all entities from Archivist');
+      ui.notifications.info("Pulled all entities from Archivist");
     } catch (error) {
-      console.error('Error syncing from Archivist:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error syncing from Archivist:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -1805,11 +2526,13 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onMapCharacter(event) {
     event.preventDefault();
 
-    const actorId = event.target.closest('.map-character-btn').dataset.actorId;
+    const actorId = event.target.closest(".map-character-btn").dataset.actorId;
     const actor = game.actors.get(actorId);
 
     if (!actor) {
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.actorNotFound'));
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.actorNotFound")
+      );
       return;
     }
 
@@ -1825,7 +2548,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event.preventDefault();
 
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
 
@@ -1835,10 +2560,17 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     try {
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
-      const actors = game.actors.filter(a => a.type === 'character' || a.type === 'npc');
+      const actors = game.actors.filter(
+        (a) => a.type === "character" || a.type === "npc"
+      );
       if (!actors?.length) {
-        console.warn('[Archivist Sync] No Foundry actors (character/npc) found to sync.');
-        ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.noActorsToSync') || 'No characters or NPCs found in this world to sync.');
+        console.warn(
+          "[Archivist Sync] No Foundry actors (character/npc) found to sync."
+        );
+        ui.notifications.warn(
+          game.i18n.localize("ARCHIVIST_SYNC.warnings.noActorsToSync") ||
+            "No characters or NPCs found in this world to sync."
+        );
         this.syncInProgress = false;
         this.render();
         return;
@@ -1860,12 +2592,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         }
       }
       ui.notifications.info(
-        (game.i18n.localize('ARCHIVIST_SYNC.messages.charactersSynced') || 'Characters synchronized successfully')
-        + ` (${createdCount} created, ${updatedCount} updated)`
+        (game.i18n.localize("ARCHIVIST_SYNC.messages.charactersSynced") ||
+          "Characters synchronized successfully") +
+          ` (${createdCount} created, ${updatedCount} updated)`
       );
     } catch (error) {
-      console.error('Error syncing characters:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error syncing characters:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -1878,7 +2613,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPullCharacters(event) {
     event.preventDefault();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
 
@@ -1889,34 +2626,50 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listCharacters(apiKey, worldId);
-      console.debug('[Archivist Sync] listCharacters raw response:', list);
-      if (!list.success) throw new Error(list.message || 'Failed to list characters');
+      console.debug("[Archivist Sync] listCharacters raw response:", list);
+      if (!list.success)
+        throw new Error(list.message || "Failed to list characters");
 
       // Coerce API response into an array regardless of shape
-      const apiItems =
-        Array.isArray(list.data) ? list.data :
-          Array.isArray(list?.data?.data) ? list.data.data :
-            Array.isArray(list?.characters) ? list.characters :
-              Array.isArray(list?.results) ? list.results : [];
+      const apiItems = Array.isArray(list.data)
+        ? list.data
+        : Array.isArray(list?.data?.data)
+        ? list.data.data
+        : Array.isArray(list?.characters)
+        ? list.characters
+        : Array.isArray(list?.results)
+        ? list.results
+        : [];
 
       // Debug: log first API character and resolved description so we can verify payload
       if (apiItems.length) {
         const f = apiItems[0];
-        const firstDescription = (f.description ?? f.combined_description ?? f.new_description ?? f.old_description ?? '').toString();
-        console.debug('[Archivist Sync] First API character object:', f);
-        console.debug('[Archivist Sync] First API character description (resolved):', firstDescription);
+        const firstDescription = (
+          f.description ??
+          f.combined_description ??
+          f.new_description ??
+          f.old_description ??
+          ""
+        ).toString();
+        console.debug("[Archivist Sync] First API character object:", f);
+        console.debug(
+          "[Archivist Sync] First API character description (resolved):",
+          firstDescription
+        );
       }
 
       if (!apiItems.length) {
-        ui.notifications.info('No characters found in Archivist for this world (check approval filters and world ID).');
+        ui.notifications.info(
+          "No characters found in Archivist for this world (check approval filters and world ID)."
+        );
       }
 
       console.log(`Archivist characters to pull: ${apiItems.length}`);
 
       const existing = new Map();
-      const actorCollection = (game.actors?.contents ?? game.actors ?? []);
+      const actorCollection = game.actors?.contents ?? game.actors ?? [];
       for (const a of actorCollection) {
-        const id = a.getFlag(CONFIG.MODULE_ID, 'archivistId');
+        const id = a.getFlag(CONFIG.MODULE_ID, "archivistId");
         if (id) existing.set(id, a);
       }
 
@@ -1924,13 +2677,21 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       let updatedCount = 0;
 
       for (const c of apiItems) {
-        const name = c.character_name || c.name || 'Character';
-        const type = (c.type === 'PC') ? 'character' : 'npc';
+        const name = c.character_name || c.name || "Character";
+        const type = c.type === "PC" ? "character" : "npc";
         // Prefer combined/new/old descriptions if present
-        const bio =
-          (c.description ?? c.combined_description ?? c.new_description ?? c.old_description ?? '').toString();
+        const bio = (
+          c.description ??
+          c.combined_description ??
+          c.new_description ??
+          c.old_description ??
+          ""
+        ).toString();
         // Remote portrait image URL if provided
-        const imageUrl = (typeof c.image === 'string' && c.image.trim().length) ? c.image.trim() : null;
+        const imageUrl =
+          typeof c.image === "string" && c.image.trim().length
+            ? c.image.trim()
+            : null;
         const existingActor = existing.get(c.id);
         if (existingActor) {
           try {
@@ -1939,15 +2700,22 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             await existingActor.update(updateDataBase);
             if (imageUrl) {
               try {
-                await existingActor.update({ "prototypeToken.texture.src": imageUrl });
+                await existingActor.update({
+                  "prototypeToken.texture.src": imageUrl,
+                });
               } catch (et) {
                 // Ignore token texture failure; portrait already set
               }
             }
-            if (bio) { await writeBestBiography(existingActor, Utils.markdownToStoredHtml(bio)); }
+            if (bio) {
+              await writeBestBiography(
+                existingActor,
+                Utils.markdownToStoredHtml(bio)
+              );
+            }
             updatedCount++;
           } catch (e) {
-            console.warn('Failed to update actor name', e);
+            console.warn("Failed to update actor name", e);
           }
         } else {
           let created;
@@ -1956,18 +2724,24 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             if (imageUrl) createData.img = imageUrl;
             // Place into configured folder if available
             try {
-              const folderId = this._getPreferredActorFolderId(type === 'character' ? 'pc' : 'npc');
+              const folderId = this._getPreferredActorFolderId(
+                type === "character" ? "pc" : "npc"
+              );
               if (folderId) createData.folder = folderId;
-            } catch (_) { /* ignore */ }
+            } catch (_) {
+              /* ignore */
+            }
             created = await Actor.create(createData);
           } catch (e) {
             // Fallback to npc if the system doesn't have "character"
-            const createData = { name, type: 'npc' };
+            const createData = { name, type: "npc" };
             if (imageUrl) createData.img = imageUrl;
             try {
-              const folderId = this._getPreferredActorFolderId('npc');
+              const folderId = this._getPreferredActorFolderId("npc");
               if (folderId) createData.folder = folderId;
-            } catch (_) { /* ignore */ }
+            } catch (_) {
+              /* ignore */
+            }
             created = await Actor.create(createData);
           }
           if (created) {
@@ -1975,22 +2749,32 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
             await Utils.setActorArchivistId(created, c.id);
             if (imageUrl) {
               try {
-                await created.update({ "prototypeToken.texture.src": imageUrl });
+                await created.update({
+                  "prototypeToken.texture.src": imageUrl,
+                });
               } catch (ct) {
                 // ignore
               }
             }
-            if (bio) { await writeBestBiography(created, Utils.markdownToStoredHtml(bio)); }
+            if (bio) {
+              await writeBestBiography(
+                created,
+                Utils.markdownToStoredHtml(bio)
+              );
+            }
           }
         }
       }
 
       ui.notifications.info(
-        game.i18n.localize('ARCHIVIST_SYNC.messages.charactersPulled') + ` (${createdCount} created, ${updatedCount} updated)`
+        game.i18n.localize("ARCHIVIST_SYNC.messages.charactersPulled") +
+          ` (${createdCount} created, ${updatedCount} updated)`
       );
     } catch (error) {
-      console.error('Error pulling characters:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pulling characters:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2000,17 +2784,28 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPushFactions(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
     this.syncInProgress = true;
     this.render();
     try {
-      const res = await importerService.pushFiltered({ kinds: ['Journal'], targetType: 'Faction', folderMatch: 'faction|org|guild' });
-      ui.notifications.info((game.i18n.localize('ARCHIVIST_SYNC.messages.factionsSynced')) + ` (${res.count})`);
+      const res = await importerService.pushFiltered({
+        kinds: ["Journal"],
+        targetType: "Faction",
+        folderMatch: "faction|org|guild",
+      });
+      ui.notifications.info(
+        game.i18n.localize("ARCHIVIST_SYNC.messages.factionsSynced") +
+          ` (${res.count})`
+      );
     } catch (error) {
-      console.error('Error pushing factions:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pushing factions:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2020,7 +2815,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPullFactions(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
     this.syncInProgress = true;
@@ -2030,41 +2827,67 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listFactions(apiKey, worldId);
       // Coerce API response into an array regardless of envelope shape
-      const apiItems =
-        Array.isArray(list.data) ? list.data :
-          Array.isArray(list?.data?.data) ? list.data.data :
-            Array.isArray(list?.results) ? list.results : [];
-      if (!list.success) throw new Error(list.message || 'Failed to list factions');
-      console.debug('[Archivist Sync] listFactions resolved items:', apiItems.length);
+      const apiItems = Array.isArray(list.data)
+        ? list.data
+        : Array.isArray(list?.data?.data)
+        ? list.data.data
+        : Array.isArray(list?.results)
+        ? list.results
+        : [];
+      if (!list.success)
+        throw new Error(list.message || "Failed to list factions");
+      console.debug(
+        "[Archivist Sync] listFactions resolved items:",
+        apiItems.length
+      );
       // Ensure single container JournalEntry at root
-      const container = await Utils.ensureRootJournalContainer('Factions');
+      const container = await Utils.ensureRootJournalContainer("Factions");
 
       // Sort API items alphabetically by name
-      apiItems.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      apiItems.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
 
       for (const f of apiItems) {
-        const name = f.name || 'Faction';
-        const description = (f.description ?? f.combined_description ?? f.new_description ?? f.old_description ?? '').toString();
-        const imageUrl = (typeof f.image === 'string' && f.image.trim().length)
-          ? f.image.trim()
-          : (typeof f.cover_image === 'string' && f.cover_image.trim().length)
+        const name = f.name || "Faction";
+        const description = (
+          f.description ??
+          f.combined_description ??
+          f.new_description ??
+          f.old_description ??
+          ""
+        ).toString();
+        const imageUrl =
+          typeof f.image === "string" && f.image.trim().length
+            ? f.image.trim()
+            : typeof f.cover_image === "string" && f.cover_image.trim().length
             ? f.cover_image.trim()
-            : (typeof f.thumbnail === 'string' && f.thumbnail.trim().length)
-              ? f.thumbnail.trim()
-              : null;
+            : typeof f.thumbnail === "string" && f.thumbnail.trim().length
+            ? f.thumbnail.trim()
+            : null;
         await Utils.upsertContainerTextPage(container, {
           name,
           html: description,
           imageUrl,
-          flags: { archivistId: f.id, archivistType: 'faction', archivistWorldId: worldId }
+          flags: {
+            archivistId: f.id,
+            archivistType: "faction",
+            archivistWorldId: worldId,
+          },
         });
       }
       // Apply alphabetical ordering by page name
-      await Utils.sortContainerPages(container, (a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-      ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.factionsPulled'));
+      await Utils.sortContainerPages(container, (a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
+      ui.notifications.info(
+        game.i18n.localize("ARCHIVIST_SYNC.messages.factionsPulled")
+      );
     } catch (error) {
-      console.error('Error pulling factions:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pulling factions:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2074,17 +2897,28 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPushLocations(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
     this.syncInProgress = true;
     this.render();
     try {
-      const res = await importerService.pushFiltered({ kinds: ['Journal', 'Scene'], targetType: 'Location', folderMatch: 'location|place|region' });
-      ui.notifications.info((game.i18n.localize('ARCHIVIST_SYNC.messages.locationsSynced')) + ` (${res.count})`);
+      const res = await importerService.pushFiltered({
+        kinds: ["Journal", "Scene"],
+        targetType: "Location",
+        folderMatch: "location|place|region",
+      });
+      ui.notifications.info(
+        game.i18n.localize("ARCHIVIST_SYNC.messages.locationsSynced") +
+          ` (${res.count})`
+      );
     } catch (error) {
-      console.error('Error pushing locations:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pushing locations:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2094,7 +2928,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPullLocations(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
     this.syncInProgress = true;
@@ -2104,41 +2940,67 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listLocations(apiKey, worldId);
       // Coerce API response into an array regardless of envelope shape
-      const apiItems =
-        Array.isArray(list.data) ? list.data :
-          Array.isArray(list?.data?.data) ? list.data.data :
-            Array.isArray(list?.results) ? list.results : [];
-      if (!list.success) throw new Error(list.message || 'Failed to list locations');
-      console.debug('[Archivist Sync] listLocations resolved items:', apiItems.length);
+      const apiItems = Array.isArray(list.data)
+        ? list.data
+        : Array.isArray(list?.data?.data)
+        ? list.data.data
+        : Array.isArray(list?.results)
+        ? list.results
+        : [];
+      if (!list.success)
+        throw new Error(list.message || "Failed to list locations");
+      console.debug(
+        "[Archivist Sync] listLocations resolved items:",
+        apiItems.length
+      );
       // Ensure single container JournalEntry at root
-      const container = await Utils.ensureRootJournalContainer('Locations');
+      const container = await Utils.ensureRootJournalContainer("Locations");
 
       // Sort API items alphabetically by name
-      apiItems.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+      apiItems.sort((a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
 
       for (const l of apiItems) {
-        const name = l.name || 'Location';
-        const description = (l.description ?? l.combined_description ?? l.new_description ?? l.old_description ?? '').toString();
-        const imageUrl = (typeof l.image === 'string' && l.image.trim().length)
-          ? l.image.trim()
-          : (typeof l.cover_image === 'string' && l.cover_image.trim().length)
+        const name = l.name || "Location";
+        const description = (
+          l.description ??
+          l.combined_description ??
+          l.new_description ??
+          l.old_description ??
+          ""
+        ).toString();
+        const imageUrl =
+          typeof l.image === "string" && l.image.trim().length
+            ? l.image.trim()
+            : typeof l.cover_image === "string" && l.cover_image.trim().length
             ? l.cover_image.trim()
-            : (typeof l.thumbnail === 'string' && l.thumbnail.trim().length)
-              ? l.thumbnail.trim()
-              : null;
+            : typeof l.thumbnail === "string" && l.thumbnail.trim().length
+            ? l.thumbnail.trim()
+            : null;
         await Utils.upsertContainerTextPage(container, {
           name,
           html: description,
           imageUrl,
-          flags: { archivistId: l.id, archivistType: 'location', archivistWorldId: worldId }
+          flags: {
+            archivistId: l.id,
+            archivistType: "location",
+            archivistWorldId: worldId,
+          },
         });
       }
       // Apply alphabetical ordering by page name
-      await Utils.sortContainerPages(container, (a, b) => String(a.name || '').localeCompare(String(b.name || '')));
-      ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.locationsPulled'));
+      await Utils.sortContainerPages(container, (a, b) =>
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
+      ui.notifications.info(
+        game.i18n.localize("ARCHIVIST_SYNC.messages.locationsPulled")
+      );
     } catch (error) {
-      console.error('Error pulling locations:', error);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pulling locations:", error);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2148,43 +3010,59 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onDeterministicSync(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
 
     this.syncInProgress = true;
     this.resetSyncProgress();
-    this.updateSyncProgress({ phase: 'processing' });
+    this.updateSyncProgress({ phase: "processing" });
 
     try {
       const res = await importerService.pushDeterministic(this);
 
       // Final progress update
       this.updateSyncProgress({
-        phase: 'complete',
-        currentType: '',
-        currentEntity: 'Sync complete!'
+        phase: "complete",
+        currentType: "",
+        currentEntity: "Sync complete!",
       });
 
       // Enhanced notification with success/failure breakdown
       if (res.failed === 0) {
-        ui.notifications.info(`Successfully synced all ${res.count} entities using deterministic config`);
+        ui.notifications.info(
+          `Successfully synced all ${res.count} entities using deterministic config`
+        );
       } else if (res.count > 0) {
-        ui.notifications.warn(`Synced ${res.count} entities, but ${res.failed} failed. Check console for details.`);
+        ui.notifications.warn(
+          `Synced ${res.count} entities, but ${res.failed} failed. Check console for details.`
+        );
         console.log(`${CONFIG.MODULE_TITLE} | Sync Summary:`, {
           succeeded: res.count,
           failed: res.failed,
           total: res.total,
-          failedEntities: res.failedEntities
+          failedEntities: res.failedEntities,
         });
       } else {
-        ui.notifications.error(`Sync failed: all ${res.failed} entities failed to sync. Check console for details.`);
-        console.error(`${CONFIG.MODULE_TITLE} | All entities failed to sync:`, res.failedEntities);
+        ui.notifications.error(
+          `Sync failed: all ${res.failed} entities failed to sync. Check console for details.`
+        );
+        console.error(
+          `${CONFIG.MODULE_TITLE} | All entities failed to sync:`,
+          res.failedEntities
+        );
       }
     } catch (e) {
-      console.error(`${CONFIG.MODULE_TITLE} | Deterministic sync exception:`, e);
-      ui.notifications.error(`Deterministic sync failed: ${e.message || 'Unknown error'}`);
-      this.updateSyncProgress({ phase: 'idle' });
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Deterministic sync exception:`,
+        e
+      );
+      ui.notifications.error(
+        `Deterministic sync failed: ${e.message || "Unknown error"}`
+      );
+      this.updateSyncProgress({ phase: "idle" });
     } finally {
       this.syncInProgress = false;
       // Don't reset progress here - let user see final results
@@ -2194,73 +3072,105 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
   _fillWizardFields(root, cfg) {
     // Set description path dropdowns
-    const pcDescSelect = root.querySelector('.wizard-pc-desc');
-    if (pcDescSelect) pcDescSelect.value = cfg?.actorMappings?.pc?.descriptionPath || '';
+    const pcDescSelect = root.querySelector(".wizard-pc-desc");
+    if (pcDescSelect)
+      pcDescSelect.value = cfg?.actorMappings?.pc?.descriptionPath || "";
 
-    const npcDescSelect = root.querySelector('.wizard-npc-desc');
-    if (npcDescSelect) npcDescSelect.value = cfg?.actorMappings?.npc?.descriptionPath || '';
+    const npcDescSelect = root.querySelector(".wizard-npc-desc");
+    if (npcDescSelect)
+      npcDescSelect.value = cfg?.actorMappings?.npc?.descriptionPath || "";
 
     // Set folder checkboxes for PCs
-    const pcFolders = cfg?.includeRules?.filters?.actors?.includeFolders?.pcs || [];
-    root.querySelectorAll('.wizard-pc-folder-checkbox').forEach(checkbox => {
+    const pcFolders =
+      cfg?.includeRules?.filters?.actors?.includeFolders?.pcs || [];
+    root.querySelectorAll(".wizard-pc-folder-checkbox").forEach((checkbox) => {
       checkbox.checked = pcFolders.includes(checkbox.value);
     });
 
     // Set folder checkboxes for NPCs
-    const npcFolders = cfg?.includeRules?.filters?.actors?.includeFolders?.npcs || [];
-    root.querySelectorAll('.wizard-npc-folder-checkbox').forEach(checkbox => {
+    const npcFolders =
+      cfg?.includeRules?.filters?.actors?.includeFolders?.npcs || [];
+    root.querySelectorAll(".wizard-npc-folder-checkbox").forEach((checkbox) => {
       checkbox.checked = npcFolders.includes(checkbox.value);
     });
 
     // Set items dropdown
-    const itemsSelect = root.querySelector('.wizard-items-owned');
-    if (itemsSelect) itemsSelect.value = cfg?.includeRules?.filters?.items?.includeActorOwnedFrom || 'pc';
+    const itemsSelect = root.querySelector(".wizard-items-owned");
+    if (itemsSelect)
+      itemsSelect.value =
+        cfg?.includeRules?.filters?.items?.includeActorOwnedFrom || "pc";
 
     // Set item folder checkboxes
-    const itemFolders = cfg?.includeRules?.filters?.items?.includeWorldItemFolders || [];
-    root.querySelectorAll('.wizard-item-folder-checkbox').forEach(checkbox => {
-      checkbox.checked = itemFolders.includes(checkbox.value);
-    });
+    const itemFolders =
+      cfg?.includeRules?.filters?.items?.includeWorldItemFolders || [];
+    root
+      .querySelectorAll(".wizard-item-folder-checkbox")
+      .forEach((checkbox) => {
+        checkbox.checked = itemFolders.includes(checkbox.value);
+      });
 
     // Set faction folder checkboxes
-    const factionFolders = cfg?.includeRules?.filters?.factions?.journalFolders || [];
-    root.querySelectorAll('.wizard-faction-folder-checkbox').forEach(checkbox => {
-      checkbox.checked = factionFolders.includes(checkbox.value);
-    });
+    const factionFolders =
+      cfg?.includeRules?.filters?.factions?.journalFolders || [];
+    root
+      .querySelectorAll(".wizard-faction-folder-checkbox")
+      .forEach((checkbox) => {
+        checkbox.checked = factionFolders.includes(checkbox.value);
+      });
   }
 
   _readWizardFields(root, cfg) {
     const next = duplicate(cfg || {});
     next.actorMappings = next.actorMappings || { pc: {}, npc: {} };
-    next.includeRules = next.includeRules || { filters: { actors: { includeFolders: {} }, items: {}, factions: {} }, sources: {} };
+    next.includeRules = next.includeRules || {
+      filters: { actors: { includeFolders: {} }, items: {}, factions: {} },
+      sources: {},
+    };
 
     // Read description paths from dropdowns
-    const pcDescPath = root.querySelector('.wizard-pc-desc')?.value?.trim() || '';
-    const npcDescPath = root.querySelector('.wizard-npc-desc')?.value?.trim() || '';
-    next.actorMappings.pc.descriptionPath = pcDescPath || next.actorMappings.pc.descriptionPath;
-    next.actorMappings.npc.descriptionPath = npcDescPath || next.actorMappings.npc.descriptionPath;
+    const pcDescPath =
+      root.querySelector(".wizard-pc-desc")?.value?.trim() || "";
+    const npcDescPath =
+      root.querySelector(".wizard-npc-desc")?.value?.trim() || "";
+    next.actorMappings.pc.descriptionPath =
+      pcDescPath || next.actorMappings.pc.descriptionPath;
+    next.actorMappings.npc.descriptionPath =
+      npcDescPath || next.actorMappings.npc.descriptionPath;
 
     // Read folder selections from checkboxes
-    const pcFolders = Array.from(root.querySelectorAll('.wizard-pc-folder-checkbox:checked'))
-      .map(cb => cb.value).filter(Boolean);
-    const npcFolders = Array.from(root.querySelectorAll('.wizard-npc-folder-checkbox:checked'))
-      .map(cb => cb.value).filter(Boolean);
+    const pcFolders = Array.from(
+      root.querySelectorAll(".wizard-pc-folder-checkbox:checked")
+    )
+      .map((cb) => cb.value)
+      .filter(Boolean);
+    const npcFolders = Array.from(
+      root.querySelectorAll(".wizard-npc-folder-checkbox:checked")
+    )
+      .map((cb) => cb.value)
+      .filter(Boolean);
 
     next.includeRules.filters.actors.includeFolders.pcs = pcFolders;
     next.includeRules.filters.actors.includeFolders.npcs = npcFolders;
 
     // Read items dropdown
-    const owned = root.querySelector('.wizard-items-owned')?.value?.trim() || 'pc';
+    const owned =
+      root.querySelector(".wizard-items-owned")?.value?.trim() || "pc";
     next.includeRules.filters.items.includeActorOwnedFrom = owned;
 
     // Read item folders from checkboxes
-    const itemFolders = Array.from(root.querySelectorAll('.wizard-item-folder-checkbox:checked'))
-      .map(cb => cb.value).filter(Boolean);
+    const itemFolders = Array.from(
+      root.querySelectorAll(".wizard-item-folder-checkbox:checked")
+    )
+      .map((cb) => cb.value)
+      .filter(Boolean);
     next.includeRules.filters.items.includeWorldItemFolders = itemFolders;
 
     // Read faction folders from checkboxes
-    const factionFolders = Array.from(root.querySelectorAll('.wizard-faction-folder-checkbox:checked'))
-      .map(cb => cb.value).filter(Boolean);
+    const factionFolders = Array.from(
+      root.querySelectorAll(".wizard-faction-folder-checkbox:checked")
+    )
+      .map((cb) => cb.value)
+      .filter(Boolean);
     next.includeRules.filters.factions.journalFolders = factionFolders;
 
     return next;
@@ -2270,7 +3180,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     event?.preventDefault?.();
     const cfg = settingsManager.getImportConfig();
     this._fillWizardFields(this.element, cfg);
-    ui.notifications.info('Loaded mapping config');
+    ui.notifications.info("Loaded mapping config");
   }
 
   async _onWizardSave(event) {
@@ -2278,77 +3188,122 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const current = settingsManager.getImportConfig();
     const next = this._readWizardFields(this.element, current);
     await settingsManager.setImportConfig(next);
-    ui.notifications.info('Saved mapping config');
+    ui.notifications.info("Saved mapping config");
   }
 
   async _onWizardTest(event) {
     event?.preventDefault?.();
-    const cfg = this._readWizardFields(this.element, settingsManager.getImportConfig());
+    const cfg = this._readWizardFields(
+      this.element,
+      settingsManager.getImportConfig()
+    );
     // Simple test: read the first PC actor's description using configured path and show preview
-    const firstPc = (game.actors?.contents ?? game.actors ?? []).find(a => a.type === 'character');
-    if (!firstPc) return ui.notifications.warn('No PC actors found to test');
+    const firstPc = (game.actors?.contents ?? game.actors ?? []).find(
+      (a) => a.type === "character"
+    );
+    if (!firstPc) return ui.notifications.warn("No PC actors found to test");
     const path = cfg?.actorMappings?.pc?.descriptionPath;
-    const value = path ? path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), firstPc) : undefined;
-    const preview = typeof value === 'string' ? value.slice(0, 200) : JSON.stringify(value)?.slice(0, 200);
-    ui.notifications.info(`PC description preview: ${preview || '(empty)'}`);
+    const value = path
+      ? path
+          .split(".")
+          .reduce((o, k) => (o == null ? undefined : o[k]), firstPc)
+      : undefined;
+    const preview =
+      typeof value === "string"
+        ? value.slice(0, 200)
+        : JSON.stringify(value)?.slice(0, 200);
+    ui.notifications.info(`PC description preview: ${preview || "(empty)"}`);
   }
 
   async _onValidateApiKey(event) {
     event?.preventDefault?.();
     try {
       const root = this.element[0] || document;
-      const input = root.querySelector('#api-key-input');
+      const input = root.querySelector("#api-key-input");
       const newKey = input?.value?.trim();
       if (!newKey) {
-        ui.notifications.warn('Enter an API key to validate.');
+        ui.notifications.warn("Enter an API key to validate.");
         return;
       }
       const currentWorldId = settingsManager.getSelectedWorldId();
       if (!currentWorldId) {
-        ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+        ui.notifications.warn(
+          game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+        );
         return;
       }
-      const res = await archivistApi.fetchCampaignDetails(newKey, currentWorldId);
-      const errEl = root.querySelector('.api-key-error');
+      const res = await archivistApi.fetchCampaignDetails(
+        newKey,
+        currentWorldId
+      );
+      const errEl = root.querySelector(".api-key-error");
       if (res?.success) {
-        await settingsManager.setSetting('apiKey', newKey);
-        errEl && (errEl.style.display = 'none');
-        ui.notifications.info('API key validated and saved.');
+        await settingsManager.setSetting("apiKey", newKey);
+        errEl && (errEl.style.display = "none");
+        ui.notifications.info("API key validated and saved.");
         this.render();
       } else {
         // 404 means selected campaign not found under this key
-        errEl && (errEl.style.display = 'block');
-        if (errEl) errEl.textContent = 'Campaign not found for this key. Enter a different key or run setup again.';
-        ui.notifications.error('Campaign not found. Enter a different key or run setup again.');
+        errEl && (errEl.style.display = "block");
+        if (errEl)
+          errEl.textContent =
+            "Campaign not found for this key. Enter a different key or run setup again.";
+        ui.notifications.error(
+          "Campaign not found. Enter a different key or run setup again."
+        );
       }
     } catch (e) {
-      console.error('API key validation failed:', e);
-      ui.notifications.error('Validation failed. Check key and try again.');
+      console.error("API key validation failed:", e);
+      ui.notifications.error("Validation failed. Check key and try again.");
     }
   }
 
   _fillConfigForm(root, cfg) {
     try {
       // PC mappings
-      root.querySelector('.cfg-pc-name')?.setAttribute('value', cfg?.actorMappings?.pc?.namePath || '');
-      root.querySelector('.cfg-pc-img')?.setAttribute('value', cfg?.actorMappings?.pc?.imagePath || '');
-      root.querySelector('.cfg-pc-desc')?.setAttribute('value', cfg?.actorMappings?.pc?.descriptionPath || '');
+      root
+        .querySelector(".cfg-pc-name")
+        ?.setAttribute("value", cfg?.actorMappings?.pc?.namePath || "");
+      root
+        .querySelector(".cfg-pc-img")
+        ?.setAttribute("value", cfg?.actorMappings?.pc?.imagePath || "");
+      root
+        .querySelector(".cfg-pc-desc")
+        ?.setAttribute("value", cfg?.actorMappings?.pc?.descriptionPath || "");
 
       // NPC mappings
-      root.querySelector('.cfg-npc-name')?.setAttribute('value', cfg?.actorMappings?.npc?.namePath || '');
-      root.querySelector('.cfg-npc-img')?.setAttribute('value', cfg?.actorMappings?.npc?.imagePath || '');
-      root.querySelector('.cfg-npc-desc')?.setAttribute('value', cfg?.actorMappings?.npc?.descriptionPath || '');
+      root
+        .querySelector(".cfg-npc-name")
+        ?.setAttribute("value", cfg?.actorMappings?.npc?.namePath || "");
+      root
+        .querySelector(".cfg-npc-img")
+        ?.setAttribute("value", cfg?.actorMappings?.npc?.imagePath || "");
+      root
+        .querySelector(".cfg-npc-desc")
+        ?.setAttribute("value", cfg?.actorMappings?.npc?.descriptionPath || "");
 
       // Item mappings
-      root.querySelector('.cfg-item-name')?.setAttribute('value', cfg?.itemMappings?.namePath || '');
-      root.querySelector('.cfg-item-img')?.setAttribute('value', cfg?.itemMappings?.imagePath || '');
-      root.querySelector('.cfg-item-desc')?.setAttribute('value', cfg?.itemMappings?.descriptionPath || '');
+      root
+        .querySelector(".cfg-item-name")
+        ?.setAttribute("value", cfg?.itemMappings?.namePath || "");
+      root
+        .querySelector(".cfg-item-img")
+        ?.setAttribute("value", cfg?.itemMappings?.imagePath || "");
+      root
+        .querySelector(".cfg-item-desc")
+        ?.setAttribute("value", cfg?.itemMappings?.descriptionPath || "");
 
       // Destinations
-      root.querySelector('.cfg-dest-pc')?.setAttribute('value', cfg?.destinations?.pc || '');
-      root.querySelector('.cfg-dest-npc')?.setAttribute('value', cfg?.destinations?.npc || '');
-      root.querySelector('.cfg-dest-item')?.setAttribute('value', cfg?.destinations?.item || '');
-    } catch (_) { }
+      root
+        .querySelector(".cfg-dest-pc")
+        ?.setAttribute("value", cfg?.destinations?.pc || "");
+      root
+        .querySelector(".cfg-dest-npc")
+        ?.setAttribute("value", cfg?.destinations?.npc || "");
+      root
+        .querySelector(".cfg-dest-item")
+        ?.setAttribute("value", cfg?.destinations?.item || "");
+    } catch (_) {}
   }
 
   async _onLoadConfig(event) {
@@ -2357,7 +3312,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const cfg = settingsManager.getImportConfig();
     this._ensureConfigDestinations(cfg);
     this._fillConfigForm(root, cfg);
-    ui.notifications.info('Loaded current configuration.');
+    ui.notifications.info("Loaded current configuration.");
   }
 
   /**
@@ -2371,19 +3326,19 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
           pc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.details.biography.value"
+            descriptionPath: "system.details.biography.value",
           },
           npc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.details.biography.public"
-          }
+            descriptionPath: "system.details.biography.public",
+          },
         },
         itemMappings: {
           namePath: "name",
           imagePath: "img",
-          descriptionPath: "system.description.value"
-        }
+          descriptionPath: "system.description.value",
+        },
       },
       pf2e: {
         name: "Pathfinder 2e",
@@ -2391,19 +3346,19 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
           pc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.details.biography.value"
+            descriptionPath: "system.details.biography.backstory",
           },
           npc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.details.publicNotes"
-          }
+            descriptionPath: "system.details",
+          },
         },
         itemMappings: {
           namePath: "name",
           imagePath: "img",
-          descriptionPath: "system.description.value"
-        }
+          descriptionPath: "system.description.value",
+        },
       },
       coc7: {
         name: "Call of Cthulhu 7e",
@@ -2411,20 +3366,20 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
           pc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.biography.personal.description"
+            descriptionPath: "system.biography.personal.description",
           },
           npc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.biography.personal.description"
-          }
+            descriptionPath: "system.biography.personal.description",
+          },
         },
         itemMappings: {
           namePath: "name",
           imagePath: "img",
-          descriptionPath: "system.description.value"
-        }
-      }
+          descriptionPath: "system.description.value",
+        },
+      },
     };
   }
 
@@ -2434,11 +3389,15 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   _validatePresetOrThrow(presetKey) {
     const presets = this._getSystemPresets();
     const preset = presets[presetKey];
-    if (!preset) throw new Error('Unknown preset');
+    if (!preset) throw new Error("Unknown preset");
 
     // Always validate against discovered properties (which includes system templates)
-    const actorProps = new Set((this._getActorStringProperties() || []).map(p => p.path));
-    const itemProps = new Set((this._getItemStringProperties() || []).map(p => p.path));
+    const actorProps = new Set(
+      (this._getActorStringProperties() || []).map((p) => p.path)
+    );
+    const itemProps = new Set(
+      (this._getItemStringProperties() || []).map((p) => p.path)
+    );
 
     const testPaths = [
       preset.actorMappings?.pc?.namePath,
@@ -2449,21 +3408,25 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       preset.actorMappings?.npc?.descriptionPath,
       preset.itemMappings?.namePath,
       preset.itemMappings?.imagePath,
-      preset.itemMappings?.descriptionPath
+      preset.itemMappings?.descriptionPath,
     ].filter(Boolean);
 
     const exists = (p) => {
       if (!p) return false;
       // Always allow common top-level properties
-      if (p === 'name' || p === 'img') return true;
+      if (p === "name" || p === "img") return true;
       // Check if path exists in discovered properties (includes templates + existing docs)
       if (actorProps.has(p) || itemProps.has(p)) return true;
       return false;
     };
 
-    const missing = testPaths.filter(p => !exists(p));
+    const missing = testPaths.filter((p) => !exists(p));
     if (missing.length) {
-      throw new Error(`This preset is incompatible with your game system. Missing properties: ${missing.join(', ')}`);
+      throw new Error(
+        `This preset is incompatible with your game system. Missing properties: ${missing.join(
+          ", "
+        )}`
+      );
     }
   }
 
@@ -2480,40 +3443,51 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
     // Apply PC mappings
     if (preset.actorMappings.pc) {
-      const pcNameSelect = root.querySelector('.cfg-pc-name');
-      const pcImgSelect = root.querySelector('.cfg-pc-img');
-      const pcDescSelect = root.querySelector('.cfg-pc-desc');
+      const pcNameSelect = root.querySelector(".cfg-pc-name");
+      const pcImgSelect = root.querySelector(".cfg-pc-img");
+      const pcDescSelect = root.querySelector(".cfg-pc-desc");
 
-      if (pcNameSelect) pcNameSelect.value = preset.actorMappings.pc.namePath || '';
-      if (pcImgSelect) pcImgSelect.value = preset.actorMappings.pc.imagePath || '';
-      if (pcDescSelect) pcDescSelect.value = preset.actorMappings.pc.descriptionPath || '';
+      if (pcNameSelect)
+        pcNameSelect.value = preset.actorMappings.pc.namePath || "";
+      if (pcImgSelect)
+        pcImgSelect.value = preset.actorMappings.pc.imagePath || "";
+      if (pcDescSelect)
+        pcDescSelect.value = preset.actorMappings.pc.descriptionPath || "";
     }
 
     // Apply NPC mappings
     if (preset.actorMappings.npc) {
-      const npcNameSelect = root.querySelector('.cfg-npc-name');
-      const npcImgSelect = root.querySelector('.cfg-npc-img');
-      const npcDescSelect = root.querySelector('.cfg-npc-desc');
+      const npcNameSelect = root.querySelector(".cfg-npc-name");
+      const npcImgSelect = root.querySelector(".cfg-npc-img");
+      const npcDescSelect = root.querySelector(".cfg-npc-desc");
 
-      if (npcNameSelect) npcNameSelect.value = preset.actorMappings.npc.namePath || '';
-      if (npcImgSelect) npcImgSelect.value = preset.actorMappings.npc.imagePath || '';
-      if (npcDescSelect) npcDescSelect.value = preset.actorMappings.npc.descriptionPath || '';
+      if (npcNameSelect)
+        npcNameSelect.value = preset.actorMappings.npc.namePath || "";
+      if (npcImgSelect)
+        npcImgSelect.value = preset.actorMappings.npc.imagePath || "";
+      if (npcDescSelect)
+        npcDescSelect.value = preset.actorMappings.npc.descriptionPath || "";
     }
 
     // Apply Item mappings
     if (preset.itemMappings) {
-      const itemNameSelect = root.querySelector('.cfg-item-name');
-      const itemImgSelect = root.querySelector('.cfg-item-img');
-      const itemDescSelect = root.querySelector('.cfg-item-desc');
+      const itemNameSelect = root.querySelector(".cfg-item-name");
+      const itemImgSelect = root.querySelector(".cfg-item-img");
+      const itemDescSelect = root.querySelector(".cfg-item-desc");
 
-      if (itemNameSelect) itemNameSelect.value = preset.itemMappings.namePath || '';
-      if (itemImgSelect) itemImgSelect.value = preset.itemMappings.imagePath || '';
-      if (itemDescSelect) itemDescSelect.value = preset.itemMappings.descriptionPath || '';
+      if (itemNameSelect)
+        itemNameSelect.value = preset.itemMappings.namePath || "";
+      if (itemImgSelect)
+        itemImgSelect.value = preset.itemMappings.imagePath || "";
+      if (itemDescSelect)
+        itemDescSelect.value = preset.itemMappings.descriptionPath || "";
     }
 
     // Destinations are not part of presets - users configure these separately
 
-    ui.notifications.info(`Applied ${preset.name} preset configuration. Manual mapping fields are now hidden. Select "Custom Configuration" to show them.`);
+    ui.notifications.info(
+      `Applied ${preset.name} preset configuration. Manual mapping fields are now hidden. Select "Custom Configuration" to show them.`
+    );
   }
 
   /**
@@ -2524,69 +3498,78 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
 
     // Generate sample configuration with schema and examples
     const sampleConfig = {
-      "_schema_version": "1.0",
-      "_description": "Archivist Sync Configuration File - Edit the paths below to match your game system's data structure",
-      "_instructions": {
-        "actorMappings": "Configure how PC and NPC data is mapped from Foundry actors",
-        "itemMappings": "Configure how Item data is mapped from Foundry items",
-        "destinations": "Configure where different entity types are synced to in Archivist"
+      _schema_version: "1.0",
+      _description:
+        "Archivist Sync Configuration File - Edit the paths below to match your game system's data structure",
+      _instructions: {
+        actorMappings:
+          "Configure how PC and NPC data is mapped from Foundry actors",
+        itemMappings: "Configure how Item data is mapped from Foundry items",
+        destinations:
+          "Configure where different entity types are synced to in Archivist",
       },
-      "actorMappings": {
-        "pc": {
-          "namePath": "name",
-          "imagePath": "img",
-          "descriptionPath": "system.details.biography.value",
-          "_examples": {
-            "namePath": "name (actor name field)",
-            "imagePath": "img (actor image field)",
-            "descriptionPath": "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)"
-          }
+      actorMappings: {
+        pc: {
+          namePath: "name",
+          imagePath: "img",
+          descriptionPath: "system.details.biography.value",
+          _examples: {
+            namePath: "name (actor name field)",
+            imagePath: "img (actor image field)",
+            descriptionPath:
+              "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)",
+          },
         },
-        "npc": {
-          "namePath": "name",
-          "imagePath": "img",
-          "descriptionPath": "system.details.biography.value",
-          "_examples": {
-            "namePath": "name (actor name field)",
-            "imagePath": "img (actor image field)",
-            "descriptionPath": "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)"
-          }
-        }
+        npc: {
+          namePath: "name",
+          imagePath: "img",
+          descriptionPath: "system.details.biography.value",
+          _examples: {
+            namePath: "name (actor name field)",
+            imagePath: "img (actor image field)",
+            descriptionPath:
+              "system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)",
+          },
+        },
       },
-      "itemMappings": {
-        "namePath": "name",
-        "imagePath": "img",
-        "descriptionPath": "system.description.value",
-        "_examples": {
-          "namePath": "name (item name field)",
-          "imagePath": "img (item image field)",
-          "descriptionPath": "system.description.value (D&D 5e), system.description (PF2e), system.description.value (other systems)"
-        }
+      itemMappings: {
+        namePath: "name",
+        imagePath: "img",
+        descriptionPath: "system.description.value",
+        _examples: {
+          namePath: "name (item name field)",
+          imagePath: "img (item image field)",
+          descriptionPath:
+            "system.description.value (D&D 5e), system.description (PF2e), system.description.value (other systems)",
+        },
       },
-      "destinations": {
-        "pc": "pc",
-        "npc": "npc",
-        "item": "item",
-        "location": "location",
-        "faction": "faction",
-        "_options": {
-          "pc": ["pc", "npc"],
-          "npc": ["npc", "pc"],
-          "item": ["item", "note"],
-          "location": ["location", "note"],
-          "faction": ["faction", "note"]
-        }
-      }
+      destinations: {
+        pc: "pc",
+        npc: "npc",
+        item: "item",
+        location: "location",
+        faction: "faction",
+        _options: {
+          pc: ["pc", "npc"],
+          npc: ["npc", "pc"],
+          item: ["item", "note"],
+          location: ["location", "note"],
+          faction: ["faction", "note"],
+        },
+      },
     };
 
     // Open the sample config in a new tab
-    window.open('https://raw.githubusercontent.com/camrun91/archivist-sync/main/archivist-sync-sample-config.json', '_blank');
+    window.open(
+      "https://raw.githubusercontent.com/camrun91/archivist-sync/main/archivist-sync-sample-config.json",
+      "_blank"
+    );
 
-    ui.notifications.info('Sample configuration opened in new tab.');
+    ui.notifications.info("Sample configuration opened in new tab.");
   }
 
   _ensureConfigDestinations(cfg) {
-    cfg.destinations = cfg.destinations || { pc: '', npc: '', item: '' };
+    cfg.destinations = cfg.destinations || { pc: "", npc: "", item: "" };
     cfg.actorMappings = cfg.actorMappings || { pc: {}, npc: {} };
     cfg.itemMappings = cfg.itemMappings || {};
   }
@@ -2596,37 +3579,39 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     const root = this.element[0] || document;
     const cfg = settingsManager.getImportConfig();
     this._ensureConfigDestinations(cfg);
-    const val = (sel) => root.querySelector(sel)?.value?.trim() || '';
+    const val = (sel) => root.querySelector(sel)?.value?.trim() || "";
 
     // PC mappings
-    cfg.actorMappings.pc.namePath = val('.cfg-pc-name');
-    cfg.actorMappings.pc.imagePath = val('.cfg-pc-img');
-    cfg.actorMappings.pc.descriptionPath = val('.cfg-pc-desc');
+    cfg.actorMappings.pc.namePath = val(".cfg-pc-name");
+    cfg.actorMappings.pc.imagePath = val(".cfg-pc-img");
+    cfg.actorMappings.pc.descriptionPath = val(".cfg-pc-desc");
 
     // NPC mappings
-    cfg.actorMappings.npc.namePath = val('.cfg-npc-name');
-    cfg.actorMappings.npc.imagePath = val('.cfg-npc-img');
-    cfg.actorMappings.npc.descriptionPath = val('.cfg-npc-desc');
+    cfg.actorMappings.npc.namePath = val(".cfg-npc-name");
+    cfg.actorMappings.npc.imagePath = val(".cfg-npc-img");
+    cfg.actorMappings.npc.descriptionPath = val(".cfg-npc-desc");
 
     // Item mappings
     if (!cfg.itemMappings) cfg.itemMappings = {};
-    cfg.itemMappings.namePath = val('.cfg-item-name');
-    cfg.itemMappings.imagePath = val('.cfg-item-img');
-    cfg.itemMappings.descriptionPath = val('.cfg-item-desc');
+    cfg.itemMappings.namePath = val(".cfg-item-name");
+    cfg.itemMappings.imagePath = val(".cfg-item-img");
+    cfg.itemMappings.descriptionPath = val(".cfg-item-desc");
 
     // Destinations
-    cfg.destinations.pc = val('.cfg-dest-pc');
-    cfg.destinations.npc = val('.cfg-dest-npc');
-    cfg.destinations.item = val('.cfg-dest-item');
+    cfg.destinations.pc = val(".cfg-dest-pc");
+    cfg.destinations.npc = val(".cfg-dest-npc");
+    cfg.destinations.item = val(".cfg-dest-item");
 
     await settingsManager.setImportConfig(cfg);
-    ui.notifications.info('Configuration saved.');
+    ui.notifications.info("Configuration saved.");
   }
 
   async _onPullItems(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
     this.syncInProgress = true;
@@ -2635,27 +3620,49 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listItems(apiKey, worldId);
-      const apiItems = Array.isArray(list?.data) ? list.data : Array.isArray(list?.data?.data) ? list.data.data : [];
+      const apiItems = Array.isArray(list?.data)
+        ? list.data
+        : Array.isArray(list?.data?.data)
+        ? list.data.data
+        : [];
 
       const existing = new Map();
-      for (const it of (game.items?.contents || game.items || [])) {
-        const id = it.getFlag(CONFIG.MODULE_ID, 'archivistId');
+      for (const it of game.items?.contents || game.items || []) {
+        const id = it.getFlag(CONFIG.MODULE_ID, "archivistId");
         if (id) existing.set(id, it);
       }
 
       let createdCount = 0;
       let updatedCount = 0;
-      const itemTypes = (game.system?.model?.Item && Object.keys(game.system.model.Item)) || (Item?.metadata?.types) || [];
-      const defaultType = itemTypes.includes('loot') ? 'loot' : (itemTypes[0] || 'loot');
+      const itemTypes =
+        (game.system?.model?.Item && Object.keys(game.system.model.Item)) ||
+        Item?.metadata?.types ||
+        [];
+      const defaultType = itemTypes.includes("loot")
+        ? "loot"
+        : itemTypes[0] || "loot";
       const preferredFolderId = this._getPreferredItemFolderId();
 
       for (const it of apiItems) {
-        const name = it.name || 'Item';
-        const description = (it.description ?? it.combined_description ?? it.new_description ?? it.old_description ?? '').toString();
-        const imageUrl = (typeof it.image === 'string' && it.image.trim().length) ? it.image.trim() : null;
+        const name = it.name || "Item";
+        const description = (
+          it.description ??
+          it.combined_description ??
+          it.new_description ??
+          it.old_description ??
+          ""
+        ).toString();
+        const imageUrl =
+          typeof it.image === "string" && it.image.trim().length
+            ? it.image.trim()
+            : null;
         const found = existing.get(it.id);
         if (found) {
-          await this._writeItemFromApi(found, { name, description, image: imageUrl });
+          await this._writeItemFromApi(found, {
+            name,
+            description,
+            image: imageUrl,
+          });
           updatedCount += 1;
         } else {
           const createData = { name, type: defaultType };
@@ -2665,20 +3672,34 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
           if (created) {
             createdCount += 1;
             try {
-              await created.setFlag(CONFIG.MODULE_ID, 'archivistId', it.id);
-              await created.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
-            } catch (_) { /* ignore */ }
-            await this._writeItemFromApi(created, { name, description, image: imageUrl });
+              await created.setFlag(CONFIG.MODULE_ID, "archivistId", it.id);
+              await created.setFlag(
+                CONFIG.MODULE_ID,
+                "archivistWorldId",
+                worldId
+              );
+            } catch (_) {
+              /* ignore */
+            }
+            await this._writeItemFromApi(created, {
+              name,
+              description,
+              image: imageUrl,
+            });
           }
         }
       }
 
-      ui.notifications.info(`Items pulled: ${createdCount} created, ${updatedCount} updated`);
+      ui.notifications.info(
+        `Items pulled: ${createdCount} created, ${updatedCount} updated`
+      );
       this._tabLoaded.items = false;
       await this._loadItemRows?.();
     } catch (e) {
-      console.error('Error pulling items:', e);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pulling items:", e);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2688,17 +3709,24 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPushItems(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn(game.i18n.localize('ARCHIVIST_SYNC.warnings.selectWorldFirst'));
+      ui.notifications.warn(
+        game.i18n.localize("ARCHIVIST_SYNC.warnings.selectWorldFirst")
+      );
       return;
     }
     this.syncInProgress = true;
     this.render();
     try {
-      const res = await importerService.pushFiltered({ kinds: ['Item'], targetType: 'Item' });
+      const res = await importerService.pushFiltered({
+        kinds: ["Item"],
+        targetType: "Item",
+      });
       ui.notifications.info(`Items synced: ${res.count}`);
     } catch (e) {
-      console.error('Error pushing items:', e);
-      ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
+      console.error("Error pushing items:", e);
+      ui.notifications.error(
+        game.i18n.localize("ARCHIVIST_SYNC.errors.syncFailed")
+      );
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2708,39 +3736,55 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _pushSingleItem(itemId) {
     try {
       const item = game.items.get(itemId);
-      if (!item) return ui.notifications.warn('Item not found');
+      if (!item) return ui.notifications.warn("Item not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const name = item.name;
-      const rawImg = String(item?.img || '').trim();
-      const image = rawImg.startsWith('https://') ? rawImg : undefined;
-      const desc = String(item?.system?.description?.value || item?.system?.description || '');
-      const payload = { name, description: toMarkdownIfHtml(desc), ...(image ? { image } : {}), campaign_id: worldId };
-      const existingId = item.getFlag(CONFIG.MODULE_ID, 'archivistId');
-      this.syncInProgress = true; this.render();
-      if (existingId) await archivistApi.updateItem(apiKey, existingId, payload);
+      const rawImg = String(item?.img || "").trim();
+      const image = rawImg.startsWith("https://") ? rawImg : undefined;
+      const desc = String(
+        item?.system?.description?.value || item?.system?.description || ""
+      );
+      const payload = {
+        name,
+        description: toMarkdownIfHtml(desc),
+        ...(image ? { image } : {}),
+        campaign_id: worldId,
+      };
+      const existingId = item.getFlag(CONFIG.MODULE_ID, "archivistId");
+      this.syncInProgress = true;
+      this.render();
+      if (existingId)
+        await archivistApi.updateItem(apiKey, existingId, payload);
       else {
         const created = await archivistApi.createItem(apiKey, payload);
         if (created?.success && created?.data?.id) {
-          await item.setFlag(CONFIG.MODULE_ID, 'archivistId', created.data.id);
-          await item.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+          await item.setFlag(CONFIG.MODULE_ID, "archivistId", created.data.id);
+          await item.setFlag(CONFIG.MODULE_ID, "archivistWorldId", worldId);
         }
       }
       ui.notifications.info(`Synced item: ${name}`);
     } catch (e) {
-      console.error(e); ui.notifications.error('Failed to sync item');
-    } finally { this.syncInProgress = false; this.render(); }
+      console.error(e);
+      ui.notifications.error("Failed to sync item");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   async _pushSingleFactionPage(pageId) {
     try {
       let found = null;
-      for (const j of (game.journal?.contents || [])) {
-        const p = (j.pages?.contents || []).find(x => x.id === pageId);
-        if (p) { found = p; break; }
+      for (const j of game.journal?.contents || []) {
+        const p = (j.pages?.contents || []).find((x) => x.id === pageId);
+        if (p) {
+          found = p;
+          break;
+        }
       }
       const p = found;
-      if (!p) return ui.notifications.warn('Page not found');
+      if (!p) return ui.notifications.warn("Page not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const meta = Utils.getPageArchivistMeta(p);
@@ -2748,27 +3792,46 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const html = Utils.extractPageHtml(p);
       // Strip leading image since it's stored separately in the image property
       const cleaned = Utils.stripLeadingImage?.(html) ?? html;
-      const payload = { name, description: toMarkdownIfHtml(cleaned), campaign_id: worldId };
-      this.syncInProgress = true; this.render();
+      const payload = {
+        name,
+        description: toMarkdownIfHtml(cleaned),
+        campaign_id: worldId,
+      };
+      this.syncInProgress = true;
+      this.render();
       if (meta?.id) await archivistApi.updateFaction(apiKey, meta.id, payload);
       else {
         const created = await archivistApi.createFaction(apiKey, payload);
-        if (created?.success && created?.data?.id) await Utils.setPageArchivistMeta(p, created.data.id, 'faction', worldId);
+        if (created?.success && created?.data?.id)
+          await Utils.setPageArchivistMeta(
+            p,
+            created.data.id,
+            "faction",
+            worldId
+          );
       }
       ui.notifications.info(`Synced faction: ${name}`);
-    } catch (e) { console.error(e); ui.notifications.error('Failed to sync faction page'); }
-    finally { this.syncInProgress = false; this.render(); }
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to sync faction page");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   async _pushSingleLocationPage(pageId) {
     try {
       let found = null;
-      for (const j of (game.journal?.contents || [])) {
-        const p = (j.pages?.contents || []).find(x => x.id === pageId);
-        if (p) { found = p; break; }
+      for (const j of game.journal?.contents || []) {
+        const p = (j.pages?.contents || []).find((x) => x.id === pageId);
+        if (p) {
+          found = p;
+          break;
+        }
       }
       const p = found;
-      if (!p) return ui.notifications.warn('Page not found');
+      if (!p) return ui.notifications.warn("Page not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const meta = Utils.getPageArchivistMeta(p);
@@ -2776,40 +3839,66 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const html = Utils.extractPageHtml(p);
       // Strip leading image since it's stored separately in the image property
       const cleaned = Utils.stripLeadingImage?.(html) ?? html;
-      const payload = { name, description: toMarkdownIfHtml(cleaned), campaign_id: worldId };
-      this.syncInProgress = true; this.render();
+      const payload = {
+        name,
+        description: toMarkdownIfHtml(cleaned),
+        campaign_id: worldId,
+      };
+      this.syncInProgress = true;
+      this.render();
       if (meta?.id) await archivistApi.updateLocation(apiKey, meta.id, payload);
       else {
         const created = await archivistApi.createLocation(apiKey, payload);
-        if (created?.success && created?.data?.id) await Utils.setPageArchivistMeta(p, created.data.id, 'location', worldId);
+        if (created?.success && created?.data?.id)
+          await Utils.setPageArchivistMeta(
+            p,
+            created.data.id,
+            "location",
+            worldId
+          );
       }
       ui.notifications.info(`Synced location: ${name}`);
-    } catch (e) { console.error(e); ui.notifications.error('Failed to sync location page'); }
-    finally { this.syncInProgress = false; this.render(); }
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to sync location page");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   async _pushSingleRecapPage(pageId) {
     try {
       let found = null;
-      for (const j of (game.journal?.contents || [])) {
-        const p = (j.pages?.contents || []).find(x => x.id === pageId);
-        if (p) { found = p; break; }
+      for (const j of game.journal?.contents || []) {
+        const p = (j.pages?.contents || []).find((x) => x.id === pageId);
+        if (p) {
+          found = p;
+          break;
+        }
       }
       const p = found;
-      if (!p) return ui.notifications.warn('Page not found');
+      if (!p) return ui.notifications.warn("Page not found");
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const meta = Utils.getPageArchivistMeta(p);
-      if (!meta?.id) return ui.notifications.warn('Only linked recaps can be pushed.');
+      if (!meta?.id)
+        return ui.notifications.warn("Only linked recaps can be pushed.");
       const title = p.name;
       const summaryHtml = Utils.extractPageHtml(p);
       const payload = { title, summary: toMarkdownIfHtml(summaryHtml) };
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true;
+      this.render();
       const res = await archivistApi.updateSession(apiKey, meta.id, payload);
-      if (!res?.success) throw new Error(res?.message || 'Failed');
+      if (!res?.success) throw new Error(res?.message || "Failed");
       ui.notifications.info(`Recap updated: ${title}`);
-    } catch (e) { console.error(e); ui.notifications.error('Failed to push recap'); }
-    finally { this.syncInProgress = false; this.render(); }
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to push recap");
+    } finally {
+      this.syncInProgress = false;
+      this.render();
+    }
   }
 
   async _pullSingleRecap(sessionId) {
@@ -2817,18 +3906,33 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listSessions(apiKey, worldId);
-      const s = (Array.isArray(list?.data) ? list.data : []).find(x => String(x.id) === String(sessionId));
-      if (!s) return ui.notifications.warn('Session not found');
-      const container = await Utils.ensureRootJournalContainer('Recaps');
+      const s = (Array.isArray(list?.data) ? list.data : []).find(
+        (x) => String(x.id) === String(sessionId)
+      );
+      if (!s) return ui.notifications.warn("Session not found");
+      const container = await Utils.ensureRootJournalContainer("Recaps");
       const page = await Utils.upsertContainerTextPage(container, {
-        name: s.title || 'Session',
-        html: String(s.summary || ''),
+        name: s.title || "Session",
+        html: String(s.summary || ""),
         imageUrl: null,
-        flags: { archivistId: s.id, archivistType: 'recap', archivistWorldId: worldId }
+        flags: {
+          archivistId: s.id,
+          archivistType: "recap",
+          archivistWorldId: worldId,
+        },
       });
-      try { await page.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(s.session_date)); } catch (_) { }
-      ui.notifications.info('Recap pulled');
-    } catch (e) { console.error(e); ui.notifications.error('Failed to pull recap'); }
+      try {
+        await page.setFlag(
+          CONFIG.MODULE_ID,
+          "sessionDate",
+          String(s.session_date)
+        );
+      } catch (_) {}
+      ui.notifications.info("Recap pulled");
+    } catch (e) {
+      console.error(e);
+      ui.notifications.error("Failed to pull recap");
+    }
   }
 
   /**
@@ -2837,7 +3941,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPullRecaps(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn('Please select a world first');
+      ui.notifications.warn("Please select a world first");
       return;
     }
     this.syncInProgress = true;
@@ -2847,14 +3951,18 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listSessions(apiKey, worldId);
       const sessions = Array.isArray(list?.data) ? list.data : [];
-      const container = await Utils.ensureRootJournalContainer('Recaps');
+      const container = await Utils.ensureRootJournalContainer("Recaps");
       let count = 0;
       for (const s of sessions) {
         await Utils.upsertContainerTextPage(container, {
-          name: s.title || 'Session',
-          html: String(s.summary || ''),
+          name: s.title || "Session",
+          html: String(s.summary || ""),
           imageUrl: null,
-          flags: { archivistId: s.id, archivistType: 'recap', archivistWorldId: worldId }
+          flags: {
+            archivistId: s.id,
+            archivistType: "recap",
+            archivistWorldId: worldId,
+          },
         });
         count++;
       }
@@ -2862,8 +3970,8 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       this._tabLoaded.recaps = false;
       await this._loadRecapRows();
     } catch (e) {
-      console.error('Error pulling recaps:', e);
-      ui.notifications.error('Failed to pull recaps');
+      console.error("Error pulling recaps:", e);
+      ui.notifications.error("Failed to pull recaps");
     } finally {
       this.syncInProgress = false;
       this.render();
@@ -2876,7 +3984,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
   async _onPushRecaps(event) {
     event?.preventDefault?.();
     if (!settingsManager.isWorldSelected()) {
-      ui.notifications.warn('Please select a world first');
+      ui.notifications.warn("Please select a world first");
       return;
     }
     this.syncInProgress = true;
@@ -2884,7 +3992,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     try {
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
-      const pages = this._getContainerPagesByName('Recaps');
+      const pages = this._getContainerPagesByName("Recaps");
       let count = 0;
       for (const p of pages) {
         const meta = Utils.getPageArchivistMeta(p);
@@ -2903,12 +4011,11 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       this._tabLoaded.recaps = false;
       await this._loadRecapRows();
     } catch (e) {
-      console.error('Error pushing recaps:', e);
-      ui.notifications.error('Failed to push recaps');
+      console.error("Error pushing recaps:", e);
+      ui.notifications.error("Failed to push recaps");
     } finally {
       this.syncInProgress = false;
       this.render();
     }
   }
-
 }
