@@ -1873,12 +1873,10 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       }));
       // Build options list per field using flattened entity
       const flattened = this._flattenEntityPaths(e, "$");
-      const defaultOptions = flattened
-        .slice(0, 24)
-        .map(({ path, value }) => ({
-          path,
-          label: `${path} — ${String(value).slice(0, 40)}`,
-        }));
+      const defaultOptions = flattened.slice(0, 24).map(({ path, value }) => ({
+        path,
+        label: `${path} — ${String(value).slice(0, 40)}`,
+      }));
       const fieldOverrides = corrections?.byUuid?.[uuid]?.fieldPaths || {};
       const fieldRows = fields.map((f) => {
         const selectedPath = fieldOverrides[f.key] || "";
@@ -3351,7 +3349,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
           npc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.details",
+            descriptionPath: "system.details.publicNotes",
           },
         },
         itemMappings: {

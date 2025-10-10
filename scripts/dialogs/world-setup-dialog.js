@@ -2159,7 +2159,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           pc: {
             namePath: "name",
             imagePath: "img",
-            descriptionPath: "system.details.biography.value",
+            descriptionPath: "system.details.biography.backstory",
           },
           npc: {
             namePath: "name",
