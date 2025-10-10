@@ -36,16 +36,14 @@
  */
 
 export const ImporterKinds = Object.freeze({
-    Actor: 'Actor',
-    Journal: 'Journal',
-    Scene: 'Scene',
-    Item: 'Item',
-    Playlist: 'Playlist',
-    RollTable: 'RollTable',
-    Card: 'Card',
-    Macro: 'Macro',
-    Folder: 'Folder',
-    ChatMessage: 'ChatMessage'
+  Actor: 'Actor',
+  Journal: 'Journal',
+  Scene: 'Scene',
+  Item: 'Item',
+  Playlist: 'Playlist',
+  RollTable: 'RollTable',
+  Card: 'Card',
+  Macro: 'Macro',
+  Folder: 'Folder',
+  ChatMessage: 'ChatMessage',
 });
-
-

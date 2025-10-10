@@ -8,12 +8,10 @@
  * @param {(uuid:string)=>{id?:string,type?:string}|undefined} uuidToArchivist
  */
 export function resolveCrosslinks(markdown, uuidToArchivist) {
-    if (!uuidToArchivist) return markdown;
-    return String(markdown || '').replace(/@UUID\[([^\]]+)\]/g, (m, uuid) => {
-        const t = uuidToArchivist(uuid) || {};
-        if (t?.id) return `[[${t.id}]]`;
-        return m;
-    });
+  if (!uuidToArchivist) return markdown;
+  return String(markdown || '').replace(/@UUID\[([^\]]+)\]/g, (m, uuid) => {
+    const t = uuidToArchivist(uuid) || {};
+    if (t?.id) return `[[${t.id}]]`;
+    return m;
+  });
 }
-
-

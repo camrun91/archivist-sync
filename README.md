@@ -1,6 +1,8 @@
 # Archivist Sync
 
-Foundry VTT v13 module to connect your world to the Archivist service. It provides a guided setup wizard, a Sync Options console to push/pull data, an optional real‑time sync for CRUD events, and an in‑client “Ask Archivist” sidebar chat.
+[![CI](https://github.com/camrun91/archivist-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/camrun91/archivist-sync/actions/workflows/ci.yml)
+
+Foundry VTT v13 module to connect your world to the Archivist service. It provides a guided setup wizard, a Sync Options console to push/pull data, an optional real‑time sync for CRUD events, and an in‑client "Ask Archivist" sidebar chat.
 
 ## Features
 
@@ -113,11 +115,39 @@ Examples (representative; bodies vary by type):
 
 ## Development
 
-Key files:
+### Setup
+
+1. Install Node.js 18.x or 20.x (or use `.nvmrc` with `nvm use`)
+2. Install dependencies: `npm install`
+
+### Code Quality
+
+This project uses ESLint and Prettier for code quality and formatting:
+
+```bash
+# Check for linting issues
+npm run lint
+
+# Auto-fix formatting issues
+npm run lint:fix
+```
+
+### Continuous Integration
+
+GitHub Actions automatically runs on all pushes and pull requests:
+- **Linting**: Checks code style and catches common errors
+- **Validation**: Ensures module.json is valid and required files exist
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
+
+### Key Files
 
 ```
 archivist-sync/
 ├── module.json
+├── package.json                        # Dependencies and scripts
+├── .eslintrc.json                      # ESLint configuration
+├── .prettierrc.json                    # Prettier configuration
 ├── scripts/
 │   ├── archivist-sync.js               # Module bootstrap (sidebar tab, availability, RTS listeners)
 │   ├── modules/config.js               # Constants and setting keys
@@ -141,10 +171,11 @@ MIT
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/name`
-3. Commit: `git commit -m "feat: concise description"`
-4. Push and open a PR
+Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines, including:
+- Development setup
+- Code style requirements
+- Pre-commit checklist
+- Pull request process
 
 ---
 

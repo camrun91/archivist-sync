@@ -6,13 +6,12 @@ import { toMarkdownIfHtml } from './importer-normalizer.js';
  * Utility functions for Archivist Sync Module
  */
 export class Utils {
-
   /**
    * Log messages with module prefix
    * @param {string} message - The message to log
    * @param {string} level - Log level (log, warn, error)
    */
-  static log(message,) {
+  static log(message) {
     console.log(`${CONFIG.MODULE_TITLE} | ${message}`);
   }
 
@@ -54,13 +53,18 @@ export class Utils {
         // Minimal fallback: paragraphs + bold/italic with HTML escaping for security
         rawHtml = md
           .replace(/\r\n/g, '\n')
-          .replace(/\*\*(.*?)\*\*/g, (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`)
+          .replace(
+            /\*\*(.*?)\*\*/g,
+            (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`
+          )
           .replace(/_(.*?)_/g, (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`)
           .split(/\n{2,}/)
           .map(p => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
           .join('');
       }
-      return foundry?.utils?.TextEditor?.cleanHTML ? foundry.utils.TextEditor.cleanHTML(rawHtml) : rawHtml;
+      return foundry?.utils?.TextEditor?.cleanHTML
+        ? foundry.utils.TextEditor.cleanHTML(rawHtml)
+        : rawHtml;
     } catch (_) {
       return String(markdown || '');
     }
@@ -74,7 +78,7 @@ export class Utils {
     return {
       id: game.world.id,
       title: game.world.title,
-      description: game.world.description || 'No description'
+      description: game.world.description || 'No description',
     };
   }
 
@@ -83,9 +87,7 @@ export class Utils {
    * @returns {Array} Array of character and NPC actors
    */
   static getCharacterActors() {
-    return game.actors.contents.filter(actor =>
-      actor.type === 'character' || actor.type === 'npc'
-    );
+    return game.actors.contents.filter(actor => actor.type === 'character' || actor.type === 'npc');
   }
 
   /**
@@ -123,7 +125,9 @@ export class Utils {
    */
   static _findFolderByNameInsensitive(name) {
     const folders = game.folders?.contents || [];
-    return folders.find(f => f.type === 'JournalEntry' && f.name.toLowerCase() === String(name).toLowerCase());
+    return folders.find(
+      f => f.type === 'JournalEntry' && f.name.toLowerCase() === String(name).toLowerCase()
+    );
   }
 
   /**
@@ -139,7 +143,7 @@ export class Utils {
       description: actor.system?.details?.biography?.value || '',
       level: actor.system?.details?.level || 1,
       race: actor.system?.details?.race || '',
-      class: actor.system?.details?.class || ''
+      class: actor.system?.details?.class || '',
     }));
   }
 
@@ -156,7 +160,7 @@ export class Utils {
       // Convert any stored HTML back to Markdown for Archivist API
       description: toMarkdownIfHtml(readBestBiography(actor) || ''),
       type: isPC ? 'PC' : 'NPC',
-      campaign_id: worldId
+      campaign_id: worldId,
     };
   }
 
@@ -176,7 +180,7 @@ export class Utils {
       // Journal pages store HTML — convert to Markdown for API
       description: toMarkdownIfHtml(cleanedText),
       ...(image ? { image } : {}),
-      campaign_id: worldId
+      campaign_id: worldId,
     };
   }
 
@@ -195,7 +199,7 @@ export class Utils {
       name: journal.name,
       description: toMarkdownIfHtml(cleanedText),
       ...(image ? { image } : {}),
-      campaign_id: worldId
+      campaign_id: worldId,
     };
   }
 
@@ -243,16 +247,19 @@ export class Utils {
     const safeContent = String(content ?? '');
 
     if (pagesCollection) {
-      const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
-      let textPage = pages.find(p => p.type === 'text');
+      const pages =
+        pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
+      const textPage = pages.find(p => p.type === 'text');
       if (textPage) {
         await textPage.update({ text: { content: safeContent, markdown: safeContent, format: 2 } });
       } else {
-        await journal.createEmbeddedDocuments('JournalEntryPage', [{
-          name: 'Description',
-          type: 'text',
-          text: { content: safeContent, markdown: safeContent, format: 2 }
-        }]);
+        await journal.createEmbeddedDocuments('JournalEntryPage', [
+          {
+            name: 'Description',
+            type: 'text',
+            text: { content: safeContent, markdown: safeContent, format: 2 },
+          },
+        ]);
       }
       return;
     }
@@ -272,24 +279,35 @@ export class Utils {
       if (!url) return;
       console.debug('[Archivist Sync] ensureJournalLeadImage()', { journalId: journal?.id, url });
       // Always set the journal thumbnail so it shows in lists
-      try { await journal.update({ img: url }); } catch (e) { console.debug('[Archivist Sync] journal img update failed', e); }
+      try {
+        await journal.update({ img: url });
+      } catch (e) {
+        console.debug('[Archivist Sync] journal img update failed', e);
+      }
 
       const pagesCollection = journal.pages;
       if (pagesCollection) {
-        const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
+        const pages =
+          pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
         let textPage = pages.find(p => p.type === 'text');
         const mdImg = `![cover](${url.replace(/\)/g, '\\)')})\n\n`;
         if (textPage) {
           const current = String(textPage?.text?.content ?? '');
           if (!current.includes(url)) {
             console.debug('[Archivist Sync] Prepending image (Markdown) to journal text page');
-            await textPage.update({ text: { content: mdImg + current, markdown: mdImg + current, format: 2 } });
+            await textPage.update({
+              text: { content: mdImg + current, markdown: mdImg + current, format: 2 },
+            });
           } else {
-            console.debug('[Archivist Sync] Text page already contains image URL; skipping prepend');
+            console.debug(
+              '[Archivist Sync] Text page already contains image URL; skipping prepend'
+            );
           }
         } else {
           console.debug('[Archivist Sync] Creating text page with Markdown lead image');
-          const created = await journal.createEmbeddedDocuments('JournalEntryPage', [{ name: 'Cover', type: 'text', text: { content: mdImg, markdown: mdImg, format: 2 } }]);
+          const created = await journal.createEmbeddedDocuments('JournalEntryPage', [
+            { name: 'Cover', type: 'text', text: { content: mdImg, markdown: mdImg, format: 2 } },
+          ]);
           textPage = created?.[0] || null;
         }
         return;
@@ -322,7 +340,7 @@ export class Utils {
     return {
       id: journal.getFlag(CONFIG.MODULE_ID, 'archivistId') || null,
       type: journal.getFlag(CONFIG.MODULE_ID, 'archivistType') || null,
-      worldId: journal.getFlag(CONFIG.MODULE_ID, 'archivistWorldId') || null
+      worldId: journal.getFlag(CONFIG.MODULE_ID, 'archivistWorldId') || null,
     };
   }
 
@@ -340,7 +358,7 @@ export class Utils {
     return {
       id: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || null,
       type: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || null,
-      worldId: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistWorldId') || null
+      worldId: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistWorldId') || null,
     };
   }
 
@@ -386,17 +404,29 @@ export class Utils {
     }
     if (!page) page = pages.find(p => p.name === name && p.type === 'text');
     const baseMd = String(html || '');
-    const finalMd = imageUrl && !baseMd.includes(String(imageUrl))
-      ? `![cover](${String(imageUrl).replace(/\)/g, '\\)')})\n\n${baseMd}`
-      : baseMd;
+    const finalMd =
+      imageUrl && !baseMd.includes(String(imageUrl))
+        ? `![cover](${String(imageUrl).replace(/\)/g, '\\)')})\n\n${baseMd}`
+        : baseMd;
     if (page) {
-      await page.update({ name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } });
+      await page.update({
+        name,
+        type: 'text',
+        text: { content: finalMd, markdown: finalMd, format: 2 },
+      });
     } else {
-      const created = await container.createEmbeddedDocuments('JournalEntryPage', [{ name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } }]);
+      const created = await container.createEmbeddedDocuments('JournalEntryPage', [
+        { name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } },
+      ]);
       page = created?.[0] || null;
     }
     if (page && flags) {
-      await this.setPageArchivistMeta(page, flags.archivistId, flags.archivistType, flags.archivistWorldId);
+      await this.setPageArchivistMeta(
+        page,
+        flags.archivistId,
+        flags.archivistType,
+        flags.archivistWorldId
+      );
     }
     return page;
   }
