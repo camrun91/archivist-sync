@@ -7,6 +7,7 @@ import { toMarkdownIfHtml } from '../modules/importer-normalizer.js';
 import { WorldSetupDialog } from './world-setup-dialog.js';
 import { writeBestBiography, writeBestJournalDescription } from '../modules/field-mapper.js';
 import { importerService } from '../services/importer-service.js';
+import { getActorCandidates } from '../modules/actor-filters.js';
 
 /**
  * Sync Options Dialog - Tabbed interface for world synchronization
@@ -52,6 +53,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
     // Tab loading guards
     this._tabLoaded = { characters: false, factions: false, locations: false, items: false, recaps: false };
     this._loadingTabs = new Set();
+    this._isClosed = false;
   }
 
   /**
@@ -258,7 +260,9 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   updateSyncProgress(updates) {
     Object.assign(this.syncProgress, updates);
-    this.render(); // Re-render to update the progress display
+    if (!this._isClosed) {
+      try { this.render(); } catch (_) { /* ignore after close */ }
+    }
   }
 
   /**
@@ -783,7 +787,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       const worldId = settingsManager.getSelectedWorldId();
       const payload = Utils.toApiCharacterPayload(actor, worldId);
       const existingId = Utils.getActorArchivistId(actor);
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true; if (!this._isClosed) { try { this.render(); } catch (_) { } }
       if (existingId) await archivistApi.updateCharacter(apiKey, existingId, payload);
       else {
         const created = await archivistApi.createCharacter(apiKey, payload);
@@ -792,7 +796,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       ui.notifications.info(`Synced ${actor.name}`);
     } catch (e) {
       console.error(e); ui.notifications.error('Failed to sync actor');
-    } finally { this.syncInProgress = false; this.render(); }
+    } finally { this.syncInProgress = false; if (!this._isClosed) { try { this.render(); } catch (_) { } } }
   }
 
   /**
@@ -800,7 +804,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
    */
   async _pullSingleCharacterByArchivistId(archivistId) {
     try {
-      this.syncInProgress = true; this.render();
+      this.syncInProgress = true; if (!this._isClosed) { try { this.render(); } catch (_) { } }
       const apiKey = settingsManager.getApiKey();
       const worldId = settingsManager.getSelectedWorldId();
       const list = await archivistApi.listCharacters(apiKey, worldId);
@@ -1631,7 +1635,7 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
       ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.errors.syncFailed'));
     } finally {
       this.syncInProgress = false;
-      this.render();
+      if (!this._isClosed) { try { this.render(); } catch (_) { } }
     }
   }
 
@@ -1662,8 +1666,12 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         await archivistApi.syncCampaignTitle(apiKey, worldId, titleData);
       } catch (_) { /* non-fatal */ }
 
-      // Push Actors (PCs and NPCs): POST for unlinked, PATCH for linked
-      const actors = (game.actors?.contents || game.actors || []).filter(a => a.type === 'character' || a.type === 'npc');
+      // Push Actors (PCs and NPCs): respect configured destination folders
+      const cfg = this._getImportConfig();
+      const { pcs, npcs } = getActorCandidates(cfg);
+      const actors = [];
+      if (cfg?.actorMappings?.pc?.enabled !== false) actors.push(...pcs);
+      if (cfg?.actorMappings?.npc?.enabled) actors.push(...npcs);
       let actorsCreated = 0; let actorsUpdated = 0;
       for (const actor of actors) {
         const payload = Utils.toApiCharacterPayload(actor, worldId);
@@ -1680,8 +1688,22 @@ export class SyncOptionsDialog extends foundry.applications.api.HandlebarsApplic
         }
       }
 
-      // Push Items: POST for unlinked, PATCH for linked (use config mappings)
-      const items = (game.items?.contents || game.items || []);
+      // Push Items: respect configured world item destination folder (root-only when none)
+      const itemsCfg = cfg?.includeRules?.filters?.items || {};
+      const worldFolders = Array.isArray(itemsCfg.includeWorldItemFolders) ? itemsCfg.includeWorldItemFolders : [];
+      const items = [];
+      if (worldFolders.length) {
+        const include = new Set(worldFolders.filter(Boolean));
+        for (const it of (game.items?.contents || game.items || [])) {
+          const folder = it?.folder;
+          if (folder && (include.has(folder.id) || include.has(folder.name))) items.push(it);
+        }
+      } else {
+        // Root-only when no destination selected
+        for (const it of (game.items?.contents || game.items || [])) {
+          if (!it?.folder) items.push(it);
+        }
+      }
       let itemsCreated = 0; let itemsUpdated = 0;
       for (const item of items) {
         const payload = this._toApiItemPayload(item, worldId);

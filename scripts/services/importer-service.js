@@ -180,6 +180,7 @@ export class ImporterService {
         const apiKey = settingsManager.getApiKey();
         const worldId = settingsManager.getSelectedWorldId();
         if (!apiKey || !worldId) throw new Error('API key or world selection missing');
+        const config = settingsManager.getImportConfig?.() || {};
         const corrections = this.getCorrections();
         const all = extractGenericEntities();
         const kindSet = new Set(filter?.kinds || []);
@@ -191,6 +192,21 @@ export class ImporterService {
             if (filter?.targetType && corrected.targetType !== filter.targetType) continue;
             if (filter?.folderMatch && e.folderName && !new RegExp(filter.folderMatch, 'i').test(e.folderName)) continue;
             const srcDoc = await fromUuid(e.sourcePath);
+            // Enforce destination folder constraints for Items and Actors when pushing filtered
+            if (filter?.targetType === 'Item') {
+                const include = Array.isArray(config?.includeRules?.filters?.items?.includeWorldItemFolders)
+                    ? config.includeRules.filters.items.includeWorldItemFolders.filter(Boolean)
+                    : [];
+                const folder = srcDoc?.folder;
+                if (include.length === 0) {
+                    // Root-only: only include items with no folder
+                    if (folder) continue;
+                } else {
+                    const fid = folder?.id || '';
+                    const fname = folder?.name || '';
+                    if (!(include.includes(fid) || include.includes(fname))) continue;
+                }
+            }
             try {
                 const res = await upsertMappedEntity(apiKey, worldId, srcDoc, corrected);
                 if (res && res.success) createdOrUpdated += 1;
@@ -213,6 +229,11 @@ export class ImporterService {
         const config = settingsManager.getImportConfig();
         const { pcs, npcs } = getActorCandidates(config);
 
+        const safeProgress = (payload) => {
+            if (!progressCallback) return;
+            try { progressCallback.updateSyncProgress(payload); } catch (_) { /* ignore UI errors */ }
+        };
+
         let count = 0;
         let failed = 0;
         const failedEntities = [];
@@ -230,27 +251,20 @@ export class ImporterService {
         const totalEntities = pcCount + npcCount + itemCount + factionCount;
 
         // Initialize progress
-        if (progressCallback) {
-            progressCallback.updateSyncProgress({
-                total: totalEntities,
-                processed: 0,
-                succeeded: 0,
-                failed: 0,
-                phase: 'processing'
-            });
-        }
+        safeProgress({
+            total: totalEntities,
+            processed: 0,
+            succeeded: 0,
+            failed: 0,
+            phase: 'processing'
+        });
 
         // Helper function to process entities with error tracking
         const processEntity = async (entity, mapper, type) => {
             const entityName = entity.name || 'Unknown';
 
             // Update progress to show current entity
-            if (progressCallback) {
-                progressCallback.updateSyncProgress({
-                    currentType: type,
-                    currentEntity: entityName
-                });
-            }
+            safeProgress({ currentType: type, currentEntity: entityName });
 
             try {
                 const mapped = mapper(entity);
