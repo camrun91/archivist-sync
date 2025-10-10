@@ -1,0 +1,108 @@
+name: Release Module
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Verify version in module.json matches tag
+        run: |
+          MODULE_VERSION=$(jq -r '.version' module.json)
+          if [ "$MODULE_VERSION" != "${{ steps.get_version.outputs.VERSION }}" ]; then
+            echo "Version mismatch: module.json has $MODULE_VERSION but tag is ${{ steps.get_version.outputs.VERSION }}"
+            exit 1
+          fi
+          echo "Version verified: $MODULE_VERSION"
+
+      - name: Create module archive
+        run: |
+          # Create a clean zip of the module
+          zip -r module.zip \
+            module.json \
+            README.md \
+            CHANGELOG.md \
+            CONTRIBUTING.md \
+            LICENSE \
+            lang/ \
+            scripts/ \
+            styles/ \
+            templates/ \
+            -x "*.git*" -x "*node_modules*" -x "*.DS_Store"
+
+          echo "Archive created: module.zip"
+          ls -lh module.zip
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          # Extract changelog section for this version
+          awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > release_notes.md
+
+          # If release notes are empty, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release $VERSION" > release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release_notes.md
+          fi
+
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            module.zip
+            module.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Foundry VTT
+        uses: Foundry-VTT-PF2e-mods/fvtt-autopublish@v1
+        with:
+          package-token: ${{ secrets.PACKAGE_TOKEN }}
+          manifest-url: https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.TAG }}/module.json
+          dry-run: false
+
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✅ Release ${{ steps.get_version.outputs.VERSION }} published successfully!"
+          echo "📦 Module archive: https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.TAG }}/module.zip"
+          echo "📄 Manifest: https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.TAG }}/module.json"

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, tooling]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  validate-module:
+    name: Validate Module Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate module.json
+        run: |
+          if ! jq empty module.json 2>/dev/null; then
+            echo "module.json is not valid JSON"
+            exit 1
+          fi
+          echo "module.json is valid JSON"
+
+      - name: Check required files
+        run: |
+          required_files=("module.json" "README.md" "CHANGELOG.md")
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "Missing required file: $file"
+              exit 1
+            fi
+          done
+          echo "All required files present"

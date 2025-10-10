@@ -1,0 +1,38 @@
+{
+  "name": "archivist-sync",
+  "version": "1.0.0",
+  "description": "A simple Foundry VTT module for fetching world data from an API endpoint using an API key.",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "version:major": "npm version major --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "build": "npm run lint && npm run build:zip",
+    "build:zip": "node scripts/build-zip.js",
+    "prepare-release": "node scripts/prepare-release.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/camrun91/archivist-sync.git"
+  },
+  "keywords": [
+    "foundry-vtt",
+    "foundry",
+    "foundryvtt",
+    "module"
+  ],
+  "author": "Cameron Llewellyn",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/camrun91/archivist-sync/issues"
+  },
+  "homepage": "https://github.com/camrun91/archivist-sync#readme",
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "prettier": "^3.2.5"
+  }
+}

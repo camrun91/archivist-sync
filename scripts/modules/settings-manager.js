@@ -44,7 +44,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | API Key updated`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -60,7 +60,7 @@ export class SettingsManager {
       scope: semantic.scope,
       config: semantic.config,
       type: semantic.type,
-      default: semantic.default
+      default: semantic.default,
     });
   }
 
@@ -86,7 +86,7 @@ export class SettingsManager {
       scope: 'world',
       config: false,
       type: String,
-      default: '{}'
+      default: '{}',
     });
   }
 
@@ -102,7 +102,7 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
     });
   }
 
@@ -122,7 +122,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | Selected world ID: ${value}`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -142,7 +142,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | Selected world: ${value}`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -158,7 +158,7 @@ export class SettingsManager {
       hint: game.i18n.localize(sync.hint),
       icon: sync.icon,
       type: SyncOptionsDialog,
-      restricted: sync.restricted
+      restricted: sync.restricted,
     });
 
     // Ask Chat menu removed - chat is now available in sidebar when world is properly configured
@@ -257,27 +257,48 @@ export class SettingsManager {
     const defaults = {
       version: 1,
       actorMappings: {
-        pc: { enabled: true, descriptionPath: this._defaultDescriptionPath(systemId, 'pc'), portraitPath: 'img', writeBack: 'none' },
-        npc: { enabled: false, descriptionPath: this._defaultDescriptionPath(systemId, 'npc'), portraitPath: 'img', writeBack: 'none' }
+        pc: {
+          enabled: true,
+          descriptionPath: this._defaultDescriptionPath(systemId, 'pc'),
+          portraitPath: 'img',
+          writeBack: 'none',
+        },
+        npc: {
+          enabled: false,
+          descriptionPath: this._defaultDescriptionPath(systemId, 'npc'),
+          portraitPath: 'img',
+          writeBack: 'none',
+        },
       },
       includeRules: {
-        sources: { worldActors: true, compendiumActorPacks: [], worldItems: false, compendiumItemPacks: [], journals: [] },
+        sources: {
+          worldActors: true,
+          compendiumActorPacks: [],
+          worldItems: false,
+          compendiumItemPacks: [],
+          journals: [],
+        },
         filters: {
           actors: {
             mustHavePlayerOwner: true,
             npcRequirePlacedToken: true,
-            includeFolders: { pcs: ['PCs'], npcs: [] }
+            includeFolders: { pcs: ['PCs'], npcs: [] },
           },
           items: {
             includeActorOwnedFrom: 'pc', // 'pc' | 'pc+npc'
-            includeWorldItemFolders: []
+            includeWorldItemFolders: [],
           },
-          factions: { journalFolders: [] }
-        }
+          factions: { journalFolders: [] },
+        },
       },
-      writeBack: { summaryMaxChars: 1200 }
+      writeBack: { summaryMaxChars: 1200 },
     };
-    return foundry.utils.mergeObject(defaults, input ?? {}, { inplace: false, insertKeys: true, insertValues: true, overwrite: false });
+    return foundry.utils.mergeObject(defaults, input ?? {}, {
+      inplace: false,
+      insertKeys: true,
+      insertValues: true,
+      overwrite: false,
+    });
   }
 
   _defaultDescriptionPath(systemId, kind) {
@@ -378,7 +399,9 @@ export class SettingsManager {
   async resetWorldInitialization() {
     Utils.log('Resetting world initialization flag to false');
     await this.setWorldInitialized(false);
-    ui.notifications.warn('World initialization has been reset. The setup wizard will appear again.');
+    ui.notifications.warn(
+      'World initialization has been reset. The setup wizard will appear again.'
+    );
   }
 
   /**
@@ -398,7 +421,7 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
     });
   }
 
@@ -431,7 +454,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | World initialized: ${value}`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -447,7 +470,7 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
     });
   }
 

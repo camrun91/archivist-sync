@@ -21,7 +21,11 @@ export class ArchivistApiService {
    * @returns {string}
    */
   _sanitizeText(value) {
-    try { return toMarkdownIfHtml?.(value) ?? ''; } catch (_) { return String(value ?? ''); }
+    try {
+      return toMarkdownIfHtml?.(value) ?? '';
+    } catch (_) {
+      return String(value ?? '');
+    }
   }
 
   /**
@@ -90,7 +94,8 @@ export class ArchivistApiService {
 
     // Simple client-side throttle for write-heavy operations
     const method = String(options?.method || 'GET').toUpperCase();
-    const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+    const isWrite =
+      method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
 
     if (isWrite) {
       const now = Date.now();
@@ -113,7 +118,7 @@ export class ArchivistApiService {
         minSpacingMs = 350; // Moderate slowdown
       }
 
-      const waitMs = Math.max(0, (this._lastWriteAtMs + minSpacingMs) - now);
+      const waitMs = Math.max(0, this._lastWriteAtMs + minSpacingMs - now);
       if (waitMs > 0) {
         await new Promise(r => setTimeout(r, waitMs));
       }
@@ -131,7 +136,8 @@ export class ArchivistApiService {
     while (attempt <= maxRetries) {
       try {
         const method = String(options?.method || 'GET').toUpperCase();
-        const isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+        const isWrite =
+          method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
         const fetchOptions = { ...options, headers, mode: 'cors', cache: 'no-store' };
         if (isWrite) fetchOptions.keepalive = true;
         const response = await fetch(url, fetchOptions);
@@ -145,7 +151,9 @@ export class ArchivistApiService {
         attempt += 1;
 
         if (attempt > maxRetries) {
-          console.error(`${CONFIG.MODULE_TITLE} | Max retries (${maxRetries}) exceeded for ${method} ${path}`);
+          console.error(
+            `${CONFIG.MODULE_TITLE} | Max retries (${maxRetries}) exceeded for ${method} ${path}`
+          );
           throw new Error(`API request failed: 429 rate limited after ${maxRetries} retries`);
         }
 
@@ -165,20 +173,28 @@ export class ArchivistApiService {
         const jitter = Math.floor(Math.random() * 500); // 0-500ms jitter
         const delay = Math.max(retryMs || 0, baseDelay + jitter);
 
-        console.warn(`${CONFIG.MODULE_TITLE} | Rate limited (429) on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms`);
+        console.warn(
+          `${CONFIG.MODULE_TITLE} | Rate limited (429) on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms`
+        );
         await new Promise(r => setTimeout(r, delay));
-
       } catch (error) {
         if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
           // Network error - retry with exponential backoff
           attempt += 1;
           if (attempt > maxRetries) {
-            console.error(`${CONFIG.MODULE_TITLE} | Network error after ${maxRetries} retries for ${method} ${path}:`, error);
+            console.error(
+              `${CONFIG.MODULE_TITLE} | Network error after ${maxRetries} retries for ${method} ${path}:`,
+              error
+            );
             throw new Error(`Network error after ${maxRetries} retries: ${error.message}`);
           }
 
-          const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 500);
-          console.warn(`${CONFIG.MODULE_TITLE} | Network error on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms:`, error.message);
+          const delay =
+            Math.min(30000, 1000 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 500);
+          console.warn(
+            `${CONFIG.MODULE_TITLE} | Network error on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms:`,
+            error.message
+          );
           await new Promise(r => setTimeout(r, delay));
         } else {
           // Other errors should not be retried
@@ -196,9 +212,9 @@ export class ArchivistApiService {
   _createHeaders(apiKey, options = {}) {
     const method = String(options?.method || '').toUpperCase();
     const h = {
-      'Accept': '*/*',
+      Accept: '*/*',
       'x-api-key': apiKey,
-      'X-Requested-With': 'XMLHttpRequest'
+      'X-Requested-With': 'XMLHttpRequest',
     };
     // Only set Content-Type when we actually send a body (avoids preflight on simple GETs)
     const hasBody = !!options?.body || method === 'POST' || method === 'PUT' || method === 'PATCH';
@@ -219,7 +235,11 @@ export class ArchivistApiService {
         const data = await response.clone().json();
         detail = data?.detail || data?.message || '';
       } catch (_) {
-        try { detail = await response.clone().text(); } catch (_) { /* ignore */ }
+        try {
+          detail = await response.clone().text();
+        } catch (_) {
+          /* ignore */
+        }
       }
       const suffix = detail ? ` — ${String(detail).slice(0, 300)}` : '';
       throw new Error(`API request failed: ${response.status} ${response.statusText}${suffix}`);
@@ -259,13 +279,13 @@ export class ArchivistApiService {
 
       return {
         success: true,
-        data: campaigns
+        data: campaigns,
       };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch campaigns:`, error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch campaigns from API'
+        message: error.message || 'Failed to fetch campaigns from API',
       };
     }
   }
@@ -280,7 +300,7 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/campaigns`, {
         method: 'POST',
-        body: JSON.stringify({ title: norm.title, description: norm.description || '' })
+        body: JSON.stringify({ title: norm.title, description: norm.description || '' }),
       });
       return { success: true, data };
     } catch (error) {
@@ -296,15 +316,20 @@ export class ArchivistApiService {
    * @returns {Promise<object>} Object with success flag and campaign data
    */
   async fetchCampaignDetails(apiKey, campaignId) {
-    console.log('fetchCampaignDetails called with:', { apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none', campaignId });
+    console.log('fetchCampaignDetails called with:', {
+      apiKey: apiKey ? '***' + apiKey.slice(-4) : 'none',
+      campaignId,
+    });
     try {
-      const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, { method: 'GET' });
+      const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, {
+        method: 'GET',
+      });
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch campaign details:`, error);
       return {
         success: false,
-        message: error.message || 'Failed to fetch campaign details from API'
+        message: error.message || 'Failed to fetch campaign details from API',
       };
     }
   }
@@ -322,14 +347,14 @@ export class ArchivistApiService {
       const requestData = { title: norm.title, description: norm.description || '' };
       const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(requestData)
+        body: JSON.stringify(requestData),
       });
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to sync campaign title:`, error);
       return {
         success: false,
-        message: error.message || 'Failed to sync campaign title'
+        message: error.message || 'Failed to sync campaign title',
       };
     }
   }
@@ -346,10 +371,15 @@ export class ArchivistApiService {
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/characters?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
-        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const data = await this._request(
+          apiKey,
+          `/characters?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
         all.push(...items);
-        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        const totalPages =
+          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
@@ -370,24 +400,26 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters`, {
         method: 'POST',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
-      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
-      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isRateLimited =
+        error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError =
+        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, {
         error: error.message,
         payload: payload?.character_name || 'unknown',
         isRateLimited,
-        isNetworkError
+        isNetworkError,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create character',
-        retryable: isRateLimited || isNetworkError
+        retryable: isRateLimited || isNetworkError,
       };
     }
   }
@@ -403,7 +435,7 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
@@ -421,10 +453,15 @@ export class ArchivistApiService {
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/factions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
-        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const data = await this._request(
+          apiKey,
+          `/factions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
         all.push(...items);
-        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        const totalPages =
+          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
@@ -440,24 +477,26 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/factions`, {
         method: 'POST',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
-      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
-      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isRateLimited =
+        error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError =
+        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create faction:`, {
         error: error.message,
         payload: payload?.name || 'unknown',
         isRateLimited,
-        isNetworkError
+        isNetworkError,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create faction',
-        retryable: isRateLimited || isNetworkError
+        retryable: isRateLimited || isNetworkError,
       };
     }
   }
@@ -467,7 +506,7 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
       const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
@@ -479,7 +518,7 @@ export class ArchivistApiService {
   async deleteFaction(apiKey, factionId) {
     try {
       const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       });
       return { success: true, data };
     } catch (error) {
@@ -497,10 +536,15 @@ export class ArchivistApiService {
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/locations?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
-        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const data = await this._request(
+          apiKey,
+          `/locations?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
         all.push(...items);
-        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        const totalPages =
+          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
@@ -520,10 +564,15 @@ export class ArchivistApiService {
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/sessions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
-        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const data = await this._request(
+          apiKey,
+          `/sessions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
         all.push(...items);
-        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        const totalPages =
+          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
@@ -545,7 +594,7 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/sessions/${encodeURIComponent(sessionId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
@@ -559,24 +608,26 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/locations`, {
         method: 'POST',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
-      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
-      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isRateLimited =
+        error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError =
+        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create location:`, {
         error: error.message,
         payload: payload?.name || 'unknown',
         isRateLimited,
-        isNetworkError
+        isNetworkError,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create location',
-        retryable: isRateLimited || isNetworkError
+        retryable: isRateLimited || isNetworkError,
       };
     }
   }
@@ -586,7 +637,7 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
       const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
@@ -598,7 +649,7 @@ export class ArchivistApiService {
   async deleteLocation(apiKey, locationId) {
     try {
       const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       });
       return { success: true, data };
     } catch (error) {
@@ -616,10 +667,15 @@ export class ArchivistApiService {
       const size = 100;
       const all = [];
       while (true) {
-        const data = await this._request(apiKey, `/items?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`, { method: 'GET' });
-        const items = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : []);
+        const data = await this._request(
+          apiKey,
+          `/items?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
         all.push(...items);
-        const totalPages = typeof data.pages === 'number' ? data.pages : (items.length < size ? page : page + 1);
+        const totalPages =
+          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
@@ -638,24 +694,26 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/items`, {
         method: 'POST',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
-      const isRateLimited = error.message?.includes('429') || error.message?.includes('rate limited');
-      const isNetworkError = error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isRateLimited =
+        error.message?.includes('429') || error.message?.includes('rate limited');
+      const isNetworkError =
+        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create item:`, {
         error: error.message,
         payload: payload?.name || 'unknown',
         isRateLimited,
-        isNetworkError
+        isNetworkError,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create item',
-        retryable: isRateLimited || isNetworkError
+        retryable: isRateLimited || isNetworkError,
       };
     }
   }
@@ -668,7 +726,7 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
         method: 'PATCH',
-        body: JSON.stringify(norm)
+        body: JSON.stringify(norm),
       });
       return { success: true, data };
     } catch (error) {
@@ -680,7 +738,7 @@ export class ArchivistApiService {
   async deleteItem(apiKey, itemId) {
     try {
       const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       });
       return { success: true, data };
     } catch (error) {
@@ -703,14 +761,14 @@ export class ArchivistApiService {
       const r = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ campaign_id: campaignId, messages })
+        body: JSON.stringify({ campaign_id: campaignId, messages }),
       });
       const data = await this._handleResponse(r);
       return {
         success: true,
         answer: data?.answer ?? '',
         monthlyTokensRemaining: data?.monthlyTokensRemaining,
-        hourlyTokensRemaining: data?.hourlyTokensRemaining
+        hourlyTokensRemaining: data?.hourlyTokensRemaining,
       };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | /ask failed:`, error);
@@ -736,7 +794,9 @@ export class ArchivistApiService {
     const resp = await fetch(url, { method: 'POST', headers, body, signal });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
-      throw new Error(`Ask stream failed: ${resp.status} ${resp.statusText}${text ? ` — ${text}` : ''}`);
+      throw new Error(
+        `Ask stream failed: ${resp.status} ${resp.statusText}${text ? ` — ${text}` : ''}`
+      );
     }
     const monthly = Number(resp.headers.get('X-Monthly-Remaining-Tokens') || '') || undefined;
     const hourly = Number(resp.headers.get('X-Hourly-Remaining-Tokens') || '') || undefined;
