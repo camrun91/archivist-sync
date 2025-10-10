@@ -137,8 +137,9 @@ npm run lint:fix
 GitHub Actions automatically runs on all pushes and pull requests:
 - **Linting**: Checks code style and catches common errors
 - **Validation**: Ensures module.json is valid and required files exist
+- **Release**: Automatically publishes to Foundry VTT when tags are pushed
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development details and [RELEASE.md](RELEASE.md) for the release process.
 
 ### Key Files
 

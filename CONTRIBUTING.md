@@ -65,6 +65,13 @@ GitHub Actions automatically runs linting checks on all pull requests and pushes
 6. Push to your branch (`git push origin feature/amazing-feature`)
 7. Open a Pull Request
 
+## Release Process
+
+For maintainers who need to create releases, see [RELEASE.md](RELEASE.md) for detailed instructions on:
+- Preparing releases with version bumping
+- Creating GitHub releases
+- Automated publishing to Foundry VTT
+
 ## Questions?
 
 If you have questions, please open an issue on GitHub.

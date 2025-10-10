@@ -3,4 +3,6 @@ dist/
 *.min.js
 *.config.js
 module.zip
+scripts/build-zip.js
+scripts/prepare-release.js
 

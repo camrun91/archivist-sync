@@ -5,7 +5,13 @@
   "type": "module",
   "scripts": {
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "version:major": "npm version major --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "build": "npm run lint && npm run build:zip",
+    "build:zip": "node scripts/build-zip.js",
+    "prepare-release": "node scripts/prepare-release.js"
   },
   "repository": {
     "type": "git",
