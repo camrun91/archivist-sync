@@ -113,7 +113,33 @@ Examples (representative; bodies vary by type):
 
 ## Development
 
-Key files:
+### Setup
+
+1. Install Node.js 18.x or 20.x (or use `.nvmrc` with `nvm use`)
+2. Install dependencies: `npm install`
+
+### Code Quality
+
+This project uses ESLint and Prettier for code quality and formatting:
+
+```bash
+# Check for linting issues
+npm run lint
+
+# Auto-fix formatting issues
+npm run lint:fix
+```
+
+### Continuous Integration
+
+GitHub Actions automatically runs on all pushes and pull requests:
+- **Linting**: Checks code style and catches common errors
+- **Validation**: Ensures module.json is valid and required files exist
+- **Release**: Automatically publishes to Foundry VTT when tags are pushed
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development details and [RELEASE.md](RELEASE.md) for the release process.
+
+### Key Files
 
 ```
 archivist-sync/

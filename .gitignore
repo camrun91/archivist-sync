@@ -58,6 +58,7 @@ packs/
 # Build files
 dist/
 build/
+module.zip
 
 # Temporary files
 tmp/
