@@ -1,18 +1,33 @@
 import { CONFIG } from './config.js';
-import { readBestBiography } from './field-mapper.js';
-import { toMarkdownIfHtml } from './importer-normalizer.js';
 
 /**
  * Utility functions for Archivist Sync Module
  */
 export class Utils {
-
+  /**
+   * Convert HTML to Markdown (naive conversion: strip HTML tags, keep text)
+   * @param {any} value - The value to convert
+   * @returns {string} Plain text
+   */
+  static toMarkdownIfHtml(value) {
+    const s = String(value ?? '');
+    if (!s) return '';
+    // naive conversion: strip HTML tags; keep text
+    try {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = s;
+      const text = tmp.textContent || tmp.innerText || '';
+      return text.replace(/\r\n/g, '\n');
+    } catch (_) {
+      return s;
+    }
+  }
   /**
    * Log messages with module prefix
    * @param {string} message - The message to log
    * @param {string} level - Log level (log, warn, error)
    */
-  static log(message,) {
+  static log(message) {
     console.log(`${CONFIG.MODULE_TITLE} | ${message}`);
   }
 
@@ -54,13 +69,18 @@ export class Utils {
         // Minimal fallback: paragraphs + bold/italic with HTML escaping for security
         rawHtml = md
           .replace(/\r\n/g, '\n')
-          .replace(/\*\*(.*?)\*\*/g, (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`)
+          .replace(
+            /\*\*(.*?)\*\*/g,
+            (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`
+          )
           .replace(/_(.*?)_/g, (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`)
           .split(/\n{2,}/)
           .map(p => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
           .join('');
       }
-      return foundry?.utils?.TextEditor?.cleanHTML ? foundry.utils.TextEditor.cleanHTML(rawHtml) : rawHtml;
+      return foundry?.utils?.TextEditor?.cleanHTML
+        ? foundry.utils.TextEditor.cleanHTML(rawHtml)
+        : rawHtml;
     } catch (_) {
       return String(markdown || '');
     }
@@ -74,7 +94,7 @@ export class Utils {
     return {
       id: game.world.id,
       title: game.world.title,
-      description: game.world.description || 'No description'
+      description: game.world.description || 'No description',
     };
   }
 
@@ -83,9 +103,7 @@ export class Utils {
    * @returns {Array} Array of character and NPC actors
    */
   static getCharacterActors() {
-    return game.actors.contents.filter(actor =>
-      actor.type === 'character' || actor.type === 'npc'
-    );
+    return game.actors.contents.filter(actor => actor.type === 'character' || actor.type === 'npc');
   }
 
   /**
@@ -94,7 +112,7 @@ export class Utils {
    */
   static getFactionJournals() {
     const entries = game.journal?.contents || [];
-    const factionFolder = this._findFolderByNameInsensitive('Factions');
+    const factionFolder = this._findFolderByNameInsensitive('Archivist - Factions');
     return entries.filter(j => {
       const flagged = j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'faction';
       const inFolder = factionFolder && j.folder?.id === factionFolder.id;
@@ -108,7 +126,7 @@ export class Utils {
    */
   static getLocationJournals() {
     const entries = game.journal?.contents || [];
-    const locationFolder = this._findFolderByNameInsensitive('Locations');
+    const locationFolder = this._findFolderByNameInsensitive('Archivist - Locations');
     return entries.filter(j => {
       const flagged = j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'location';
       const inFolder = locationFolder && j.folder?.id === locationFolder.id;
@@ -123,7 +141,9 @@ export class Utils {
    */
   static _findFolderByNameInsensitive(name) {
     const folders = game.folders?.contents || [];
-    return folders.find(f => f.type === 'JournalEntry' && f.name.toLowerCase() === String(name).toLowerCase());
+    return folders.find(
+      f => f.type === 'JournalEntry' && f.name.toLowerCase() === String(name).toLowerCase()
+    );
   }
 
   /**
@@ -139,7 +159,7 @@ export class Utils {
       description: actor.system?.details?.biography?.value || '',
       level: actor.system?.details?.level || 1,
       race: actor.system?.details?.race || '',
-      class: actor.system?.details?.class || ''
+      class: actor.system?.details?.class || '',
     }));
   }
 
@@ -150,13 +170,22 @@ export class Utils {
    */
   static toApiCharacterPayload(actor, worldId) {
     const isPC = actor.type === 'character';
+    const pick = (...paths) => {
+      for (const p of paths) {
+        try {
+          const v = foundry.utils.getProperty(actor, p);
+          if (typeof v === 'string' && v.trim()) return v;
+        } catch (_) { }
+      }
+      return '';
+    };
+    const bioHtml = pick('system.details.biography.value', 'system.details.biography.public', 'system.description.value');
     return {
       character_name: actor.name,
       player_name: actor?.system?.details?.player || '',
-      // Convert any stored HTML back to Markdown for Archivist API
-      description: toMarkdownIfHtml(readBestBiography(actor) || ''),
+      description: this.toMarkdownIfHtml(bioHtml || ''),
       type: isPC ? 'PC' : 'NPC',
-      campaign_id: worldId
+      campaign_id: worldId,
     };
   }
 
@@ -174,9 +203,9 @@ export class Utils {
     return {
       name: journal.name,
       // Journal pages store HTML — convert to Markdown for API
-      description: toMarkdownIfHtml(cleanedText),
+      description: this.toMarkdownIfHtml(cleanedText),
       ...(image ? { image } : {}),
-      campaign_id: worldId
+      campaign_id: worldId,
     };
   }
 
@@ -193,9 +222,9 @@ export class Utils {
     const cleanedText = this.stripLeadingImage(text);
     return {
       name: journal.name,
-      description: toMarkdownIfHtml(cleanedText),
+      description: this.toMarkdownIfHtml(cleanedText),
       ...(image ? { image } : {}),
-      campaign_id: worldId
+      campaign_id: worldId,
     };
   }
 
@@ -243,16 +272,19 @@ export class Utils {
     const safeContent = String(content ?? '');
 
     if (pagesCollection) {
-      const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
-      let textPage = pages.find(p => p.type === 'text');
+      const pages =
+        pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
+      const textPage = pages.find(p => p.type === 'text');
       if (textPage) {
         await textPage.update({ text: { content: safeContent, markdown: safeContent, format: 2 } });
       } else {
-        await journal.createEmbeddedDocuments('JournalEntryPage', [{
-          name: 'Description',
-          type: 'text',
-          text: { content: safeContent, markdown: safeContent, format: 2 }
-        }]);
+        await journal.createEmbeddedDocuments('JournalEntryPage', [
+          {
+            name: 'Description',
+            type: 'text',
+            text: { content: safeContent, markdown: safeContent, format: 2 },
+          },
+        ]);
       }
       return;
     }
@@ -261,8 +293,8 @@ export class Utils {
   }
 
   /**
-   * Ensure a journal displays a lead image. For v10+ we upsert an Image page; for legacy we inline an <img> tag.
-   * Also updates the journal's thumbnail (img) to the provided URL.
+   * Set a journal's thumbnail image (img property) to the provided URL.
+   * Does not modify journal content or pages.
    * @param {JournalEntry} journal
    * @param {string} imageUrl
    */
@@ -271,35 +303,12 @@ export class Utils {
       const url = String(imageUrl || '').trim();
       if (!url) return;
       console.debug('[Archivist Sync] ensureJournalLeadImage()', { journalId: journal?.id, url });
-      // Always set the journal thumbnail so it shows in lists
-      try { await journal.update({ img: url }); } catch (e) { console.debug('[Archivist Sync] journal img update failed', e); }
-
-      const pagesCollection = journal.pages;
-      if (pagesCollection) {
-        const pages = pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
-        let textPage = pages.find(p => p.type === 'text');
-        const mdImg = `![cover](${url.replace(/\)/g, '\\)')})\n\n`;
-        if (textPage) {
-          const current = String(textPage?.text?.content ?? '');
-          if (!current.includes(url)) {
-            console.debug('[Archivist Sync] Prepending image (Markdown) to journal text page');
-            await textPage.update({ text: { content: mdImg + current, markdown: mdImg + current, format: 2 } });
-          } else {
-            console.debug('[Archivist Sync] Text page already contains image URL; skipping prepend');
-          }
-        } else {
-          console.debug('[Archivist Sync] Creating text page with Markdown lead image');
-          const created = await journal.createEmbeddedDocuments('JournalEntryPage', [{ name: 'Cover', type: 'text', text: { content: mdImg, markdown: mdImg, format: 2 } }]);
-          textPage = created?.[0] || null;
-        }
-        return;
+      // Set the journal thumbnail so it shows in lists
+      try {
+        await journal.update({ img: url });
+      } catch (e) {
+        console.debug('[Archivist Sync] journal img update failed', e);
       }
-      // Legacy fallback: inline the image at the top of the content
-      const safeUrl = url.replace(/"/g, '&quot;');
-      const existing = String(journal.content || '');
-      const imgHtml = `<p><img src="${safeUrl}" style="max-width:100%"/></p>`;
-      console.debug('[Archivist Sync] Prepending inline image to legacy journal content');
-      await journal.update({ content: imgHtml + existing });
     } catch (e) {
       console.warn('[Archivist Sync] Failed to set journal lead image:', e);
     }
@@ -322,7 +331,7 @@ export class Utils {
     return {
       id: journal.getFlag(CONFIG.MODULE_ID, 'archivistId') || null,
       type: journal.getFlag(CONFIG.MODULE_ID, 'archivistType') || null,
-      worldId: journal.getFlag(CONFIG.MODULE_ID, 'archivistWorldId') || null
+      worldId: journal.getFlag(CONFIG.MODULE_ID, 'archivistWorldId') || null,
     };
   }
 
@@ -340,7 +349,7 @@ export class Utils {
     return {
       id: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || null,
       type: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || null,
-      worldId: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistWorldId') || null
+      worldId: page?.getFlag?.(CONFIG.MODULE_ID, 'archivistWorldId') || null,
     };
   }
 
@@ -386,17 +395,25 @@ export class Utils {
     }
     if (!page) page = pages.find(p => p.name === name && p.type === 'text');
     const baseMd = String(html || '');
-    const finalMd = imageUrl && !baseMd.includes(String(imageUrl))
-      ? `![cover](${String(imageUrl).replace(/\)/g, '\\)')})\n\n${baseMd}`
-      : baseMd;
     if (page) {
-      await page.update({ name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } });
+      await page.update({
+        name,
+        type: 'text',
+        text: { content: baseMd, markdown: baseMd, format: 2 },
+      });
     } else {
-      const created = await container.createEmbeddedDocuments('JournalEntryPage', [{ name, type: 'text', text: { content: finalMd, markdown: finalMd, format: 2 } }]);
+      const created = await container.createEmbeddedDocuments('JournalEntryPage', [
+        { name, type: 'text', text: { content: baseMd, markdown: baseMd, format: 2 } },
+      ]);
       page = created?.[0] || null;
     }
     if (page && flags) {
-      await this.setPageArchivistMeta(page, flags.archivistId, flags.archivistType, flags.archivistWorldId);
+      await this.setPageArchivistMeta(
+        page,
+        flags.archivistId,
+        flags.archivistType,
+        flags.archivistWorldId
+      );
     }
     return page;
   }
@@ -491,6 +508,188 @@ export class Utils {
     const created = await Folder.create({ name, type: 'JournalEntry' });
     return created?.id || null;
   }
+
+  /** Ensure top-level organized folders exist for Archivist types */
+  static async ensureArchivistFolders() {
+    try {
+      const folders = {
+        pc: 'Archivist - PCs',
+        npc: 'Archivist - NPCs',
+        item: 'Archivist - Items',
+        location: 'Archivist - Locations',
+        faction: 'Archivist - Factions',
+      };
+
+      console.log('[Archivist Sync] Ensuring organized folders:', Object.values(folders));
+      for (const name of Object.values(folders)) {
+        await this.ensureJournalFolder(name);
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync] ensureArchivistFolders failed:', e);
+    }
+  }
+
+  /** Get the organized folder for a given Archivist sheet type */
+  static getArchivistFolder(type) {
+    try {
+      console.log('[Archivist Sync] getArchivistFolder called:', {
+        type,
+      });
+
+      const map = {
+        pc: 'Archivist - PCs',
+        npc: 'Archivist - NPCs',
+        item: 'Archivist - Items',
+        location: 'Archivist - Locations',
+        faction: 'Archivist - Factions',
+      };
+      const name = map[String(type || '').toLowerCase()];
+
+      if (!name) {
+        console.log('[Archivist Sync] No folder name mapped for type:', type);
+        return null;
+      }
+
+      const folders = game.folders?.contents || [];
+      const found = folders.find(f => f.type === 'JournalEntry' && f.name === name) || null;
+
+      console.log('[Archivist Sync] Folder lookup result:', {
+        searchingFor: name,
+        found: found?.name || 'none',
+        foundId: found?.id || 'none',
+      });
+
+      return found;
+    } catch (e) {
+      console.warn('[Archivist Sync] getArchivistFolder failed:', e);
+      return null;
+    }
+  }
+
+  /** Move a JournalEntry into its organized folder based on flags.archivist.sheetType */
+  static async moveJournalToTypeFolder(journal) {
+    try {
+      const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+      const type = String(flags.sheetType || '').toLowerCase();
+      const folder = this.getArchivistFolder(type);
+      if (!folder) return false;
+      if (journal.folder?.id === folder.id) return false;
+      await journal.update({ folder: folder.id });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /** Create a custom sheet JournalEntry for an imported Archivist entity */
+  static async createCustomJournalForImport({ name, html = '', imageUrl, sheetType, archivistId, worldId, folderId }) {
+    try {
+      console.log(`[Archivist Sync] createCustomJournalForImport called:`, {
+        name,
+        sheetType,
+        archivistId,
+        providedFolderId: folderId,
+      });
+
+      await this.ensureArchivistFolders();
+      const folder = this.getArchivistFolder(sheetType);
+      const sheetClassMap = {
+        pc: 'archivist-sync.PCPageSheetV2',
+        npc: 'archivist-sync.NPCPageSheetV2',
+        item: 'archivist-sync.ItemPageSheetV2',
+        location: 'archivist-sync.LocationPageSheetV2',
+        faction: 'archivist-sync.FactionPageSheetV2',
+        recap: 'archivist-sync.RecapPageSheetV2',
+      };
+      const normalizedType = String(sheetType || '').toLowerCase();
+      const sheetClass = sheetClassMap[normalizedType] || '';
+
+      console.log(`[Archivist Sync] Folder lookup results:`, {
+        sheetType,
+        foundFolder: folder?.name || 'none',
+        foundFolderId: folder?.id || 'none',
+        providedFolderId: folderId || 'none',
+        willUseFolderId: folderId || folder?.id || 'none (root)',
+      });
+
+      const targetFolderId = folderId || folder?.id || null;
+      const journal = await JournalEntry.create({
+        name,
+        folder: targetFolderId,
+        ...(imageUrl ? { img: imageUrl } : {}),
+        flags: {
+          core: { sheetClass, sheet: sheetClass },
+        },
+      }, { render: false });
+
+      console.log(`[Archivist Sync] Journal created:`, {
+        journalId: journal.id,
+        journalName: journal.name,
+        assignedFolderId: targetFolderId,
+        actualFolderId: journal.folder?.id || 'none (root)',
+        actualFolderName: journal.folder?.name || 'none (root)',
+      });
+
+      await this.ensureJournalTextPage(journal, html);
+      // Also set Archivist Hub image flag for downstream sheets that consult hub image
+      try {
+        if (imageUrl) await journal.setFlag('archivist-hub', 'image', imageUrl);
+      } catch (_) { }
+      await journal.setFlag(CONFIG.MODULE_ID, 'archivist', {
+        sheetType: normalizedType,
+        archivistId: archivistId || null,
+        archivistWorldId: worldId || null,
+        image: imageUrl || null,
+        archivistRefs: { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] },
+        foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
+      });
+
+      console.log(`[Archivist Sync] Journal finalized with flags, final location:`, {
+        journalId: journal.id,
+        folderId: journal.folder?.id || 'root',
+        folderName: journal.folder?.name || 'root',
+      });
+
+      return journal;
+    } catch (e) {
+      console.warn('[Archivist Sync] createCustomJournalForImport failed', e);
+      return null;
+    }
+  }
+
+  /** Create a new Archivist journal with flags and initial text page */
+  static async createArchivistJournal({ name, sheetType, archivistId, worldId, folderName, text = '' }) {
+    const folder = folderName ? await this.ensureJournalFolder(folderName) : null;
+    // Map Archivist sheet types to our registered V2 sheet classes
+    const sheetClassMap = {
+      pc: 'archivist-sync.PCPageSheetV2',
+      npc: 'archivist-sync.NPCPageSheetV2',
+      item: 'archivist-sync.ItemPageSheetV2',
+      location: 'archivist-sync.LocationPageSheetV2',
+      faction: 'archivist-sync.FactionPageSheetV2',
+      recap: 'archivist-sync.RecapPageSheetV2',
+    };
+    const normalizedType = String(sheetType || '').toLowerCase();
+    const sheetClass = sheetClassMap[normalizedType] || '';
+    const journal = await JournalEntry.create({ name, folder, flags: { core: { sheetClass, sheet: sheetClass } } }, { render: false });
+    await this.ensureJournalTextPage(journal, text);
+    const flags = {
+      sheetType: normalizedType,
+      archivistId: archivistId || null,
+      archivistWorldId: worldId || null,
+      archivistRefs: { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] },
+      foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
+    };
+    await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+    return journal;
+  }
+
+  static createPcJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'pc', folderName: 'Archivist - PCs' }); }
+  static createNpcJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'npc', folderName: 'Archivist - NPCs' }); }
+  static createItemJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'item', folderName: 'Archivist - Items' }); }
+  static createLocationJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'location', folderName: 'Archivist - Locations' }); }
+  static createFactionJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'faction', folderName: 'Archivist - Factions' }); }
+  static createRecapJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'recap', folderName: 'Recaps' }); }
 
   /**
    * Deep clone an object

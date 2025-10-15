@@ -28,6 +28,34 @@
       "WorldInitialized": {
         "Name": "World Initialized",
         "Hint": "Internal flag indicating whether this Foundry world has been set up with Archivist"
+      },
+      "AutoSort": {
+        "Name": "Auto-Sort Linked Content",
+        "Hint": "Automatically sort linked characters, items, factions, and locations alphabetically in sheet panels"
+      },
+      "HideByOwnership": {
+        "Name": "Hide by Ownership",
+        "Hint": "Non-GM users will only see linked content they have permission to observe"
+      },
+      "OrganizeFolders": {
+        "Name": "Organize in Folders",
+        "Hint": "Automatically organize imported Archivist content into dedicated folders (Archivist - PCs, NPCs, Items, etc.)"
+      },
+      "MaxLocationDepth": {
+        "Name": "Max Location Tree Depth",
+        "Hint": "Maximum depth for hierarchical location trees (1-10)"
+      },
+      "RealtimeSync": {
+        "Name": "Real-Time Sync",
+        "Hint": "Automatically sync changes to Archivist when documents are created, updated, or deleted in Foundry"
+      },
+      "ImportConfig": {
+        "Name": "Import Configuration",
+        "Hint": "Internal JSON configuration for import/export field mappings and filters"
+      },
+      "SemanticMapping": {
+        "Name": "Semantic Field Mapping",
+        "Hint": "Use AI to improve automatic field detection during import (experimental)"
       }
     },
     "chat": {
@@ -46,10 +74,12 @@
       "error": "Chat error"
     },
     "Menu": {
-      "SyncOptions": {
-        "Name": "Sync Options",
-        "Label": "Open Sync Manager",
-        "Hint": "Manage world selection, title sync, and character mapping with Archivist API"
+      "RunSetup": {
+        "Name": "Run World Setup Again",
+        "Label": "Run World Setup Again",
+        "Hint": "Reset initialization and relaunch the Archivist world setup wizard.",
+        "Title": "Run World Setup Again",
+        "Confirm": "This will reset initialization and reload Foundry to run setup again. Continue?"
       },
       "AskChat": {
         "Name": "Archivist Chat",
@@ -57,12 +87,12 @@
         "Hint": "Ask questions about your campaign with RAG"
       }
     },
-    "dialog": {
-      "title": "Archivist Sync Manager"
-    },
+    "dialog": {},
     "Dialog": {
       "SyncOptions": {
-        "Title": "Archivist Sync Manager"
+        "Label": "",
+        "title": "",
+        "Title": ""
       }
     },
     "tabs": {
@@ -106,7 +136,7 @@
     },
     "buttons": {
       "syncing": "Syncing...",
-      "syncWorlds": "Fetch Archivist Campaigns",
+      "syncWorlds": "Refresh",
       "saveSelection": "Save Selection",
       "syncTitle": "Sync Title to Archivist",
       "syncFromFoundry": "→ Sync to Archivist",
@@ -117,7 +147,7 @@
       "pullFromArchivist": "Pull from Archivist",
       "loadData": "Load Data",
       "runImport": "Run Import",
-      "createWorld": "Create World",
+      "createWorld": "Create Campaign",
       "loadMapping": "Load",
       "saveMapping": "Save",
       "save": "Save"
@@ -148,21 +178,23 @@
       "noNpcs": "No NPCs found in this world.",
       "noActorsHint": "Create some characters or NPCs to get started.",
       "loadingWorldData": "Loading world data from Archivist API...",
-      "noFactions": "No factions found (folder 'Factions' or flagged).",
-      "noLocations": "No locations found (folder 'Locations' or flagged).",
+      "noFactions": "No factions found (folder 'Archivist - Factions' or flagged).",
+      "noLocations": "No locations found (folder 'Archivist - Locations' or flagged).",
       "factionsSynced": "Factions synchronized successfully",
       "locationsSynced": "Locations synchronized successfully",
       "factionsPulled": "Factions pulled successfully",
       "locationsPulled": "Locations pulled successfully",
       "charactersPulled": "Characters pulled successfully",
-      "worldInitialized": "Foundry world has been initialized with Archivist for the first time"
+      "worldInitialized": "Foundry world has been initialized with Archivist for the first time",
+      "worldInitializedReset": "World initialization reset. Reloading to run setup again..."
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",
       "worldNotFound": "Selected world not found",
       "saveFailed": "Failed to save world selection",
       "syncFailed": "Failed to sync data",
-      "actorNotFound": "Actor not found"
+      "actorNotFound": "Actor not found",
+      "resetFailed": "Failed to reset world setup"
     },
     "worldSetup": {
       "title": "Archivist World Setup",

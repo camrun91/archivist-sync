@@ -1,0 +1,63 @@
+<section class="archivist-sheet">
+    <aside class="archivist-sidebar">
+        <header class="archivist-header">
+            <h2 class="archivist-title">{{document.name}}</h2>
+            <small class="archivist-subtitle">Entry</small>
+        </header>
+        <nav class="archivist-nav tabs" data-group="archivist">
+            <a class="item" data-tab="info">{{localize 'Info'}}</a>
+            <a class="item" data-tab="pcs">PCs</a>
+            <a class="item" data-tab="npcs">NPCs</a>
+            <a class="item" data-tab="items">Items</a>
+            <a class="item" data-tab="locations">Locations</a>
+            <a class="item" data-tab="factions">Factions</a>
+            <a class="item" data-tab="journals">Journals</a>
+            <a class="item" data-tab="notes">GM Notes</a>
+        </nav>
+    </aside>
+    <main class="archivist-content">
+        <section class="tab" data-tab="info">
+            <div class="archivist-info">
+                {{#if setup.editingInfo}}
+                <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
+                    compact="true" toggled>
+                    {{{document.pages.contents.[0].text.content}}}
+                </prose-mirror>
+                {{else}}
+                {{{document.pages.contents.[0].text.content}}}
+                {{/if}}
+            </div>
+        </section>
+        <section class="tab" data-tab="pcs">
+            <div class="archivist-grid pcs-grid"></div>
+        </section>
+        <section class="tab" data-tab="npcs">
+            <div class="archivist-grid npcs-grid"></div>
+        </section>
+        <section class="tab" data-tab="items">
+            <div class="archivist-grid items-grid"></div>
+        </section>
+        <section class="tab" data-tab="locations">
+            <div class="archivist-grid locations-grid"></div>
+        </section>
+        <section class="tab" data-tab="factions">
+            <div class="archivist-grid factions-grid"></div>
+        </section>
+        <section class="tab" data-tab="journals">
+            <div class="archivist-grid archivist-journals"></div>
+        </section>
+        <section class="tab" data-tab="notes">
+            {{#if setup.isGM}}
+            <div class="archivist-notes">
+                <prose-mirror name="gmNotes" value="{{setup.gmNotes}}" compact="true" toggled>
+                    {{{setup.gmNotes}}}
+                </prose-mirror>
+            </div>
+            {{else}}
+            <div class="archivist-notes">
+                <p class="hint"><i class="fas fa-lock"></i> GM-only notes are not visible to players.</p>
+            </div>
+            {{/if}}
+        </section>
+    </main>
+</section>

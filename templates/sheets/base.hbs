@@ -1,0 +1,53 @@
+<section class="archivist-sheet">
+    <aside class="archivist-sidebar">
+        <header class="archivist-header">
+            {{#if setup.image}}
+            <img class="archivist-avatar" src="{{setup.image}}" alt="" />
+            {{else if document.img}}
+            <img class="archivist-avatar" src="{{document.img}}" alt="" />
+            {{/if}}
+            <h2 class="archivist-title">{{document.name}}</h2>
+            <small class="archivist-subtitle">{{localize sheetTypeLabel}}</small>
+        </header>
+        <nav class="archivist-nav tabs" data-group="archivist">
+            <a class="item" data-tab="info">{{localize 'Info'}}</a>
+            <a class="item" data-tab="people">{{localize 'People'}}</a>
+            <a class="item" data-tab="items">{{localize 'Items'}}</a>
+            <a class="item" data-tab="locations">{{localize 'Locations'}}</a>
+            <a class="item" data-tab="journals">{{localize 'Journals'}}</a>
+            <a class="item" data-tab="notes">{{localize 'Notes'}}</a>
+        </nav>
+    </aside>
+    <main class="archivist-content">
+        <section class="tab" data-tab="info">
+            {{{document.pages.contents.[0].text.content}}}
+        </section>
+        <section class="tab" data-tab="people">
+            <div class="archivist-grid"></div>
+        </section>
+        <section class="tab" data-tab="items">
+            <div class="archivist-grid"></div>
+        </section>
+        <section class="tab" data-tab="locations">
+            <div class="archivist-grid"></div>
+        </section>
+        <section class="tab" data-tab="journals">
+            <div class="archivist-grid archivist-journals">
+                <!-- linked journals/pages go here -->
+            </div>
+        </section>
+        <section class="tab" data-tab="notes">
+            {{#if setup.isGM}}
+            <div class="archivist-notes">
+                <prose-mirror name="gmNotes" value="{{setup.gmNotes}}" compact="true" toggled>
+                    {{{setup.gmNotes}}}
+                </prose-mirror>
+            </div>
+            {{else}}
+            <div class="archivist-notes">
+                <p class="hint"><i class="fas fa-lock"></i> GM-only notes are not visible to players.</p>
+            </div>
+            {{/if}}
+        </section>
+    </main>
+</section>

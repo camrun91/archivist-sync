@@ -1,5 +1,4 @@
 import { CONFIG, SETTINGS, MENU_CONFIG } from './config.js';
-import { SyncOptionsDialog } from '../dialogs/sync-options-dialog.js';
 import { Utils } from './utils.js';
 
 /**
@@ -10,6 +9,8 @@ export class SettingsManager {
   constructor() {
     this.moduleId = CONFIG.MODULE_ID;
     this.moduleTitle = CONFIG.MODULE_TITLE;
+    // Counter-based suppression for realtime sync (supports nesting)
+    this._realtimeSuppressed = 0;
   }
 
   /**
@@ -17,15 +18,18 @@ export class SettingsManager {
    */
   registerSettings() {
     this._registerApiKey();
-    this._registerSemanticToggle();
-    this._registerMappingOverride();
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
     this._registerImportConfig();
-    this._registerChatHistory();
     this._registerWorldInitialized();
+    this._registerAutoSort();
+    this._registerHideByOwnership();
+    this._registerOrganizeFolders();
+    this._registerMaxLocationDepth();
     this._registerRealtimeSync();
-    this._registerMenu();
+    this._registerChatHistory();
+    this._registerSemanticToggle();
+    this._registerRunSetupAgainMenu();
   }
 
   /**
@@ -41,10 +45,11 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       default: setting.default,
+      secret: true,
       onChange: value => {
         console.log(`${this.moduleTitle} | API Key updated`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -60,7 +65,7 @@ export class SettingsManager {
       scope: semantic.scope,
       config: semantic.config,
       type: semantic.type,
-      default: semantic.default
+      default: semantic.default,
     });
   }
 
@@ -86,7 +91,7 @@ export class SettingsManager {
       scope: 'world',
       config: false,
       type: String,
-      default: '{}'
+      default: '{}',
     });
   }
 
@@ -102,7 +107,7 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
     });
   }
 
@@ -122,7 +127,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | Selected world ID: ${value}`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -142,7 +147,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | Selected world: ${value}`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -150,18 +155,37 @@ export class SettingsManager {
    * Register settings menu
    * @private
    */
-  _registerMenu() {
-    const sync = MENU_CONFIG.SYNC_OPTIONS;
-    game.settings.registerMenu(this.moduleId, sync.key, {
-      name: game.i18n.localize(sync.name),
-      label: game.i18n.localize(sync.label),
-      hint: game.i18n.localize(sync.hint),
-      icon: sync.icon,
-      type: SyncOptionsDialog,
-      restricted: sync.restricted
+  _registerRunSetupAgainMenu() {
+    game.settings.registerMenu(this.moduleId, MENU_CONFIG.RUN_SETUP_AGAIN.key, {
+      name: game.i18n.localize(MENU_CONFIG.RUN_SETUP_AGAIN.name),
+      label: game.i18n.localize(MENU_CONFIG.RUN_SETUP_AGAIN.label),
+      hint: game.i18n.localize(MENU_CONFIG.RUN_SETUP_AGAIN.hint),
+      icon: MENU_CONFIG.RUN_SETUP_AGAIN.icon,
+      type: class extends FormApplication {
+        constructor(...args) { super(...args); }
+        static get defaultOptions() { return foundry.utils.mergeObject(super.defaultOptions, { id: 'archivist-run-setup', title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') }); }
+        async render(force = false, options = {}) {
+          const confirmed = await foundry.applications.api.DialogV2.confirm({
+            window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') },
+            content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Confirm')}</p>`,
+          });
+          if (confirmed) {
+            try {
+              const { settingsManager } = await import('./settings-manager.js');
+              await settingsManager.setWorldInitialized(false);
+              ui.notifications?.info?.(game.i18n.localize('ARCHIVIST_SYNC.messages.worldInitializedReset'));
+              // Reload to trigger setup flow again
+              window.location.reload();
+            } catch (e) {
+              console.warn('[Archivist Sync] Failed to reset world initialization', e);
+              ui.notifications?.error?.(game.i18n.localize('ARCHIVIST_SYNC.errors.resetFailed') || 'Reset failed');
+            }
+          }
+          return this;
+        }
+      },
+      restricted: MENU_CONFIG.RUN_SETUP_AGAIN.restricted,
     });
-
-    // Ask Chat menu removed - chat is now available in sidebar when world is properly configured
   }
 
   /**
@@ -257,27 +281,48 @@ export class SettingsManager {
     const defaults = {
       version: 1,
       actorMappings: {
-        pc: { enabled: true, descriptionPath: this._defaultDescriptionPath(systemId, 'pc'), portraitPath: 'img', writeBack: 'none' },
-        npc: { enabled: false, descriptionPath: this._defaultDescriptionPath(systemId, 'npc'), portraitPath: 'img', writeBack: 'none' }
+        pc: {
+          enabled: true,
+          descriptionPath: this._defaultDescriptionPath(systemId, 'pc'),
+          portraitPath: 'img',
+          writeBack: 'none',
+        },
+        npc: {
+          enabled: false,
+          descriptionPath: this._defaultDescriptionPath(systemId, 'npc'),
+          portraitPath: 'img',
+          writeBack: 'none',
+        },
       },
       includeRules: {
-        sources: { worldActors: true, compendiumActorPacks: [], worldItems: false, compendiumItemPacks: [], journals: [] },
+        sources: {
+          worldActors: true,
+          compendiumActorPacks: [],
+          worldItems: false,
+          compendiumItemPacks: [],
+          journals: [],
+        },
         filters: {
           actors: {
             mustHavePlayerOwner: true,
             npcRequirePlacedToken: true,
-            includeFolders: { pcs: ['PCs'], npcs: [] }
+            includeFolders: { pcs: ['PCs'], npcs: [] },
           },
           items: {
             includeActorOwnedFrom: 'pc', // 'pc' | 'pc+npc'
-            includeWorldItemFolders: []
+            includeWorldItemFolders: [],
           },
-          factions: { journalFolders: [] }
-        }
+          factions: { journalFolders: [] },
+        },
       },
-      writeBack: { summaryMaxChars: 1200 }
+      writeBack: { summaryMaxChars: 1200 },
     };
-    return foundry.utils.mergeObject(defaults, input ?? {}, { inplace: false, insertKeys: true, insertValues: true, overwrite: false });
+    return foundry.utils.mergeObject(defaults, input ?? {}, {
+      inplace: false,
+      insertKeys: true,
+      insertValues: true,
+      overwrite: false,
+    });
   }
 
   _defaultDescriptionPath(systemId, kind) {
@@ -378,7 +423,9 @@ export class SettingsManager {
   async resetWorldInitialization() {
     Utils.log('Resetting world initialization flag to false');
     await this.setWorldInitialized(false);
-    ui.notifications.warn('World initialization has been reset. The setup wizard will appear again.');
+    ui.notifications.warn(
+      'World initialization has been reset. The setup wizard will appear again.'
+    );
   }
 
   /**
@@ -398,7 +445,7 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
     });
   }
 
@@ -431,7 +478,7 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | World initialized: ${value}`);
         this._onChatAvailabilityChange();
-      }
+      },
     });
   }
 
@@ -447,12 +494,100 @@ export class SettingsManager {
       scope: setting.scope,
       config: setting.config,
       type: setting.type,
-      default: setting.default
+      default: setting.default,
     });
   }
 
+  _registerAutoSort() {
+    const setting = SETTINGS.AUTO_SORT;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+    });
+  }
+
+  _registerHideByOwnership() {
+    const setting = SETTINGS.HIDE_BY_OWNERSHIP;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+    });
+  }
+
+  getAutoSort() {
+    return !!this.getSetting(SETTINGS.AUTO_SORT.key);
+  }
+
+  getHideByOwnership() {
+    return !!this.getSetting(SETTINGS.HIDE_BY_OWNERSHIP.key);
+  }
+
+  _registerOrganizeFolders() {
+    const setting = SETTINGS.ORGANIZE_FOLDERS;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+    });
+  }
+
+  getOrganizeFolders() {
+    return !!this.getSetting(SETTINGS.ORGANIZE_FOLDERS.key);
+  }
+
+  _registerMaxLocationDepth() {
+    const setting = SETTINGS.MAX_LOCATION_DEPTH;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+      range: { min: 1, max: 10, step: 1 },
+    });
+  }
+
+  getMaxLocationDepth() {
+    return Number(this.getSetting(SETTINGS.MAX_LOCATION_DEPTH.key) || 5);
+  }
+
   isRealtimeSyncEnabled() {
-    return !!this.getSetting(SETTINGS.REALTIME_SYNC_ENABLED.key);
+    // Always enabled; runtime suppression is handled via isRealtimeSyncSuppressed()
+    return true;
+  }
+
+  /**
+   * Temporarily suppress realtime sync hooks (non-persistent, session-only)
+   * Use for bulk operations like initial world setup to prevent unintended API writes.
+   */
+  suppressRealtimeSync() {
+    this._realtimeSuppressed = Math.max(0, Number(this._realtimeSuppressed || 0)) + 1;
+  }
+
+  /**
+   * Resume realtime sync hooks after suppression.
+   */
+  resumeRealtimeSync() {
+    this._realtimeSuppressed = Math.max(0, Number(this._realtimeSuppressed || 0) - 1);
+  }
+
+  /**
+   * Returns true if realtime sync is currently suppressed.
+   */
+  isRealtimeSyncSuppressed() {
+    return Number(this._realtimeSuppressed || 0) > 0;
   }
 }
 

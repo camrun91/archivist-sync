@@ -1,0 +1,20 @@
+<section class="archivist-sheet archivist-sheet-recap-simple">
+    <main class="archivist-content archivist-content-full">
+        <header class="recap-header">
+            <div class="recap-title-container">
+                <h1 class="recap-title">{{setup.name}}</h1>
+            </div>
+            {{#if setup.sessionDate}}
+            <div class="recap-date">{{setup.sessionDate}}</div>
+            {{/if}}
+        </header>
+        <div class="recap-body-container">
+            <div class="recap-body-editor">
+                <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.documentUuid}}"
+                    compact="true" toggled data-action="prose-editor">
+                    {{{htmlContent}}}
+                </prose-mirror>
+            </div>
+        </div>
+    </main>
+</section>

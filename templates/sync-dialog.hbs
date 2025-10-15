@@ -1,0 +1,130 @@
+<section class="archivist-sync-dialog sync-dialog-content">
+    {{#if isLoading}}
+    <div class="loading-panel">
+        <span class="loading-spinner"></span>
+        <span>Loading...</span>
+    </div>
+    {{else}}
+    <header class="sync-header">
+        <nav class="step-indicator">
+            <div class="step-number {{#if isStep1}}active{{/if}}" data-action="changeStep" data-step="1">
+                1
+            </div>
+            <div style="width: 240px; height: 2px; background: var(--arch-border);"></div>
+            <div class="step-number {{#if isStep2}}active{{/if}}" data-action="changeStep" data-step="2">
+                2
+            </div>
+        </nav>
+        <div class="step-labels">
+            <span class="step-label {{#if isStep1}}active{{/if}}" data-action="changeStep" data-step="1">Review
+                diffs</span>
+            <span class="step-label {{#if isStep2}}active{{/if}}" data-action="changeStep" data-step="2">Import
+                new</span>
+        </div>
+        <div class="actions">
+            <button type="button" data-action="refresh" title="Refresh" class="icon-btn">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button type="button" data-action="applySelected" class="primary">Apply Selected</button>
+        </div>
+    </header>
+
+    {{#if isStep1}}
+    <section class="panel">
+        <div class="panel-header">
+            <h3>Linked document diffs ({{stats.diffs}})</h3>
+            <div class="bulk" data-scope="diffs">
+                <button type="button" data-action="selectAll">Select all</button>
+                <button type="button" data-action="selectNone">Select none</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="diff-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th style="width: 120px;">Type</th>
+                        <th>Name</th>
+                        <th style="width: 100px; text-align: center;">Description</th>
+                        <th style="width: 80px; text-align: center;">Image</th>
+                        <th style="width: 80px; text-align: center;">Links</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each diffs as |d|}}
+                    <tr data-kind="diff" data-id="{{d.id}}"
+                        class="{{#if d.selected}}selected{{/if}} {{#if d.deleted}}deleted-row{{/if}}">
+                        <td><input type="checkbox" {{#if d.selected}}checked{{/if}} data-action="toggleRow" /></td>
+                        <td>{{d.type}}</td>
+                        <td>
+                            {{d.name}}
+                            {{#if d.deleted}}<span class="badge danger">Deleted</span>{{/if}}
+                        </td>
+                        <td style="text-align: center;">
+                            {{#if d.changes.description}}<i class="fas fa-check"
+                                style="color: var(--arch-success);"></i>{{/if}}
+                        </td>
+                        <td style="text-align: center;">
+                            {{#if d.changes.image}}<i class="fas fa-check"
+                                style="color: var(--arch-success);"></i>{{/if}}
+                        </td>
+                        <td style="text-align: center;">
+                            {{#if d.changes.links}}<i class="fas fa-check"
+                                style="color: var(--arch-success);"></i>{{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {{/if}}
+
+    {{#if isStep2}}
+    <section class="panel">
+        <div class="panel-header">
+            <h3>Unlinked Archivist documents ({{stats.imports}})</h3>
+            <div class="bulk" data-scope="imports">
+                <button type="button" data-action="selectAll">Select all</button>
+                <button type="button" data-action="selectNone">Select none</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="import-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th style="width: 120px;">Type</th>
+                        <th>Name</th>
+                        <th style="width: 80px; text-align: center;">Actor</th>
+                        <th style="width: 80px; text-align: center;">Item</th>
+                        <th style="width: 80px; text-align: center;">Scene</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each imports as |r|}}
+                    <tr data-kind="import" data-id="{{r.id}}" class="{{#if r.selected}}selected{{/if}}">
+                        <td><input type="checkbox" {{#if r.selected}}checked{{/if}} data-action="toggleRow" /></td>
+                        <td>{{r.type}}</td>
+                        <td>{{r.name}}</td>
+                        <td style="text-align: center;">
+                            <input type="checkbox" data-action="toggleCore" data-field="actor" {{#unless (eq
+                                r.type 'Character' )}}disabled{{/unless}} {{#if r.createCore.actor}}checked{{/if}} />
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="checkbox" data-action="toggleCore" data-field="item" {{#unless (eq
+                                r.type 'Item' )}}disabled{{/unless}} {{#if r.createCore.item}}checked{{/if}} />
+                        </td>
+                        <td style="text-align: center;">
+                            <input type="checkbox" data-action="toggleCore" data-field="scene" {{#unless (eq
+                                r.type 'Location' )}}disabled{{/unless}} {{#if r.createCore.scene}}checked{{/if}} />
+                        </td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {{/if}}
+    {{/if}}
+</section>

@@ -1,0 +1,84 @@
+<section class="archivist-sheet">
+    <aside class="archivist-sidebar">
+        <header class="archivist-header">
+            {{#if setup.image}}
+            <img class="archivist-avatar" src="{{setup.image}}" alt="" />
+            {{else if document.img}}
+            <img class="archivist-avatar" src="{{document.img}}" alt="" />
+            {{/if}}
+            <h2 class="archivist-title">{{setup.name}}</h2>
+            <div class="archivist-subtitle-with-actions">
+                <small class="archivist-subtitle">Item</small>
+                <button type="button" data-action="send-item-to-player" title="Send to Player">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </header>
+        <nav class="archivist-nav tabs" data-group="archivist">
+            <a class="item" data-tab="info">Info</a>
+            <a class="item" data-tab="pcs">PCs</a>
+            <a class="item" data-tab="npcs">NPCs</a>
+            <a class="item" data-tab="items">Items</a>
+            <a class="item" data-tab="locations">Locations</a>
+            <a class="item" data-tab="factions">Factions</a>
+            <a class="item" data-tab="journals">Journals</a>
+            <a class="item" data-tab="notes">GM Notes</a>
+        </nav>
+    </aside>
+    <main class="archivist-content">
+        <section class="tab" data-tab="info">
+            <div class="archivist-info">
+                {{#if setup.editingInfo}}
+                <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
+                    compact="true" toggled>
+                    {{{htmlContent}}}
+                </prose-mirror>
+                {{else}}
+                {{{htmlContent}}}
+                {{/if}}
+            </div>
+            <div class="archivist-dropzones">
+                <div class="dropzone item" data-drop="item">
+                    <strong>Linked Item</strong>
+                    <div class="hint">Drop an Item here to link</div>
+                    <div class="card-wrap linked-item-card">
+                        <!-- populated at runtime -->
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="tab" data-tab="pcs">
+            <div class="archivist-grid pcs-grid"></div>
+        </section>
+        <section class="tab" data-tab="npcs">
+            <div class="archivist-grid npcs-grid"></div>
+        </section>
+        <section class="tab" data-tab="items">
+            <div class="archivist-grid items-grid"></div>
+        </section>
+        <section class="tab" data-tab="locations">
+            <div class="archivist-grid locations-grid"></div>
+        </section>
+        <section class="tab" data-tab="factions">
+            <div class="archivist-grid factions-grid"></div>
+        </section>
+        <section class="tab" data-tab="journals">
+            <div class="archivist-grid archivist-journals">
+                <!-- linked journals/pages will be populated here -->
+            </div>
+        </section>
+        <section class="tab" data-tab="notes">
+            {{#if setup.isGM}}
+            <div class="archivist-notes">
+                <prose-mirror name="gmNotes" value="{{setup.gmNotes}}" compact="true" toggled>
+                    {{{setup.gmNotes}}}
+                </prose-mirror>
+            </div>
+            {{else}}
+            <div class="archivist-notes">
+                <p class="hint"><i class="fas fa-lock"></i> GM-only notes are not visible to players.</p>
+            </div>
+            {{/if}}
+        </section>
+    </main>
+</section>
