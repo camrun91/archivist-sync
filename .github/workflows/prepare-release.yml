@@ -92,10 +92,6 @@ jobs:
 
           echo "Updated CHANGELOG.md with version $VERSION"
 
-      - name: Run linter and auto-fix
-        run: npm run lint:fix
-        continue-on-error: true
-
       - name: Commit changes
         run: |
           git add module.json package.json package-lock.json CHANGELOG.md
