@@ -44,10 +44,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Create release branch
-        run: |
-          git checkout -b release/v${{ inputs.version }}
-
       - name: Update version in module.json
         run: |
           jq '.version = "${{ inputs.version }}"' module.json > module.json.tmp
@@ -92,18 +88,13 @@ jobs:
 
           echo "Updated CHANGELOG.md with version $VERSION"
 
-      - name: Commit changes
-        run: |
-          git add module.json package.json package-lock.json CHANGELOG.md
-          git commit -m "chore: prepare release v${{ inputs.version }}"
-          git push origin release/v${{ inputs.version }}
-
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: release/v${{ inputs.version }}
           base: main
+          commit-message: "chore: prepare release v${{ inputs.version }}"
           title: "Release v${{ inputs.version }}"
           body: |
             ## Release v${{ inputs.version }}
