@@ -1,5 +1,5 @@
 <form class="archivist-world-setup" autocomplete="off">
-    <div class="archivist-world-setup-root">
+    <div class="archivist-world-setup-root campaign-codex">
         <style>
             /* Default (Dark Theme) */
             .world-setup-dialog {
@@ -19,12 +19,12 @@
 
             .world-setup-dialog .window-content {
                 padding: 0;
-                background: var(--setup-bg);
+                background: var(--cc-main-bg);
             }
 
             .setup-header {
-                background: var(--setup-primary);
-                color: var(--setup-text);
+                background: var(--cc-accent80);
+                color: var(--cc-main-text);
                 padding: 20px;
                 text-align: center;
             }
@@ -42,7 +42,7 @@
             }
 
             .progress-container {
-                background: color-mix(in srgb, var(--setup-border), transparent 70%);
+                background: color-mix(in srgb, var(--cc-border), transparent 70%);
                 height: 4px;
                 margin-top: 15px;
                 border-radius: 2px;
@@ -50,7 +50,7 @@
             }
 
             .progress-fill {
-                background: var(--setup-primary);
+                background: var(--cc-accent);
                 height: 100%;
                 transition: width 0.3s ease;
                 border-radius: 2px;
@@ -81,7 +81,7 @@
             }
 
             .setup-content {
-                padding: 30px;
+                padding: 16px;
                 min-height: 300px;
                 display: flex;
                 flex-direction: column;
@@ -126,14 +126,14 @@
             }
 
             .step-title {
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: 600;
-                color: var(--setup-text);
+                color: var(--cc-main-text);
                 margin: 0 0 10px 0;
             }
 
             .step-description {
-                color: var(--setup-text-muted);
+                color: var(--cc-text-muted);
                 line-height: 1.5;
                 margin-bottom: 20px;
             }
@@ -146,13 +146,13 @@
 
             .setup-form-group label {
                 font-weight: 600;
-                color: var(--setup-text);
+                color: var(--cc-main-text);
             }
 
             .setup-form-group select,
             .setup-form-group input {
                 padding: 10px;
-                border: 1px solid var(--setup-border);
+                border: 1px solid var(--cc-border);
                 border-radius: 4px;
                 font-size: 14px;
             }
@@ -161,9 +161,9 @@
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                padding: 20px 30px;
-                border-top: 1px solid var(--setup-border);
-                background: var(--setup-bg-alt);
+                padding: 16px;
+                border-top: 1px solid var(--cc-border);
+                background: var(--cc-sidebar-bg);
             }
 
             .setup-btn {
@@ -181,35 +181,35 @@
             }
 
             .setup-btn.primary {
-                background: var(--setup-primary);
+                background: var(--cc-accent);
                 color: white;
             }
 
             .setup-btn.primary:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--setup-primary), black 15%);
+                background: color-mix(in srgb, var(--cc-accent), black 15%);
             }
 
             .setup-btn.secondary {
-                background: var(--setup-border);
-                color: var(--setup-text);
+                background: var(--cc-border-light);
+                color: var(--cc-main-text);
             }
 
             .setup-btn.secondary:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--setup-border), var(--setup-bg) 60%);
+                background: color-mix(in srgb, var(--cc-border), var(--cc-main-bg) 60%);
             }
 
             .setup-btn.success {
-                background: var(--setup-success);
+                background: var(--cc-success);
                 color: white;
             }
 
             .setup-btn.success:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--setup-success), black 15%);
+                background: color-mix(in srgb, var(--cc-success), black 15%);
             }
 
             .world-info-box {
-                background: var(--setup-panel);
-                border: 1px solid var(--setup-border);
+                background: var(--cc-ui);
+                border: 1px solid var(--cc-border);
                 border-radius: 8px;
                 padding: 15px;
                 margin: 10px 0;
@@ -217,7 +217,7 @@
 
             .world-info-box h4 {
                 margin: 0 0 10px 0;
-                color: var(--setup-text);
+                color: var(--cc-main-text);
             }
 
             .world-info-box p {
@@ -237,8 +237,8 @@
             }
 
             .status-indicator.success {
-                background: rgba(40, 167, 69, 0.1);
-                color: var(--setup-success);
+                background: color-mix(in srgb, var(--cc-success), transparent 90%);
+                color: var(--cc-success);
             }
 
             .status-indicator.warning {
@@ -250,8 +250,8 @@
                 display: inline-block;
                 width: 16px;
                 height: 16px;
-                border: 2px solid var(--setup-border);
-                border-top: 2px solid var(--setup-primary);
+                border: 2px solid var(--cc-border);
+                border-top: 2px solid var(--cc-accent);
                 border-radius: 50%;
                 animation: spin 1s linear infinite;
             }
@@ -271,49 +271,63 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
+                width: 100%;
             }
 
-            .world-setup-dialog .ws-select-row .ws-name,
-            .world-setup-dialog .ws-select-row select {
-                /* Split remaining space 50/50 regardless of checkbox width */
+            .world-setup-dialog .ws-select-row input[type="checkbox"] {
+                flex-shrink: 0;
+            }
+
+            .world-setup-dialog .ws-select-row .ws-name {
                 flex: 1 1 0;
                 min-width: 0;
-                /* allow shrinking in flex containers */
-            }
-
-            /* Hard contrast for readability across themes */
-            .world-setup-dialog .ws-select-row .ws-name {
                 background: var(--setup-panel) !important;
                 color: var(--setup-text) !important;
                 border: 1px solid var(--setup-border) !important;
                 border-radius: 4px;
                 padding: 6px 10px;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
                 white-space: nowrap;
                 overflow: hidden;
                 text-overflow: ellipsis;
+                height: 36px;
+            }
+
+            .world-setup-dialog .ws-select-row .ws-name img {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                border-radius: 50%;
+                flex-shrink: 0;
             }
 
             .world-setup-dialog .ws-select-row select {
+                flex: 1 1 0;
+                min-width: 0;
                 background: var(--setup-panel) !important;
                 color: var(--setup-text) !important;
                 border: 1px solid var(--setup-border) !important;
                 border-radius: 4px;
-                padding: 8px 10px;
+                padding: 6px 10px;
+                height: 36px;
+                line-height: 1.2;
             }
 
             /* Step 6: High-contrast progress logs */
             .world-setup-dialog .ws-progress-log {
                 max-height: 200px;
                 overflow: auto;
-                background: var(--setup-panel) !important;
-                color: var(--setup-text) !important;
-                border: 1px solid var(--setup-border) !important;
+                background: var(--cc-ui) !important;
+                color: var(--cc-main-text) !important;
+                border: 1px solid var(--cc-border) !important;
                 padding: 8px;
                 border-radius: 6px;
             }
 
             .world-setup-dialog .ws-progress-log * {
-                color: var(--setup-text) !important;
+                color: var(--cc-main-text) !important;
                 background: transparent !important;
             }
 
@@ -325,6 +339,49 @@
             .world-setup-dialog .ws-progress-log li {
                 margin: 3px 0;
                 line-height: 1.35;
+            }
+
+            /* Step 4 Reconciliation: use distinct classes to avoid custom sheet vertical nav styles */
+            .world-setup-dialog nav.ws-recon-nav {
+                display: flex;
+                flex-direction: row;
+                gap: 8px;
+                border-bottom: 1px solid var(--cc-border);
+                margin-bottom: 10px;
+            }
+
+            .world-setup-dialog nav.ws-recon-nav .item {
+                padding: 8px 12px;
+                border-radius: 4px 4px 0 0;
+                cursor: pointer;
+                background: transparent;
+                color: var(--cc-text-muted);
+                text-decoration: none;
+                transition: background 0.2s ease;
+            }
+
+            .world-setup-dialog nav.ws-recon-nav .item:hover {
+                background: rgba(255, 255, 255, 0.06);
+                color: var(--cc-main-text);
+            }
+
+            .world-setup-dialog nav.ws-recon-nav .item.active {
+                background: var(--cc-ui);
+                color: var(--cc-main-text);
+                border: 1px solid var(--cc-border);
+                border-bottom-color: transparent;
+            }
+
+            .world-setup-dialog .ws-recon-content {
+                padding-top: 0;
+            }
+
+            .world-setup-dialog .ws-recon-content .tab {
+                display: none;
+            }
+
+            .world-setup-dialog .ws-recon-content .tab.active {
+                display: block;
             }
         </style>
 
@@ -381,352 +438,339 @@
             </div>
             {{/if}}
 
+            {{!-- Step 4 is Selection (mapping removed) --}}
+
             {{#if isStep4}}
-            <!-- Step 4: Mapping Configuration -->
-            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.mapping.title"}}</h3>
+            <!-- Step 4: Reconcile Foundry and Archivist data -->
+            <h3 class="step-title">Reconciliation</h3>
             <div class="step-description">
-                <p>{{localize "ARCHIVIST_SYNC.worldSetup.mapping.description"}}</p>
+                <p>Match and select which documents you wish to sync between Foundry and Archivist. If these lists are
+                    empty, you can proceed to the next step.</p>
             </div>
-
             <div class="world-info-box">
-                <h4>System Preset</h4>
-                <div class="setup-form-group">
-                    <label>Choose a preset (we auto-detect if possible)</label>
-                    <select id="ws-system-preset">
-                        <option value="">Custom Configuration</option>
-                        <option value="dnd5e" {{#if (eq setupData.systemPreset 'dnd5e' )}}selected{{/if}}>D&D 5e
-                        </option>
-                        <option value="pf2e" {{#if (eq setupData.systemPreset 'pf2e' )}}selected{{/if}}>Pathfinder 2e
-                        </option>
-                        <option value="coc7" {{#if (eq setupData.systemPreset 'coc7' )}}selected{{/if}}>Call of Cthulhu
-                            7e</option>
-                    </select>
-                    <small>We validate the preset's property paths against your system model.</small>
-                </div>
-            </div>
-
-            <!-- Configuration File Management -->
-            <div class="world-info-box">
-                <h4><i class="fas fa-file-code"></i> Configuration File</h4>
-                <p>You can download a sample configuration file to customize mappings, or load an existing
-                    configuration.</p>
-                <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-                    <button type="button" class="setup-btn secondary" data-action="downloadSampleConfig">
-                        <i class="fas fa-download"></i>
-                        Download Sample Config
-                    </button>
-                    <input type="file" id="config-file-input" accept=".json" style="display: none;" />
-                    <button type="button" class="setup-btn secondary"
-                        onclick="document.getElementById('config-file-input').click()">
-                        <i class="fas fa-upload"></i>
-                        Load Config File
+                <div style="display:flex; gap:8px; margin-bottom:10px;">
+                    <button type="button" class="setup-btn secondary" data-action="prepareSelections" {{#if
+                        isLoading}}disabled{{/if}}>
+                        {{#if isLoading}}
+                        <span class="loading-spinner"></span>
+                        Fetching…
+                        {{else}}
+                        Refresh
+                        {{/if}}
                     </button>
                 </div>
-            </div>
 
-            <div class="world-info-box">
-                <h4>PC Mapping</h4>
-                <div class="setup-form-group">
-                    <label>Character Name</label>
-                    <select id="map-pc-name">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.actor}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.pc.namePath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
+                {{#if isLoading}}
+                <div
+                    style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px 20px; color: var(--setup-text);">
+                    <span class="loading-spinner" style="width:32px; height:32px; border-width:3px;"></span>
+                    <span style="font-size:16px;">Loading reconciliation data…</span>
+                    <span style="font-size:14px; opacity:0.75;">Fetching Archivist and Foundry documents</span>
                 </div>
-                <div class="setup-form-group">
-                    <label>Image</label>
-                    <select id="map-pc-image">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.actor}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.pc.imagePath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
+                {{else}}
+                {{#unless setupData.hasAnyCandidates}}
+                <div
+                    style="padding:8px; border:1px solid var(--cc-border); border-radius:6px; color: var(--setup-text); background: var(--setup-panel);">
+                    No Foundry or Archivist candidates detected. You can proceed to the next step.
                 </div>
-                <div class="setup-form-group">
-                    <label>Description</label>
-                    <select id="map-pc-desc">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.actor}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.pc.descPath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-            </div>
+                {{/unless}}
 
-            <div class="world-info-box">
-                <h4>NPC Mapping</h4>
-                <div class="setup-form-group">
-                    <label>Character Name</label>
-                    <select id="map-npc-name">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.actor}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.npc.namePath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-                <div class="setup-form-group">
-                    <label>Image</label>
-                    <select id="map-npc-image">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.actor}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.npc.imagePath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-                <div class="setup-form-group">
-                    <label>Description</label>
-                    <select id="map-npc-desc">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.actor}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.npc.descPath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-            </div>
+                {{#if setupData.hasAnyCandidates}}
+                <nav class="ws-recon-nav tabs" data-group="recon">
+                    <a class="item" data-tab="characters">Characters</a>
+                    <a class="item" data-tab="items">Items</a>
+                    <a class="item" data-tab="locations">Locations</a>
+                </nav>
 
-            <div class="world-info-box">
-                <h4>Item Mapping</h4>
-                <div class="setup-form-group">
-                    <label>Name</label>
-                    <select id="map-item-name">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.item}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.item.namePath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-                <div class="setup-form-group">
-                    <label>Image</label>
-                    <select id="map-item-image">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.item}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.item.imagePath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-                <div class="setup-form-group">
-                    <label>Description</label>
-                    <select id="map-item-desc">
-                        <option value="">Select property path...</option>
-                        {{#each mappingOptions.item}}
-                        <option value="{{this.path}}" {{#if (eq this.path
-                            ../setupData.mapping.item.descPath)}}selected{{/if}}>
-                            {{this.path}} ({{this.type}})
-                        </option>
-                        {{/each}}
-                    </select>
-                </div>
-            </div>
+                <main class="ws-recon-content">
+                    {{!-- Characters Tab --}}
+                    <section class="tab" data-tab="characters">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                            <div>
+                                <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                                    <input type="checkbox" data-action="recon-select-all-toggle" data-tab="characters"
+                                        data-side="archivist" />
+                                    <span style="padding:6px 10px;">Archivist Characters</span>
+                                    <span style="padding:6px 10px;">Match</span>
+                                </div>
+                                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                                    {{#each setupData.reconcile.characters.archivist}}
+                                    <li class="ws-select-row">
+                                        <input type="checkbox" data-action="recon-toggle-select" data-tab="characters"
+                                            data-side="archivist" data-id="{{this.id}}" {{#if
+                                            this.selected}}checked{{/if}} />
+                                        <span class="ws-name">
+                                            {{#if this.img}}<img src="{{this.img}}"
+                                                style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}
+                                            {{this.name}}
+                                        </span>
+                                        <select data-action="recon-change-match" data-tab="characters"
+                                            data-side="archivist" data-id="{{this.id}}">
+                                            <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
+                                            {{#each @root.setupData.reconcile.characters.foundry}}
+                                            <option value="{{this.id}}" {{#if (eq ../match this.id)}}selected{{/if}}
+                                                {{#if (and this.match (not (eq this.match ../id)))}}disabled{{/if}}>
+                                                {{this.name}}
+                                            </option>
+                                            {{/each}}
+                                        </select>
+                                    </li>
+                                    {{/each}}
+                                </ul>
+                            </div>
+                            <div>
+                                <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                                    <input type="checkbox" data-action="recon-select-all-toggle" data-tab="characters"
+                                        data-side="foundry" />
+                                    <span style="padding:6px 10px;">Foundry Actors</span>
+                                    <span style="padding:6px 10px;">Match</span>
+                                </div>
+                                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                                    {{#each setupData.reconcile.characters.foundry}}
+                                    <li class="ws-select-row">
+                                        <input type="checkbox" data-action="recon-toggle-select" data-tab="characters"
+                                            data-side="foundry" data-id="{{this.id}}" {{#if
+                                            this.selected}}checked{{/if}} />
+                                        <span class="ws-name">
+                                            {{#if this.img}}<img src="{{this.img}}"
+                                                style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}
+                                            {{this.name}}
+                                        </span>
+                                        <select data-action="recon-change-match" data-tab="characters"
+                                            data-side="foundry" data-id="{{this.id}}">
+                                            <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
+                                            {{#each @root.setupData.reconcile.characters.archivist}}
+                                            <option value="{{this.id}}" {{#if (eq ../match this.id)}}selected{{/if}}
+                                                {{#if (and this.match (not (eq this.match ../id)))}}disabled{{/if}}>
+                                                {{this.name}}
+                                            </option>
+                                            {{/each}}
+                                        </select>
+                                    </li>
+                                    {{/each}}
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
 
-            <div class="world-info-box">
-                <h4>Destination Paths (Optional)</h4>
-                <div class="setup-form-group">
-                    <label>PCs</label>
-                    <select id="dest-pc">
-                        <option value="">Root</option>
-                        {{#each folderOptions.pc}}
-                        <option value="{{this.id}}" {{#if (eq this.id ../setupData.destinations.pc)}}selected{{/if}}>
-                            {{this.name}}</option>
-                        {{/each}}
-                    </select>
-                </div>
-                <div class="setup-form-group">
-                    <label>NPCs</label>
-                    <select id="dest-npc">
-                        <option value="">Root</option>
-                        {{#each folderOptions.npc}}
-                        <option value="{{this.id}}" {{#if (eq this.id ../setupData.destinations.npc)}}selected{{/if}}>
-                            {{this.name}}</option>
-                        {{/each}}
-                    </select>
-                </div>
-                <div class="setup-form-group">
-                    <label>Items</label>
-                    <select id="dest-item">
-                        <option value="">Root</option>
-                        {{#each folderOptions.item}}
-                        <option value="{{this.id}}" {{#if (eq this.id ../setupData.destinations.item)}}selected{{/if}}>
-                            {{this.name}}</option>
-                        {{/each}}
-                    </select>
-                </div>
-                {{!-- Removed Locations and Factions destination selects; containers are created at root --}}
-                <div style="text-align:right; margin-top:8px;">
-                    <button type="button" class="setup-btn primary" data-action="nextStep">{{localize
-                        "ARCHIVIST_SYNC.worldSetup.mapping.saveAndContinue"}}</button>
+                    {{!-- Items Tab --}}
+                    <section class="tab" data-tab="items">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                            <div>
+                                <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                                    <input type="checkbox" data-action="recon-select-all-toggle" data-tab="items"
+                                        data-side="archivist" />
+                                    <span style="padding:6px 10px;">Archivist Items</span>
+                                    <span style="padding:6px 10px;">Match</span>
+                                </div>
+                                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                                    {{#each setupData.reconcile.items.archivist}}
+                                    <li class="ws-select-row">
+                                        <input type="checkbox" data-action="recon-toggle-select" data-tab="items"
+                                            data-side="archivist" data-id="{{this.id}}" {{#if
+                                            this.selected}}checked{{/if}} />
+                                        <span class="ws-name">{{#if this.img}}<img src="{{this.img}}"
+                                                style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}{{this.name}}</span>
+                                        <select data-action="recon-change-match" data-tab="items" data-side="archivist"
+                                            data-id="{{this.id}}">
+                                            <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
+                                            {{#each @root.setupData.reconcile.items.foundry}}
+                                            <option value="{{this.id}}" {{#if (eq ../match this.id)}}selected{{/if}}
+                                                {{#if (and this.match (not (eq this.match ../id)))}}disabled{{/if}}>
+                                                {{this.name}}
+                                            </option>
+                                            {{/each}}
+                                        </select>
+                                    </li>
+                                    {{/each}}
+                                </ul>
+                            </div>
+                            <div>
+                                <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                                    <input type="checkbox" data-action="recon-select-all-toggle" data-tab="items"
+                                        data-side="foundry" />
+                                    <span style="padding:6px 10px;">Foundry Items</span>
+                                    <span style="padding:6px 10px;">Match</span>
+                                </div>
+                                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                                    {{#each setupData.reconcile.items.foundry}}
+                                    <li class="ws-select-row">
+                                        <input type="checkbox" data-action="recon-toggle-select" data-tab="items"
+                                            data-side="foundry" data-id="{{this.id}}" {{#if
+                                            this.selected}}checked{{/if}} />
+                                        <span class="ws-name">{{#if this.img}}<img src="{{this.img}}"
+                                                style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}{{this.name}}</span>
+                                        <select data-action="recon-change-match" data-tab="items" data-side="foundry"
+                                            data-id="{{this.id}}">
+                                            <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
+                                            {{#each @root.setupData.reconcile.items.archivist}}
+                                            <option value="{{this.id}}" {{#if (eq ../match this.id)}}selected{{/if}}
+                                                {{#if (and this.match (not (eq this.match ../id)))}}disabled{{/if}}>
+                                                {{this.name}}
+                                            </option>
+                                            {{/each}}
+                                        </select>
+                                    </li>
+                                    {{/each}}
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                    {{!-- Locations Tab --}}
+                    <section class="tab" data-tab="locations">
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                            <div>
+                                <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                                    <input type="checkbox" data-action="recon-select-all-toggle" data-tab="locations"
+                                        data-side="archivist" />
+                                    <span style="padding:6px 10px;">Archivist Locations</span>
+                                    <span style="padding:6px 10px;">Match</span>
+                                </div>
+                                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                                    {{#each setupData.reconcile.locations.archivist}}
+                                    <li class="ws-select-row">
+                                        <input type="checkbox" data-action="recon-toggle-select" data-tab="locations"
+                                            data-side="archivist" data-id="{{this.id}}" {{#if
+                                            this.selected}}checked{{/if}} />
+                                        <span class="ws-name">{{#if this.img}}<img src="{{this.img}}"
+                                                style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}{{this.name}}</span>
+                                        <select data-action="recon-change-match" data-tab="locations"
+                                            data-side="archivist" data-id="{{this.id}}">
+                                            <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
+                                            {{#each @root.setupData.reconcile.locations.foundry}}
+                                            <option value="{{this.id}}" {{#if (eq ../match this.id)}}selected{{/if}}
+                                                {{#if (and this.match (not (eq this.match ../id)))}}disabled{{/if}}>
+                                                {{this.name}}
+                                            </option>
+                                            {{/each}}
+                                        </select>
+                                    </li>
+                                    {{/each}}
+                                </ul>
+                            </div>
+                            <div>
+                                <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                                    <input type="checkbox" data-action="recon-select-all-toggle" data-tab="locations"
+                                        data-side="foundry" />
+                                    <span style="padding:6px 10px;">Foundry Scenes</span>
+                                    <span style="padding:6px 10px;">Match</span>
+                                </div>
+                                <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                                    {{#each setupData.reconcile.locations.foundry}}
+                                    <li class="ws-select-row">
+                                        <input type="checkbox" data-action="recon-toggle-select" data-tab="locations"
+                                            data-side="foundry" data-id="{{this.id}}" {{#if
+                                            this.selected}}checked{{/if}} />
+                                        <span class="ws-name">{{#if this.img}}<img src="{{this.img}}"
+                                                style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}{{this.name}}</span>
+                                        <select data-action="recon-change-match" data-tab="locations"
+                                            data-side="foundry" data-id="{{this.id}}">
+                                            <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
+                                            {{#each @root.setupData.reconcile.locations.archivist}}
+                                            <option value="{{this.id}}" {{#if (eq ../match this.id)}}selected{{/if}}
+                                                {{#if (and this.match (not (eq this.match ../id)))}}disabled{{/if}}>
+                                                {{this.name}}
+                                            </option>
+                                            {{/each}}
+                                        </select>
+                                    </li>
+                                    {{/each}}
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                </main>
+                {{/if}}
+                {{/if}}
+
+                <div style="text-align:right; margin-top:10px;">
+                    <button type="button" class="setup-btn primary" data-action="confirmSelections">{{localize
+                        "ARCHIVIST_SYNC.worldSetup.buttons.next"}}</button>
                 </div>
             </div>
             {{/if}}
 
             {{#if isStep5}}
-            <!-- Step 5: Selection of Documents to Sync -->
-            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.select.title"}}</h3>
+            <!-- Step 5: Choose Foundry Objects to Create -->
+            <h3 class="step-title">Create Foundry Objects</h3>
             <div class="step-description">
-                <p>{{localize "ARCHIVIST_SYNC.worldSetup.select.description"}}</p>
+                <p>Select which Foundry core objects we should create for unmatched Archivist documents you chose to
+                    import in the previous step.</p>
             </div>
             <div class="world-info-box">
-                {{#if isLoading}}
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                    <span class="loading-spinner"></span>
-                    <span>Fetching Archivist data for selected campaign…</span>
-                </div>
-                {{/if}}
-                <div style="display:flex; gap:8px; margin-bottom:10px;">
-                    <button type="button" class="setup-btn secondary" data-action="prepareSelections">Refresh</button>
-                </div>
-                <div>
-                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-                        <h4 style="margin:0;">PCs</h4>
-                        <button type="button" class="setup-btn secondary" data-action="selectAll"
-                            data-kind="pcs">All</button>
-                        <button type="button" class="setup-btn secondary" data-action="selectNone"
-                            data-kind="pcs">None</button>
-                    </div>
-                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
-                        {{#each setupData.selections.pcs}}
-                        <li class="ws-select-row">
-                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
-                                data-kind="pcs" data-id="{{this.id}}" />
-                            <span class="ws-name">{{this.name}}</span>
-                            <select data-action="changeMatch" data-kind="pcs" data-id="{{this.id}}">
-                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Character
-                                </option>
-                                {{#each archivistCandidates.characters}}
-                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
-                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
-                                {{/each}}
-                            </select>
-                        </li>
-                        {{/each}}
-                    </ul>
-                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
-                        <h4 style="margin:0;">NPCs</h4>
-                        <button type="button" class="setup-btn secondary" data-action="selectAll"
-                            data-kind="npcs">All</button>
-                        <button type="button" class="setup-btn secondary" data-action="selectNone"
-                            data-kind="npcs">None</button>
-                    </div>
-                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
-                        {{#each setupData.selections.npcs}}
-                        <li class="ws-select-row">
-                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
-                                data-kind="npcs" data-id="{{this.id}}" />
-                            <span class="ws-name">{{this.name}}</span>
-                            <select data-action="changeMatch" data-kind="npcs" data-id="{{this.id}}">
-                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Character
-                                </option>
-                                {{#each archivistCandidates.characters}}
-                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
-                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
-                                {{/each}}
-                            </select>
-                        </li>
-                        {{/each}}
-                    </ul>
-
-                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
-                        <h4 style="margin:0;">Items</h4>
-                        <button type="button" class="setup-btn secondary" data-action="selectAll"
-                            data-kind="items">All</button>
-                        <button type="button" class="setup-btn secondary" data-action="selectNone"
-                            data-kind="items">None</button>
-                    </div>
-                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
-                        {{#each setupData.selections.items}}
-                        <li class="ws-select-row">
-                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
-                                data-kind="items" data-id="{{this.id}}" />
-                            <span class="ws-name">{{this.name}}</span>
-                            <select data-action="changeMatch" data-kind="items" data-id="{{this.id}}">
-                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Item</option>
-                                {{#each archivistCandidates.items}}
-                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
-                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
-                                {{/each}}
-                            </select>
-                        </li>
-                        {{/each}}
-                    </ul>
-
-                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
-                        <h4 style="margin:0;">Locations</h4>
-                        <button type="button" class="setup-btn secondary" data-action="selectAll"
-                            data-kind="locations">All</button>
-                        <button type="button" class="setup-btn secondary" data-action="selectNone"
-                            data-kind="locations">None</button>
-                    </div>
-                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
-                        {{#each setupData.selections.locations}}
-                        <li class="ws-select-row">
-                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
-                                data-kind="locations" data-id="{{this.id}}" />
-                            <span class="ws-name">{{this.name}}</span>
-                            <select data-action="changeMatch" data-kind="locations" data-id="{{this.id}}">
-                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Location
-                                </option>
-                                {{#each archivistCandidates.locations}}
-                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
-                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
-                                {{/each}}
-                            </select>
-                        </li>
-                        {{/each}}
-                    </ul>
-
-                    <div style="display:flex; gap:8px; align-items:center; margin:10px 0 6px;">
-                        <h4 style="margin:0;">Factions</h4>
-                        <button type="button" class="setup-btn secondary" data-action="selectAll"
-                            data-kind="factions">All</button>
-                        <button type="button" class="setup-btn secondary" data-action="selectNone"
-                            data-kind="factions">None</button>
-                    </div>
-                    <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
-                        {{#each setupData.selections.factions}}
-                        <li class="ws-select-row">
-                            <input type="checkbox" {{#if this.selected}}checked{{/if}} data-action="toggleSelection"
-                                data-kind="factions" data-id="{{this.id}}" />
-                            <span class="ws-name">{{this.name}}</span>
-                            <select data-action="changeMatch" data-kind="factions" data-id="{{this.id}}">
-                                <option value="NEW" {{#if (eq this.match.id 'NEW' )}}selected{{/if}}>New Faction
-                                </option>
-                                {{#each archivistCandidates.factions}}
-                                <option value="{{this.id}}" {{#if (eq ../this.match.id this.id)}}selected{{/if}}>
-                                    {{this.name}}{{#if this.title}} / {{this.title}}{{/if}}</option>
-                                {{/each}}
-                            </select>
-                        </li>
-                        {{/each}}
-                    </ul>
-                </div>
-                <div style="text-align:right; margin-top:10px;">
-                    <button type="button" class="setup-btn primary" data-action="confirmSelections">{{localize
-                        "ARCHIVIST_SYNC.worldSetup.buttons.next"}}</button>
+                <nav class="ws-recon-nav tabs" data-group="create">
+                    <a class="item" data-tab="actors">Characters</a>
+                    <a class="item" data-tab="items">Items</a>
+                    <a class="item" data-tab="scenes">Locations</a>
+                </nav>
+                <main class="ws-recon-content">
+                    <section class="tab" data-tab="actors">
+                        <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                            <input type="checkbox" data-action="createSelectAll" data-kind="actors" />
+                            <span style="padding:6px 10px;">Archivist Characters (no matching Actor)</span>
+                        </div>
+                        <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                            {{#each @root.setupData.reconcile.characters.archivist}}
+                            {{#if (and this.selected (not this.match))}}
+                            <li class="ws-select-row">
+                                <input type="checkbox" data-action="toggleCreateChoice" data-kind="actors"
+                                    data-id="{{this.id}}" {{#if (lookup @root.createFoundryMap.actors
+                                    this.id)}}checked{{/if}} />
+                                <span class="ws-name">{{#if this.img}}<img
+                                        src="{{this.img}}" />{{/if}}{{this.name}}</span>
+                            </li>
+                            {{/if}}
+                            {{/each}}
+                        </ul>
+                    </section>
+                    <section class="tab" data-tab="items">
+                        <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                            <input type="checkbox" data-action="createSelectAll" data-kind="items" />
+                            <span style="padding:6px 10px;">Archivist Items (no matching Item)</span>
+                        </div>
+                        <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                            {{#each @root.setupData.reconcile.items.archivist}}
+                            {{#if (and this.selected (not this.match))}}
+                            <li class="ws-select-row">
+                                <input type="checkbox" data-action="toggleCreateChoice" data-kind="items"
+                                    data-id="{{this.id}}" {{#if (lookup @root.createFoundryMap.items
+                                    this.id)}}checked{{/if}} />
+                                <span class="ws-name">{{#if this.img}}<img
+                                        src="{{this.img}}" />{{/if}}{{this.name}}</span>
+                            </li>
+                            {{/if}}
+                            {{/each}}
+                        </ul>
+                    </section>
+                    <section class="tab" data-tab="scenes">
+                        <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
+                            <input type="checkbox" data-action="createSelectAll" data-kind="scenes" />
+                            <span style="padding:6px 10px;">Archivist Locations (no matching Scene)</span>
+                        </div>
+                        <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
+                            {{#each @root.setupData.reconcile.locations.archivist}}
+                            {{#if (and this.selected (not this.match))}}
+                            <li class="ws-select-row">
+                                <input type="checkbox" data-action="toggleCreateChoice" data-kind="scenes"
+                                    data-id="{{this.id}}" {{#if (lookup @root.createFoundryMap.scenes
+                                    this.id)}}checked{{/if}} />
+                                <span class="ws-name">{{#if this.img}}<img
+                                        src="{{this.img}}" />{{/if}}{{this.name}}</span>
+                            </li>
+                            {{/if}}
+                            {{/each}}
+                        </ul>
+                    </section>
+                </main>
+                <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">
+                    <button type="button" class="setup-btn secondary" data-action="createSelectNone"
+                        data-kind="actors">Clear Characters</button>
+                    <button type="button" class="setup-btn secondary" data-action="createSelectNone"
+                        data-kind="items">Clear Items</button>
+                    <button type="button" class="setup-btn secondary" data-action="createSelectNone"
+                        data-kind="scenes">Clear Locations</button>
                 </div>
             </div>
             {{/if}}
@@ -739,29 +783,37 @@
             </div>
             <div class="world-info-box">
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.summary.placeholder"}}</p>
-                {{#if syncPlan.counts}}
-                <div class="sync-plan-grid">
-                    <div class="sync-plan-box">
-                        <strong>Create in Archivist</strong>
-                        <ul>
-                            <li>PCs: {{syncPlan.counts.create.pc}}</li>
-                            <li>NPCs: {{syncPlan.counts.create.npc}}</li>
-                            <li>Items: {{syncPlan.counts.create.item}}</li>
-                            <li>Locations: {{syncPlan.counts.create.location}}</li>
-                            <li>Factions: {{syncPlan.counts.create.faction}}</li>
-                        </ul>
-                    </div>
-                    <div class="sync-plan-box">
-                        <strong>Link Existing</strong>
-                        <ul>
-                            <li>PCs: {{syncPlan.counts.link.pc}}</li>
-                            <li>NPCs: {{syncPlan.counts.link.npc}}</li>
-                            <li>Items: {{syncPlan.counts.link.item}}</li>
-                            <li>Locations: {{syncPlan.counts.link.location}}</li>
-                            <li>Factions: {{syncPlan.counts.link.faction}}</li>
-                        </ul>
-                    </div>
-                </div>
+                {{#if summaryRows}}
+                <table style="width:100%; border-collapse: collapse; margin: 8px 0;">
+                    <thead>
+                        <tr>
+                            <th style="text-align:left; padding:6px; border-bottom:1px solid var(--cc-border);">Type
+                            </th>
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Import
+                                from Archivist</th>
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Create
+                                in Foundry</th>
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Export
+                                to Archivist</th>
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Linked
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#each summaryRows}}
+                        <tr>
+                            <td style="padding:6px;">{{this.key}}</td>
+                            <td style="text-align:center; padding:6px;">{{this.fromArchivist}}</td>
+                            <td style="text-align:center; padding:6px;">{{#if
+                                this.createFoundry}}{{this.createFoundry}}{{else}}0{{/if}}</td>
+                            <td style="text-align:center; padding:6px;">{{#if
+                                this.noteNoExport}}—{{else}}{{this.toArchivist}}{{/if}}</td>
+                            <td style="text-align:center; padding:6px;">{{#if
+                                this.noteNoExport}}—{{else}}{{this.linked}}{{/if}}</td>
+                        </tr>
+                        {{/each}}
+                    </tbody>
+                </table>
                 {{/if}}
                 {{#if syncStatus.total}}
                 <div style="margin:8px 0;">
@@ -849,8 +901,8 @@
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.step3.description"}}</p>
             </div>
 
-            <div class="setup-form-group" style="display:flex; gap: 10px; align-items:center;">
-                <button type="button" data-action="loadCampaigns" class="setup-btn primary" {{#if
+            <div style="display:flex; gap: 10px; align-items:center; margin-bottom: 15px;">
+                <button type="button" data-action="loadCampaigns" class="setup-btn secondary" {{#if
                     isLoading}}disabled{{/if}}>
                     {{#if isLoading}}
                     <span class="loading-spinner"></span>
@@ -888,34 +940,10 @@
                     {{localize "ARCHIVIST_SYNC.worldSetup.step3.worldSelected"}}
                 </div>
                 <p><strong>{{setupData.selectedWorldName}}</strong></p>
-                <div style="text-align:right; margin-top:8px;">
-                    <button type="button" data-action="confirmCampaign" class="setup-btn primary">
-                        {{localize "ARCHIVIST_SYNC.buttons.saveSelection"}}
-                    </button>
-                </div>
             </div>
             {{/if}}
             {{/if}}
 
-            {{#if isStep4}}
-            <!-- Step 4: Complete Setup -->
-            <h3 class="step-title">{{localize "ARCHIVIST_SYNC.worldSetup.step4.title"}}</h3>
-            <div class="step-description">
-                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step4.description"}}</p>
-            </div>
-
-            <div class="world-info-box">
-                <h4><i class="fas fa-check-circle" style="color: var(--setup-success);"></i> {{localize
-                    "ARCHIVIST_SYNC.worldSetup.step4.ready"}}</h4>
-                <p>{{localize "ARCHIVIST_SYNC.worldSetup.step4.features"}}</p>
-                <ul style="margin: 10px 0; padding-left: 20px; color: var(--setup-text);">
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature1"}}</li>
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature2"}}</li>
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature3"}}</li>
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step4.feature4"}}</li>
-                </ul>
-            </div>
-            {{/if}}
         </div>
     </div>
 

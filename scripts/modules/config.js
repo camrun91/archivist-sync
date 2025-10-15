@@ -4,7 +4,7 @@
 export const CONFIG = {
   MODULE_ID: 'archivist-sync',
   MODULE_TITLE: 'Archivist Sync',
-  API_BASE_URL: 'https://api.myarchivist.ai/v1'
+  API_BASE_URL: 'https://api.myarchivist.ai/v1',
 };
 
 /**
@@ -16,29 +16,9 @@ export const SETTINGS = {
     name: 'ARCHIVIST_SYNC.Settings.ApiKey.Name',
     hint: 'ARCHIVIST_SYNC.Settings.ApiKey.Hint',
     scope: 'world',
-    config: false,
+    config: true,
     type: String,
-    default: ''
-  },
-
-  CHAT_HISTORY: {
-    key: 'chatHistory',
-    name: 'ARCHIVIST_SYNC.Settings.ChatHistory.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.ChatHistory.Hint',
-    scope: 'client',
-    config: false,
-    type: String,
-    default: '{}'
-  },
-
-  SEMANTIC_MAPPING_ENABLED: {
-    key: 'semanticMappingEnabled',
-    name: 'ARCHIVIST_SYNC.Settings.SemanticMappingEnabled.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.SemanticMappingEnabled.Hint',
-    scope: 'world',
-    config: false,
-    type: Boolean,
-    default: false
+    default: '',
   },
 
   SELECTED_WORLD_ID: {
@@ -48,7 +28,7 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: String,
-    default: ''
+    default: '',
   },
 
   SELECTED_WORLD_NAME: {
@@ -58,7 +38,7 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: String,
-    default: 'None selected'
+    default: 'None selected',
   },
   /**
    * World-scoped import configuration (JSON string)
@@ -71,7 +51,7 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: String,
-    default: '{}'
+    default: '{}',
   },
 
   WORLD_INITIALIZED: {
@@ -81,61 +61,103 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: Boolean,
-    default: false
-  }
-  , REALTIME_SYNC_ENABLED: {
+    default: false,
+  },
+
+  AUTO_SORT: {
+    key: 'autoSort',
+    name: 'ARCHIVIST_SYNC.Settings.AutoSort.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.AutoSort.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+  },
+
+  HIDE_BY_OWNERSHIP: {
+    key: 'hideByOwnership',
+    name: 'ARCHIVIST_SYNC.Settings.HideByOwnership.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.HideByOwnership.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+  },
+
+  ORGANIZE_FOLDERS: {
+    key: 'organizeFolders',
+    name: 'ARCHIVIST_SYNC.Settings.OrganizeFolders.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.OrganizeFolders.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+  },
+
+  MAX_LOCATION_DEPTH: {
+    key: 'maxLocationDepth',
+    name: 'ARCHIVIST_SYNC.Settings.MaxLocationDepth.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.MaxLocationDepth.Hint',
+    scope: 'world',
+    config: true,
+    type: Number,
+    default: 5,
+  },
+
+  REALTIME_SYNC_ENABLED: {
     key: 'realtimeSyncEnabled',
     name: 'ARCHIVIST_SYNC.Settings.RealtimeSync.Name',
     hint: 'ARCHIVIST_SYNC.Settings.RealtimeSync.Hint',
     scope: 'world',
     config: false,
     type: Boolean,
-    default: true
-  }
+    default: true,
+  },
+
+  CHAT_HISTORY: {
+    key: 'chatHistory',
+    name: 'ARCHIVIST_SYNC.Settings.ChatHistory.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ChatHistory.Hint',
+    scope: 'world',
+    config: false,
+    type: String,
+    default: '[]',
+  },
+
+  SEMANTIC_MAPPING_ENABLED: {
+    key: 'semanticMappingEnabled',
+    name: 'ARCHIVIST_SYNC.Settings.SemanticMapping.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.SemanticMapping.Hint',
+    scope: 'world',
+    config: false,
+    type: Boolean,
+    default: false,
+  },
 };
 
 /**
  * Menu configuration
  */
+
+const ICON = 'modules/archivist-sync/assets/icons/archivist.svg';
+
 export const MENU_CONFIG = {
-  SYNC_OPTIONS: {
-    key: 'syncOptionsMenu',
-    name: 'ARCHIVIST_SYNC.Menu.SyncOptions.Name',
-    label: 'ARCHIVIST_SYNC.Menu.SyncOptions.Label',
-    hint: 'ARCHIVIST_SYNC.Menu.SyncOptions.Hint',
-    icon: 'fas fa-sync-alt',
-    restricted: true
+  RUN_SETUP_AGAIN: {
+    key: 'runSetupAgain',
+    name: 'ARCHIVIST_SYNC.Menu.RunSetup.Name',
+    label: 'ARCHIVIST_SYNC.Menu.RunSetup.Label',
+    hint: 'ARCHIVIST_SYNC.Menu.RunSetup.Hint',
+    icon: 'fas fa-wand-magic-sparkles',
+    restricted: true,
   },
-  ASK_CHAT: {
-    key: 'askChatMenu',
-    name: 'ARCHIVIST_SYNC.Menu.AskChat.Name',
-    label: 'ARCHIVIST_SYNC.Menu.AskChat.Label',
-    hint: 'ARCHIVIST_SYNC.Menu.AskChat.Hint',
-    icon: 'archivist-icon',
-    restricted: false
-  }
 };
 
 /**
  * Dialog configuration
  */
-export const DIALOG_CONFIG = {
-  SYNC_OPTIONS: {
-    id: 'archivist-sync-options',
-    title: 'ARCHIVIST_SYNC.Dialog.SyncOptions.Title',
-    width: 700,
-    height: 600,
-    resizable: true,
-    classes: ['archivist-sync-dialog'],
-    tabs: [{ navSelector: ".tabs", contentSelector: ".content", initial: "world" }]
-  }
-};
+export const DIALOG_CONFIG = {};
 
 /**
  * Tab configuration
  */
-export const TABS = {
-  WORLD: 'world',
-  TITLE: 'title',
-  CHARACTERS: 'characters'
-};
+export const TABS = {};

@@ -1,0 +1,102 @@
+<section class="archivist-sheet">
+    <aside class="archivist-sidebar">
+        <header class="archivist-header">
+            {{#if setup.image}}
+            <img class="archivist-avatar" src="{{setup.image}}" alt="" />
+            {{else if document.img}}
+            <img class="archivist-avatar" src="{{document.img}}" alt="" />
+            {{/if}}
+            <h2 class="archivist-title">{{document.name}}</h2>
+            <small class="archivist-subtitle">Location</small>
+        </header>
+        <nav class="archivist-nav tabs" data-group="archivist">
+            <a class="item" data-tab="info">{{localize 'Info'}}</a>
+            <a class="item" data-tab="pcs">PCs</a>
+            <a class="item" data-tab="npcs">NPCs</a>
+            <a class="item" data-tab="items">Items</a>
+            <a class="item" data-tab="locations">Locations</a>
+            <a class="item" data-tab="factions">Factions</a>
+            <a class="item" data-tab="journals">Journals</a>
+            <a class="item" data-tab="notes">GM Notes</a>
+        </nav>
+    </aside>
+    <main class="archivist-content">
+        <section class="tab" data-tab="info">
+            <div class="archivist-info">
+                {{#if setup.editingInfo}}
+                <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
+                    compact="true" toggled>
+                    {{{htmlContent}}}
+                </prose-mirror>
+                {{else}}
+                <article class="archivist-body">{{{document.pages.contents.[0].text.content}}}</article>
+                {{/if}}
+            </div>
+            <div class="archivist-dropzones">
+                <div class="dropzone parent" data-drop="parent-location">
+                    <strong>Parent Location</strong>
+                    <div class="hint">Drop a Location here to set as parent</div>
+                    <div class="card-wrap parent-location-card">
+                        <!-- populated at runtime -->
+                    </div>
+                </div>
+                <div class="dropzone scene" data-drop="scene">
+                    <strong>Linked Scene</strong>
+                    <div class="hint">Drop a Scene here to link it</div>
+                    <div class="card-wrap linked-scene-card">
+                        <!-- populated at runtime -->
+                    </div>
+                </div>
+            </div>
+            <footer class="archivist-location-tree">
+                <div class="ancestors">
+                    <label>Ancestors:</label>
+                    <span class="archivist-location-ancestors"></span>
+                </div>
+                <div class="descendants">
+                    <label>Descendants:</label>
+                    <div class="archivist-location-descendants"></div>
+                </div>
+            </footer>
+        </section>
+        <section class="tab" data-tab="pcs">
+            <div class="archivist-grid pcs-grid"></div>
+        </section>
+        <section class="tab" data-tab="npcs">
+            <div class="archivist-grid npcs-grid"></div>
+        </section>
+        <section class="tab" data-tab="factions">
+            <div class="archivist-grid factions-grid"></div>
+        </section>
+        <section class="tab" data-tab="items">
+            <div class="archivist-grid items-grid"></div>
+        </section>
+        <section class="tab" data-tab="locations">
+            <div class="archivist-locations">
+                <ul class="archivist-children">
+                    <!-- children will be populated by sheet logic later -->
+                </ul>
+            </div>
+            <div class="archivist-grid locations-grid"></div>
+        </section>
+        <section class="tab" data-tab="factions">
+            <div class="archivist-grid factions-grid"></div>
+        </section>
+        <section class="tab" data-tab="journals">
+            <div class="archivist-grid archivist-journals"></div>
+        </section>
+        <section class="tab" data-tab="notes">
+            {{#if setup.isGM}}
+            <div class="archivist-notes">
+                <prose-mirror name="gmNotes" value="{{setup.gmNotes}}" compact="true" toggled>
+                    {{{setup.gmNotes}}}
+                </prose-mirror>
+            </div>
+            {{else}}
+            <div class="archivist-notes">
+                <p class="hint"><i class="fas fa-lock"></i> GM-only notes are not visible to players.</p>
+            </div>
+            {{/if}}
+        </section>
+    </main>
+</section>

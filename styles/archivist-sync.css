@@ -1,3 +1,323 @@
+/* CC-style sheet layout */
+.archivist-sheet {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px;
+  height: 100%;
+}
+
+.archivist-sidebar {
+  padding: 8px;
+  border-right: 1px solid var(--color-border, #444);
+}
+
+.archivist-header {
+  margin-bottom: 8px;
+}
+
+.archivist-header .archivist-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 48px;
+  border: 1px solid;
+  border-color: #ffb020;
+  object-fit: cover;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.archivist-title {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.archivist-subtitle {
+  opacity: 0.7;
+}
+
+.archivist-subtitle-with-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.archivist-subtitle-with-actions button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.archivist-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  border-bottom: 1px solid var(--cc-border);
+  margin-bottom: 8px;
+  margin-top: 8px;
+}
+
+.archivist-nav .item {
+  padding: 0px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: left;
+}
+
+.archivist-nav .item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.archivist-nav .item.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-left: 3px solid var(--cc-accent);
+}
+
+.archivist-content {
+  padding: 8px;
+  overflow: auto;
+}
+
+.archivist-content .tab {
+  display: none;
+}
+
+.archivist-content .tab.active {
+  display: block;
+}
+
+.archivist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.archivist-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.archivist-card {
+  padding: 8px;
+  border: 1px solid var(--color-border, #444);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.archivist-card:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.archivist-card img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.archivist-card .name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.archivist-card .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.archivist-card button {
+  flex-shrink: 0;
+}
+
+.archivist-row {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border, #444);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.archivist-row img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.archivist-row .name {
+  font-weight: 500;
+  flex: 1;
+}
+
+.archivist-row .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.archivist-row button {
+  flex-shrink: 0;
+}
+
+.archivist-actions {
+  margin-bottom: 6px;
+}
+
+/* Dropzones */
+.archivist-dropzones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.archivist-dropzones .dropzone {
+  border: 2px dashed var(--color-border, #555);
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.archivist-dropzones .dropzone .hint {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Cards shown inside dropzones for parent location and linked scene */
+.archivist-dropzones .card-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.archivist-dropzones .mini-card {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--color-border, #444);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.archivist-dropzones .mini-card img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+}
+
+.archivist-dropzones .mini-card .name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.archivist-dropzones .mini-card .actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.archivist-dropzones .mini-card .actions button {
+  flex-shrink: 0;
+}
+
+/* Trees */
+.archivist-location-tree {
+  margin-top: 10px;
+  border-top: 1px solid var(--color-border, #444);
+  padding-top: 8px;
+}
+
+.archivist-location-ancestors a {
+  color: var(--color-text, #ddd);
+  text-decoration: none;
+}
+
+.archivist-location-descendants ul {
+  list-style: none;
+  margin: 4px 0 0 12px;
+  padding: 0;
+}
+
+.archivist-location-descendants li {
+  margin: 2px 0;
+}
+
+/* Archivist Hub */
+.archivist-hub {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.archivist-hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px;
+  border-bottom: 1px solid var(--color-border, #444);
+}
+
+.archivist-hub-header nav.tabs {
+  display: flex;
+  gap: 10px;
+}
+
+.archivist-hub-create {
+  padding: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.archivist-hub-create button {
+  width: 100%;
+}
+
+.archivist-hub-content {
+  padding: 8px;
+  overflow: auto;
+}
+
+.archivist-hub-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.archivist-hub-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.archivist-hub-list li .archivist-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
 /**
  * Archivist Sync Module Styles
  * All styles are scoped to the module to prevent conflicts with Foundry VTT and other modules
@@ -1263,28 +1583,53 @@
   font-size: 14px;
 }
 
-/* Reusable custom icon (replaces fa-robot) */
-/* Base mask icon */
-.archivist-icon {
-  display: inline-block;
-  width: 1em;
-  height: 1em;
-  vertical-align: middle;
-  background-color: currentColor;
-  /* Align with Font Awesome solid metrics for consistency */
-  font: var(--fa-font-solid, normal 900 1em/1);
-  line-height: 1;
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path d='M 254.49 426.60 L 252.98 428.11 L 252.98 432.64 L 251.47 434.15 L 251.47 435.66 L 249.96 437.17 L 249.96 438.68 L 248.45 440.19 L 248.45 441.70 L 237.88 452.27 L 236.37 452.27 L 233.35 455.29 L 230.33 455.29 L 228.82 456.80 L 227.31 456.80 L 225.81 458.31 L 225.81 461.33 L 230.33 461.33 L 231.84 462.83 L 233.35 462.83 L 236.37 465.85 L 237.88 465.85 L 248.45 476.42 L 248.45 477.93 L 249.96 479.44 L 249.96 480.95 L 251.47 482.46 L 251.47 485.48 L 252.98 486.99 L 252.98 490.01 L 254.49 491.52 L 257.51 491.52 L 257.51 486.99 L 259.02 485.48 L 259.02 483.97 L 260.53 482.46 L 260.53 480.95 L 262.04 479.44 L 262.04 477.93 L 263.55 476.42 L 263.55 474.91 L 272.61 465.85 L 274.12 465.85 L 277.14 462.83 L 280.16 462.83 L 281.67 461.33 L 284.69 461.33 L 284.69 458.31 L 283.18 456.80 L 280.16 456.80 L 278.65 455.29 L 277.14 455.29 L 275.63 453.78 L 274.12 453.78 L 263.55 443.21 L 263.55 441.70 L 260.53 438.68 L 260.53 435.66 L 259.02 434.15 L 259.02 431.13 L 257.51 429.62 L 257.51 426.60 Z M 112.57 80.87 L 112.57 85.40 L 111.06 86.91 L 111.06 89.93 L 109.55 91.44 L 109.55 94.46 L 106.54 97.48 L 106.54 98.99 L 103.52 102.01 L 103.52 103.52 L 97.48 109.55 L 95.97 109.55 L 91.44 114.08 L 89.93 114.08 L 85.40 117.10 L 82.38 117.10 L 80.87 118.61 L 77.85 118.61 L 77.85 121.63 L 79.36 121.63 L 80.87 123.14 L 83.89 123.14 L 85.40 124.65 L 89.93 126.16 L 92.95 129.18 L 94.46 129.18 L 105.03 139.75 L 105.03 141.26 L 106.54 142.77 L 106.54 144.28 L 108.05 145.79 L 108.05 147.30 L 109.55 148.81 L 109.55 150.32 L 112.57 154.85 L 112.57 159.38 L 115.59 159.38 L 117.10 157.87 L 117.10 153.34 L 120.12 148.81 L 120.12 145.79 L 123.14 142.77 L 123.14 141.26 L 126.16 138.24 L 126.16 136.73 L 133.71 129.18 L 135.22 129.18 L 138.24 126.16 L 139.75 126.16 L 144.28 123.14 L 148.81 123.14 L 150.32 121.63 L 151.83 121.63 L 151.83 118.61 L 147.30 118.61 L 145.79 117.10 L 144.28 117.10 L 142.77 115.59 L 139.75 115.59 L 136.73 112.57 L 135.22 112.57 L 123.14 100.50 L 123.14 98.99 L 121.63 97.48 L 121.63 95.97 L 118.61 91.44 L 118.61 88.42 L 117.10 86.91 L 117.10 83.89 L 115.59 82.38 L 115.59 80.87 Z M 394.90 71.81 L 391.88 80.87 L 382.82 89.93 L 381.31 89.93 L 378.29 92.95 L 376.78 92.95 L 376.78 97.48 L 381.31 98.99 L 391.88 109.55 L 391.88 111.06 L 394.90 115.59 L 394.90 129.18 L 393.39 130.69 L 390.37 138.24 L 384.33 144.28 L 376.78 147.30 L 376.78 150.32 L 378.29 151.83 L 382.82 153.34 L 385.84 156.36 L 387.35 156.36 L 388.86 157.87 L 388.86 159.38 L 391.88 162.40 L 391.88 163.91 L 393.39 165.42 L 393.39 168.43 L 394.90 169.94 L 394.90 172.96 L 397.92 172.96 L 397.92 168.43 L 399.43 166.93 L 400.94 162.40 L 411.50 151.83 L 414.52 151.83 L 416.03 150.32 L 416.03 147.30 L 408.48 144.28 L 402.45 138.24 L 402.45 136.73 L 399.43 132.20 L 399.43 129.18 L 397.92 127.67 L 397.92 118.61 L 399.43 117.10 L 399.43 114.08 L 400.94 112.57 L 402.45 108.05 L 411.50 98.99 L 416.03 97.48 L 416.03 92.95 L 408.48 89.93 L 402.45 83.89 L 402.45 82.38 L 399.43 79.36 L 399.43 76.34 L 397.92 74.83 L 397.92 71.81 Z M 169.94 34.07 L 206.18 49.17 L 215.24 59.73 L 215.24 70.30 L 80.87 419.05 L 52.18 461.33 L 183.53 461.33 L 163.91 444.72 L 160.89 428.11 L 185.04 367.72 L 326.96 367.72 L 351.11 429.62 L 348.09 444.72 L 328.47 461.33 L 459.82 461.33 L 434.15 423.58 L 295.25 70.30 L 295.25 58.22 L 302.80 49.17 L 336.02 34.07 L 272.61 20.48 L 218.26 21.99 Z M 256.00 159.38 L 251.47 165.42 L 249.96 172.96 L 246.94 177.49 L 245.43 185.04 L 242.41 189.57 L 237.88 204.67 L 231.84 216.75 L 231.84 219.77 L 230.33 221.28 L 228.82 228.82 L 225.81 233.35 L 224.30 240.90 L 221.28 245.43 L 219.77 252.98 L 213.73 265.06 L 209.20 281.67 L 206.18 286.19 L 204.67 293.74 L 201.65 298.27 L 201.65 301.29 L 198.63 307.33 L 200.14 308.84 L 310.35 308.84 L 311.86 307.33 L 311.86 304.31 L 308.84 299.78 L 299.78 271.10 L 293.74 259.02 L 292.23 251.47 L 289.21 246.94 L 287.70 239.39 L 284.69 234.86 L 284.69 231.84 L 280.16 222.79 L 278.65 215.24 L 275.63 210.71 L 274.12 203.16 L 271.10 198.63 L 271.10 195.61 L 268.08 191.08 L 262.04 171.45 Z' fill='%23000'/></svg>") no-repeat center / contain;
-  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path d='M 254.49 426.60 L 252.98 428.11 L 252.98 432.64 L 251.47 434.15 L 251.47 435.66 L 249.96 437.17 L 249.96 438.68 L 248.45 440.19 L 248.45 441.70 L 237.88 452.27 L 236.37 452.27 L 233.35 455.29 L 230.33 455.29 L 228.82 456.80 L 227.31 456.80 L 225.81 458.31 L 225.81 461.33 L 230.33 461.33 L 231.84 462.83 L 233.35 462.83 L 236.37 465.85 L 237.88 465.85 L 248.45 476.42 L 248.45 477.93 L 249.96 479.44 L 249.96 480.95 L 251.47 482.46 L 251.47 485.48 L 252.98 486.99 L 252.98 490.01 L 254.49 491.52 L 257.51 491.52 L 257.51 486.99 L 259.02 485.48 L 259.02 483.97 L 260.53 482.46 L 260.53 480.95 L 262.04 479.44 L 262.04 477.93 L 263.55 476.42 L 263.55 474.91 L 272.61 465.85 L 274.12 465.85 L 277.14 462.83 L 280.16 462.83 L 281.67 461.33 L 284.69 461.33 L 284.69 458.31 L 283.18 456.80 L 280.16 456.80 L 278.65 455.29 L 277.14 455.29 L 275.63 453.78 L 274.12 453.78 L 263.55 443.21 L 263.55 441.70 L 260.53 438.68 L 260.53 435.66 L 259.02 434.15 L 259.02 431.13 L 257.51 429.62 L 257.51 426.60 Z M 112.57 80.87 L 112.57 85.40 L 111.06 86.91 L 111.06 89.93 L 109.55 91.44 L 109.55 94.46 L 106.54 97.48 L 106.54 98.99 L 103.52 102.01 L 103.52 103.52 L 97.48 109.55 L 95.97 109.55 L 91.44 114.08 L 89.93 114.08 L 85.40 117.10 L 82.38 117.10 L 80.87 118.61 L 77.85 118.61 L 77.85 121.63 L 79.36 121.63 L 80.87 123.14 L 83.89 123.14 L 85.40 124.65 L 89.93 126.16 L 92.95 129.18 L 94.46 129.18 L 105.03 139.75 L 105.03 141.26 L 106.54 142.77 L 106.54 144.28 L 108.05 145.79 L 108.05 147.30 L 109.55 148.81 L 109.55 150.32 L 112.57 154.85 L 112.57 159.38 L 115.59 159.38 L 117.10 157.87 L 117.10 153.34 L 120.12 148.81 L 120.12 145.79 L 123.14 142.77 L 123.14 141.26 L 126.16 138.24 L 126.16 136.73 L 133.71 129.18 L 135.22 129.18 L 138.24 126.16 L 139.75 126.16 L 144.28 123.14 L 148.81 123.14 L 150.32 121.63 L 151.83 121.63 L 151.83 118.61 L 147.30 118.61 L 145.79 117.10 L 144.28 117.10 L 142.77 115.59 L 139.75 115.59 L 136.73 112.57 L 135.22 112.57 L 123.14 100.50 L 123.14 98.99 L 121.63 97.48 L 121.63 95.97 L 118.61 91.44 L 118.61 88.42 L 117.10 86.91 L 117.10 83.89 L 115.59 82.38 L 115.59 80.87 Z M 394.90 71.81 L 391.88 80.87 L 382.82 89.93 L 381.31 89.93 L 378.29 92.95 L 376.78 92.95 L 376.78 97.48 L 381.31 98.99 L 391.88 109.55 L 391.88 111.06 L 394.90 115.59 L 394.90 129.18 L 393.39 130.69 L 390.37 138.24 L 384.33 144.28 L 376.78 147.30 L 376.78 150.32 L 378.29 151.83 L 382.82 153.34 L 385.84 156.36 L 387.35 156.36 L 388.86 157.87 L 388.86 159.38 L 391.88 162.40 L 391.88 163.91 L 393.39 165.42 L 393.39 168.43 L 394.90 169.94 L 394.90 172.96 L 397.92 172.96 L 397.92 168.43 L 399.43 166.93 L 400.94 162.40 L 411.50 151.83 L 414.52 151.83 L 416.03 150.32 L 416.03 147.30 L 408.48 144.28 L 402.45 138.24 L 402.45 136.73 L 399.43 132.20 L 399.43 129.18 L 397.92 127.67 L 397.92 118.61 L 399.43 117.10 L 399.43 114.08 L 400.94 112.57 L 402.45 108.05 L 411.50 98.99 L 416.03 97.48 L 416.03 92.95 L 408.48 89.93 L 402.45 83.89 L 402.45 82.38 L 399.43 79.36 L 399.43 76.34 L 397.92 74.83 L 397.92 71.81 Z M 169.94 34.07 L 206.18 49.17 L 215.24 59.73 L 215.24 70.30 L 80.87 419.05 L 52.18 461.33 L 183.53 461.33 L 163.91 444.72 L 160.89 428.11 L 185.04 367.72 L 326.96 367.72 L 351.11 429.62 L 348.09 444.72 L 328.47 461.33 L 459.82 461.33 L 434.15 423.58 L 295.25 70.30 L 295.25 58.22 L 302.80 49.17 L 336.02 34.07 L 272.61 20.48 L 218.26 21.99 Z M 256.00 159.38 L 251.47 165.42 L 249.96 172.96 L 246.94 177.49 L 245.43 185.04 L 242.41 189.57 L 237.88 204.67 L 231.84 216.75 L 231.84 219.77 L 230.33 221.28 L 228.82 228.82 L 225.81 233.35 L 224.30 240.90 L 221.28 245.43 L 219.77 252.98 L 213.73 265.06 L 209.20 281.67 L 206.18 286.19 L 204.67 293.74 L 201.65 298.27 L 201.65 301.29 L 198.63 307.33 L 200.14 308.84 L 310.35 308.84 L 311.86 307.33 L 311.86 304.31 L 308.84 299.78 L 299.78 271.10 L 293.74 259.02 L 292.23 251.47 L 289.21 246.94 L 287.70 239.39 L 284.69 234.86 L 284.69 231.84 L 280.16 222.79 L 278.65 215.24 L 275.63 210.71 L 274.12 203.16 L 271.10 198.63 L 271.10 195.61 L 268.08 191.08 L 262.04 171.45 Z' fill='%23000'/></svg>") no-repeat center / contain;
-}
-
 /* Ensure proper sizing and centering inside v13 sidebar buttons */
-#sidebar nav.tabs .ui-control.icon .archivist-icon,
-#sidebar #sidebar-tabs .ui-control.icon .archivist-icon {
+/* OPTION A — using an <img> element inside the button */
+#sidebar nav.tabs .ui-control.icon img.archivist-icon,
+#sidebar #sidebar-tabs .ui-control.icon img.archivist-icon {
   display: block;
   width: 18px;
   height: 18px;
   margin: 0;
+  object-fit: contain;
+}
+
+/* FontAwesome-like, color-inheriting SVG icon via CSS mask */
+.archivist-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  /* Inherit color from parent (e.g., white in sidebar buttons) */
+  color: inherit;
+  background-color: currentColor;
+  /* the painted color */
+  /* Prefer standard mask properties */
+  mask-image: url("/modules/archivist-sync/assets/icons/archivist.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  /* WebKit compatibility */
+  -webkit-mask-image: url("/modules/archivist-sync/assets/icons/archivist.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+/* Ensure proper sizing when placed inside sidebar buttons */
+#sidebar nav.tabs .ui-control.icon .archivist-icon,
+#sidebar #sidebar-tabs .ui-control.icon .archivist-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* Fallback for cases where an <img> is still used somewhere */
+img.archivist-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  /* Make dark SVGs appear light on dark UI if needed */
+  filter: brightness(0) invert(1);
 }
 
 /* Make the button look like the stock sidebar buttons */
@@ -1475,4 +1820,175 @@
 
 .retry-indicator i {
   margin-right: 5px;
+}
+
+/* Simplified Recap Sheet (no sidebar) */
+.archivist-sheet-recap-simple {
+  display: block;
+  height: 100%;
+}
+
+.archivist-sheet-recap-simple .archivist-content-full {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px 32px;
+  overflow: auto;
+}
+
+.recap-header {
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--color-border, #444);
+  padding-bottom: 16px;
+}
+
+.recap-title-container {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.recap-title {
+  margin: 0;
+  flex: 1;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.recap-title-input {
+  flex: 1;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border, #444);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: inherit;
+  font-family: inherit;
+  outline: none;
+}
+
+.recap-title-input:focus {
+  border-color: var(--color-border-light-highlight, #888);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.recap-date {
+  font-size: 14px;
+  opacity: 0.7;
+  font-style: italic;
+  margin-left: 2px;
+}
+
+.recap-body-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recap-body-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.recap-body {
+  flex: 1;
+  line-height: 1.6;
+  min-height: 200px;
+}
+
+.recap-body-editor {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.recap-body-editor prose-mirror {
+  flex: 1;
+  min-height: 200px;
+}
+
+.recap-body p:first-child {
+  margin-top: 0;
+}
+
+.recap-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Archivist Info editors: keep a comfortable editing height */
+.archivist-info prose-mirror,
+.archivist-info .ProseMirror,
+.archivist-info .editor,
+.archivist-info .archivist-body {
+  min-height: 280px;
+}
+
+/* GM Notes section styling - contrasting border and min-height */
+.archivist-notes {
+  min-height: 280px;
+  border: 2px solid var(--arch-accent-warn, #ffb020);
+  border-radius: 6px;
+  padding: 12px;
+  background: rgba(255, 176, 32, 0.05);
+  transition: all 0.2s ease;
+}
+
+.archivist-notes:hover {
+  background: rgba(255, 176, 32, 0.08);
+  border-color: color-mix(in srgb, var(--arch-accent-warn, #ffb020), var(--arch-text, #fff) 30%);
+}
+
+.archivist-notes prose-mirror,
+.archivist-notes .ProseMirror {
+  min-height: 250px;
+}
+
+/* Hint text styling for non-GM users */
+.archivist-notes .hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 100px;
+  color: var(--arch-text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+.archivist-notes .hint i {
+  font-size: 20px;
+  color: var(--arch-accent-warn, #ffb020);
+}
+
+.recap-edit-btn {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-border, #444);
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--color-text-light-primary, #ccc);
+  transition: all 0.2s;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.recap-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-border-light-highlight, #888);
+}
+
+.recap-edit-btn.editing {
+  background: var(--color-border-light-highlight, #888);
+  color: var(--color-text-dark-primary, #fff);
+}
+
+.recap-edit-btn i {
+  font-size: 12px;
 }

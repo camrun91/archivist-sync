@@ -1,0 +1,36 @@
+<section class="archivist-hub">
+    <header class="archivist-hub-header">
+        <nav class="tabs" data-group="archivist-hub">
+            {{#each tabs as |tab|}}
+            <a class="item {{#if (eq ../active tab.id)}}active{{/if}}" data-tab="{{tab.id}}" data-action="switchTab"
+                title="{{tab.title}}"><i class="{{tab.icon}}"></i></a>
+            {{/each}}
+        </nav>
+        <div class="actions">
+            <button type="button" data-action="syncAll">Sync with Archivist</button>
+        </div>
+    </header>
+    <main class="archivist-hub-content">
+        {{#unless (eq active 'recaps')}}
+        <div class="archivist-hub-create">
+            <button type="button" data-action="createRow">Create New</button>
+        </div>
+        {{/unless}}
+        <ul class="archivist-hub-list">
+            {{#each rows as |row|}}
+            <li data-id="{{row.id}}" data-uuid="{{row.uuid}}" data-kind="{{row.kind}}">
+                {{#if row.img}}
+                <img class="archivist-avatar" src="{{row.img}}" alt="" />
+                {{else}}
+                <i class="{{row.iconClass}}"></i>
+                {{/if}}
+                <a class="name" data-action="openRow">{{row.name}}</a>
+                {{#if (and ../isGM (ne row.kind 'recap'))}}
+                <button type="button" data-action="togglePerm" title="Toggle Visibility"><i
+                        class="{{row.ownershipIcon}}"></i></button>
+                {{/if}}
+            </li>
+            {{/each}}
+        </ul>
+    </main>
+</section>

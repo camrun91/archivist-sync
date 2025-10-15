@@ -21,27 +21,29 @@
   },
   "esmodules": [
     "scripts/archivist-sync.js",
+    "scripts/modules/sheets/page-sheet-v2.js",
     "scripts/modules/config.js",
     "scripts/modules/settings-manager.js",
     "scripts/modules/utils.js",
-    "scripts/modules/importer-types.js",
-    "scripts/modules/importer-extractor.js",
-    "scripts/modules/importer-normalizer.js",
-    "scripts/modules/importer-mapper.js",
-    "scripts/modules/importer-fingerprint.js",
-    "scripts/modules/importer-resolver.js",
-    "scripts/modules/mapping-presets.js",
-    "scripts/services/importer-service.js",
+    "scripts/modules/adapters/system-adapter.js",
+    "scripts/modules/links/helpers.js",
+    "scripts/modules/links/indexer.js",
     "scripts/services/archivist-api.js",
-    "scripts/dialogs/sync-options-dialog.js",
     "scripts/dialogs/world-setup-dialog.js",
     "scripts/dialogs/ask-chat-window.js",
-    "scripts/dialogs/ask-chat-launcher.js"
+    "scripts/dialogs/sync-dialog.js"
   ],
-  "styles": ["styles/archivist-sync.css"],
+  "styles": [
+    "styles/archivist-sync.css",
+    "styles/sync-dialog.css"
+  ],
   "flags": {
     "hotReload": {
-      "paths": ["dist", "templates", "lang"]
+      "paths": [
+        "dist",
+        "templates",
+        "lang"
+      ]
     }
   },
   "languages": [
@@ -53,7 +55,7 @@
   ],
   "url": "https://github.com/camrun91/archivist-sync",
   "manifest": "https://github.com/camrun91/archivist-sync/releases/latest/download/module.json",
-  "download": "https://github.com/camrun91/archivist-sync/releases/download/v1.0.0/module.zip",
+  "download": "https://github.com/camrun91/archivist-sync/archive/refs/heads/main.zip",
   "license": "MIT",
   "readme": "README.md",
   "bugs": "https://github.com/camrun91/archivist-sync/issues",

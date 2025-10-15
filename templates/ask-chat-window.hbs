@@ -177,7 +177,7 @@
         {{#each messages}}
         <div class="msg">
             <div class="from" style="display:flex; align-items:center; gap:6px; opacity:.9;">
-                {{#if (eq this.role 'assistant')}}<i class="archivist-icon" style="font-size:14px;"></i>{{/if}}
+                {{#if (eq this.role 'assistant')}}<i class="archivist-icon" aria-hidden="true"></i>{{/if}}
                 <span>{{#if (eq this.role 'user')}}{{localize 'ARCHIVIST_SYNC.chat.me'}}{{else}}{{localize
                     'ARCHIVIST_SYNC.chat.assistant'}}{{/if}}</span>
             </div>
