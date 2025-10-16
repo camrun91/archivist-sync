@@ -147,7 +147,7 @@ jobs:
 
       - name: Publish Module to FoundryVTT Website
         if: steps.check_release.outputs.exists == 'false'
-        uses: Varriount/fvtt-autopublish@latest
+        uses: Varriount/fvtt-autopublish@v2.0.2
         with:
           username: ${{ secrets.FOUNDRY_ADMIN_USERNAME }}
           password: ${{ secrets.FOUNDRY_ADMIN_PASSWORD }}
