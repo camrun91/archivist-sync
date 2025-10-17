@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2024-08-31
+## [1.0.1] - 2025-10-17
 
 ### Added
 - Initial release of Archivist Sync module

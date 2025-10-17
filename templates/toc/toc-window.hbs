@@ -7,15 +7,19 @@
             {{/each}}
         </nav>
         <div class="actions">
+            {{#if isGM}}
             <button type="button" data-action="syncAll">Sync with Archivist</button>
+            {{/if}}
         </div>
     </header>
     <main class="archivist-hub-content">
+        {{#if isGM}}
         {{#unless (eq active 'recaps')}}
         <div class="archivist-hub-create">
             <button type="button" data-action="createRow">Create New</button>
         </div>
         {{/unless}}
+        {{/if}}
         <ul class="archivist-hub-list">
             {{#each rows as |row|}}
             <li data-id="{{row.id}}" data-uuid="{{row.uuid}}" data-kind="{{row.kind}}">

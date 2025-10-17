@@ -21,6 +21,10 @@
         "Name": "Chat History",
         "Hint": "Internal storage for Archivist Chat message history"
       },
+      "ChatHistoryEnabled": {
+        "Name": "Keep Chat History",
+        "Hint": "When enabled, your chat session is saved and restored per-user and per-campaign. Disable to start fresh each time."
+      },
       "MappingOverride": {
         "Name": "Mapping Override (JSON)",
         "Hint": "Optional JSON rules to customize importer field mapping"
@@ -74,6 +78,18 @@
       "error": "Chat error"
     },
     "Menu": {
+      "UpdateApiKey": {
+        "Name": "Update API Key",
+        "Label": "Update API Key",
+        "Hint": "Securely update your Archivist API key",
+        "Title": "Update API Key",
+        "Description": "Enter your new Archivist API key below. This will replace your current key.",
+        "Placeholder": "Paste your new API key here...",
+        "Update": "Update",
+        "Cancel": "Cancel",
+        "Success": "API key updated successfully",
+        "Empty": "API key cannot be empty"
+      },
       "RunSetup": {
         "Name": "Run World Setup Again",
         "Label": "Run World Setup Again",

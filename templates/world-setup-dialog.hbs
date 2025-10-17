@@ -493,6 +493,7 @@
                                     <span style="padding:6px 10px;">Archivist Characters</span>
                                     <span style="padding:6px 10px;">Match</span>
                                 </div>
+                                {{#if setupData.reconcile.characters.archivist.length}}
                                 <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
                                     {{#each setupData.reconcile.characters.archivist}}
                                     <li class="ws-select-row">
@@ -517,6 +518,12 @@
                                     </li>
                                     {{/each}}
                                 </ul>
+                                {{else}}
+                                <div
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    No Archivist characters found
+                                </div>
+                                {{/if}}
                             </div>
                             <div>
                                 <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
@@ -525,6 +532,7 @@
                                     <span style="padding:6px 10px;">Foundry Actors</span>
                                     <span style="padding:6px 10px;">Match</span>
                                 </div>
+                                {{#if setupData.reconcile.characters.foundry.length}}
                                 <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
                                     {{#each setupData.reconcile.characters.foundry}}
                                     <li class="ws-select-row">
@@ -549,6 +557,12 @@
                                     </li>
                                     {{/each}}
                                 </ul>
+                                {{else}}
+                                <div
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    No Foundry actors found
+                                </div>
+                                {{/if}}
                             </div>
                         </div>
                     </section>
@@ -563,6 +577,7 @@
                                     <span style="padding:6px 10px;">Archivist Items</span>
                                     <span style="padding:6px 10px;">Match</span>
                                 </div>
+                                {{#if setupData.reconcile.items.archivist.length}}
                                 <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
                                     {{#each setupData.reconcile.items.archivist}}
                                     <li class="ws-select-row">
@@ -584,6 +599,12 @@
                                     </li>
                                     {{/each}}
                                 </ul>
+                                {{else}}
+                                <div
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    No Archivist items found
+                                </div>
+                                {{/if}}
                             </div>
                             <div>
                                 <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
@@ -592,6 +613,7 @@
                                     <span style="padding:6px 10px;">Foundry Items</span>
                                     <span style="padding:6px 10px;">Match</span>
                                 </div>
+                                {{#if setupData.reconcile.items.foundry.length}}
                                 <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
                                     {{#each setupData.reconcile.items.foundry}}
                                     <li class="ws-select-row">
@@ -613,6 +635,12 @@
                                     </li>
                                     {{/each}}
                                 </ul>
+                                {{else}}
+                                <div
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    No Foundry items found
+                                </div>
+                                {{/if}}
                             </div>
                         </div>
                     </section>
@@ -627,6 +655,7 @@
                                     <span style="padding:6px 10px;">Archivist Locations</span>
                                     <span style="padding:6px 10px;">Match</span>
                                 </div>
+                                {{#if setupData.reconcile.locations.archivist.length}}
                                 <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
                                     {{#each setupData.reconcile.locations.archivist}}
                                     <li class="ws-select-row">
@@ -648,6 +677,12 @@
                                     </li>
                                     {{/each}}
                                 </ul>
+                                {{else}}
+                                <div
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    No Archivist locations found
+                                </div>
+                                {{/if}}
                             </div>
                             <div>
                                 <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
@@ -656,6 +691,7 @@
                                     <span style="padding:6px 10px;">Foundry Scenes</span>
                                     <span style="padding:6px 10px;">Match</span>
                                 </div>
+                                {{#if setupData.reconcile.locations.foundry.length}}
                                 <ul style="list-style:none; padding:0; margin:0; display:grid; gap:6px;">
                                     {{#each setupData.reconcile.locations.foundry}}
                                     <li class="ws-select-row">
@@ -677,6 +713,12 @@
                                     </li>
                                     {{/each}}
                                 </ul>
+                                {{else}}
+                                <div
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    No Foundry scenes found
+                                </div>
+                                {{/if}}
                             </div>
                         </div>
                     </section>
@@ -684,11 +726,6 @@
                 </main>
                 {{/if}}
                 {{/if}}
-
-                <div style="text-align:right; margin-top:10px;">
-                    <button type="button" class="setup-btn primary" data-action="confirmSelections">{{localize
-                        "ARCHIVIST_SYNC.worldSetup.buttons.next"}}</button>
-                </div>
             </div>
             {{/if}}
 
@@ -707,6 +744,7 @@
                 </nav>
                 <main class="ws-recon-content">
                     <section class="tab" data-tab="actors">
+                        {{#if hasCreateCandidates.actors}}
                         <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
                             <input type="checkbox" data-action="createSelectAll" data-kind="actors" />
                             <span style="padding:6px 10px;">Archivist Characters (no matching Actor)</span>
@@ -724,8 +762,14 @@
                             {{/if}}
                             {{/each}}
                         </ul>
+                        {{else}}
+                        <div style="padding:20px; text-align:center; color:var(--cc-text-muted); font-style:italic;">
+                            No unmatched Archivist characters to create
+                        </div>
+                        {{/if}}
                     </section>
                     <section class="tab" data-tab="items">
+                        {{#if hasCreateCandidates.items}}
                         <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
                             <input type="checkbox" data-action="createSelectAll" data-kind="items" />
                             <span style="padding:6px 10px;">Archivist Items (no matching Item)</span>
@@ -743,8 +787,14 @@
                             {{/if}}
                             {{/each}}
                         </ul>
+                        {{else}}
+                        <div style="padding:20px; text-align:center; color:var(--cc-text-muted); font-style:italic;">
+                            No unmatched Archivist items to create
+                        </div>
+                        {{/if}}
                     </section>
                     <section class="tab" data-tab="scenes">
+                        {{#if hasCreateCandidates.scenes}}
                         <div class="ws-select-row" style="font-weight:600; margin-bottom:6px;">
                             <input type="checkbox" data-action="createSelectAll" data-kind="scenes" />
                             <span style="padding:6px 10px;">Archivist Locations (no matching Scene)</span>
@@ -762,6 +812,11 @@
                             {{/if}}
                             {{/each}}
                         </ul>
+                        {{else}}
+                        <div style="padding:20px; text-align:center; color:var(--cc-text-muted); font-style:italic;">
+                            No unmatched Archivist locations to create
+                        </div>
+                        {{/if}}
                     </section>
                 </main>
                 <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px;">

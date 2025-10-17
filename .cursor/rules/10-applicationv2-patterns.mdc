@@ -1,0 +1,109 @@
+---
+description: Patterns and snippets for ApplicationV2 windows (v13)
+globs: "src/**"
+alwaysApply: true
+---
+
+# ApplicationV2 – How to structure windows
+
+## Skeleton
+Use `DEFAULT_OPTIONS`, implement `_prepareContext` and `_renderHTML`, and wire events with `addEventListener`:
+
+```ts
+import { HandlebarsApplicationMixin } from "foundry/applications/api.mjs"; // if using HBS
+
+export class SyncManager extends HandlebarsApplicationMixin(ApplicationV2) {
+  static override DEFAULT_OPTIONS = {
+    id: "archivist-sync-manager",
+    window: { title: "Archivist: Sync Manager", resizable: true },
+    classes: ["archivist", "sync"],
+    position: { width: 640, height: "auto" },
+  };
+
+  override async _prepareContext(_options) {
+    return {
+      sessions: await game.modules.get("archivist-sync")?.api?.listSessions?.() ?? [],
+    };
+  }
+
+  override async _renderHTML(context, _options) {
+    // Return a string or Node for HandlebarsApplicationMixin, or mount your own DOM.
+    return await renderTemplate("modules/archivist-sync/templates/sync-manager.hbs", context);
+  }
+
+  override async _onFirstRender(_context, _options) {
+    this.element.querySelector("[data-action='refresh']")
+      ?.addEventListener("click", () => this.render({ force: true }));
+  }
+}
+```
+
+## Tabs (built-in)
+Configure with `TABS` + `_getTabsConfig` instead of custom tab libs:
+
+```ts
+static TABS = {
+  main: { group: "main", navSelector: ".tabs", contentSelector: ".content", initial: "overview" }
+};
+protected override _getTabsConfig(group: string) { return (SyncManager as any).TABS[group] ?? null; }
+```
+
+See `ApplicationV2` tab APIs.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+
+## Header controls
+Use `_getHeaderControls()` to add window buttons (gear, help, etc.):
+
+```ts
+protected override _getHeaderControls() {
+  return [
+    ...super._getHeaderControls(),
+    {
+      class: "help",
+      icon: "fa-solid fa-circle-question",
+      label: "Help",
+      onclick: () => window.open("https://myarchivist.ai/docs/foundry", "_blank")
+    }
+  ];
+}
+```
+
+## Drag & Drop
+Instantiate `DragDrop` in the constructor and wire targets via modern listeners—do not use V1 helpers. Keep handlers on `this.element` with `addEventListener` and translate drops into V2 updates.
+---
+description: Patterns and snippets for ApplicationV2 windows (v13)
+globs: "src/**"
+alwaysApply: true
+---
+
+# ApplicationV2 – How to structure windows
+
+## Skeleton
+Use `DEFAULT_OPTIONS`, implement `_prepareContext` and `_renderHTML`, and wire events with `addEventListener`:
+
+```ts
+import { HandlebarsApplicationMixin } from "foundry/applications/api.mjs"; // if using HBS
+
+export class SyncManager extends HandlebarsApplicationMixin(ApplicationV2) {
+  static override DEFAULT_OPTIONS = {
+    id: "archivist-sync-manager",
+    window: { title: "Archivist: Sync Manager", resizable: true },
+    classes: ["archivist", "sync"],
+    position: { width: 640, height: "auto" },
+  };
+
+  override async _prepareContext(_options) {
+    return {
+      sessions: await game.modules.get("myarchivist")?.api?.listSessions?.() ?? [],
+    };
+  }
+
+  override async _renderHTML(context, _options) {
+    // Return a string or Node for HandlebarsApplicationMixin, or mount your own DOM.
+    return await renderTemplate("modules/myarchivist/templates/sync-manager.hbs", context);
+  }
+
+  override async _onFirstRender(context, options) {
+    this.element.querySelector("[data-action='refresh']")
+      ?.addEventListener("click", () => this.render({ force: true }));
+  }
+}

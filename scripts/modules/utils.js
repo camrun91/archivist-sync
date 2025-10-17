@@ -582,13 +582,14 @@ export class Utils {
   }
 
   /** Create a custom sheet JournalEntry for an imported Archivist entity */
-  static async createCustomJournalForImport({ name, html = '', imageUrl, sheetType, archivistId, worldId, folderId }) {
+  static async createCustomJournalForImport({ name, html = '', imageUrl, sheetType, archivistId, worldId, folderId, sort }) {
     try {
       console.log(`[Archivist Sync] createCustomJournalForImport called:`, {
         name,
         sheetType,
         archivistId,
         providedFolderId: folderId,
+        sort,
       });
 
       await this.ensureArchivistFolders();
@@ -613,14 +614,17 @@ export class Utils {
       });
 
       const targetFolderId = folderId || folder?.id || null;
-      const journal = await JournalEntry.create({
+      const createData = {
         name,
         folder: targetFolderId,
         ...(imageUrl ? { img: imageUrl } : {}),
+        ...(typeof sort === 'number' ? { sort } : {}),
         flags: {
           core: { sheetClass, sheet: sheetClass },
         },
-      }, { render: false });
+      };
+
+      const journal = await JournalEntry.create(createData, { render: false });
 
       console.log(`[Archivist Sync] Journal created:`, {
         journalId: journal.id,
@@ -658,7 +662,7 @@ export class Utils {
   }
 
   /** Create a new Archivist journal with flags and initial text page */
-  static async createArchivistJournal({ name, sheetType, archivistId, worldId, folderName, text = '' }) {
+  static async createArchivistJournal({ name, sheetType, archivistId, worldId, folderName, text = '', sort }) {
     const folder = folderName ? await this.ensureJournalFolder(folderName) : null;
     // Map Archivist sheet types to our registered V2 sheet classes
     const sheetClassMap = {
@@ -671,16 +675,26 @@ export class Utils {
     };
     const normalizedType = String(sheetType || '').toLowerCase();
     const sheetClass = sheetClassMap[normalizedType] || '';
-    const journal = await JournalEntry.create({ name, folder, flags: { core: { sheetClass, sheet: sheetClass } } }, { render: false });
-    await this.ensureJournalTextPage(journal, text);
-    const flags = {
+    // Provide our archivist flags at creation so createJournalEntry hook can POST immediately
+    const initialArchivistFlags = {
       sheetType: normalizedType,
       archivistId: archivistId || null,
       archivistWorldId: worldId || null,
       archivistRefs: { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] },
       foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
     };
-    await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+    const createData = {
+      name,
+      folder,
+      ...(typeof sort === 'number' ? { sort } : {}),
+      flags: {
+        core: { sheetClass, sheet: sheetClass },
+        [CONFIG.MODULE_ID]: { archivist: initialArchivistFlags },
+      }
+    };
+    const journal = await JournalEntry.create(createData, { render: false });
+    await this.ensureJournalTextPage(journal, text);
+    // Flags were provided at creation; no need to set again here
     return journal;
   }
 

@@ -16,7 +16,7 @@ export const SETTINGS = {
     name: 'ARCHIVIST_SYNC.Settings.ApiKey.Name',
     hint: 'ARCHIVIST_SYNC.Settings.ApiKey.Hint',
     scope: 'world',
-    config: true,
+    config: false, // Hidden from normal settings; use menu instead
     type: String,
     default: '',
   },
@@ -40,19 +40,7 @@ export const SETTINGS = {
     type: String,
     default: 'None selected',
   },
-  /**
-   * World-scoped import configuration (JSON string)
-   * Holds mapping paths, source selections, filters, and write-back modes
-   */
-  IMPORT_CONFIG: {
-    key: 'importConfig',
-    name: 'ARCHIVIST_SYNC.Settings.ImportConfig.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.ImportConfig.Hint',
-    scope: 'world',
-    config: false,
-    type: String,
-    default: '{}',
-  },
+  // Import config setting removed
 
   WORLD_INITIALIZED: {
     key: 'worldInitialized',
@@ -64,15 +52,7 @@ export const SETTINGS = {
     default: false,
   },
 
-  AUTO_SORT: {
-    key: 'autoSort',
-    name: 'ARCHIVIST_SYNC.Settings.AutoSort.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.AutoSort.Hint',
-    scope: 'world',
-    config: true,
-    type: Boolean,
-    default: true,
-  },
+  // Auto-sort setting removed; sorting is always enabled
 
   HIDE_BY_OWNERSHIP: {
     key: 'hideByOwnership',
@@ -84,25 +64,9 @@ export const SETTINGS = {
     default: true,
   },
 
-  ORGANIZE_FOLDERS: {
-    key: 'organizeFolders',
-    name: 'ARCHIVIST_SYNC.Settings.OrganizeFolders.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.OrganizeFolders.Hint',
-    scope: 'world',
-    config: true,
-    type: Boolean,
-    default: true,
-  },
+  // Organize folders setting removed
 
-  MAX_LOCATION_DEPTH: {
-    key: 'maxLocationDepth',
-    name: 'ARCHIVIST_SYNC.Settings.MaxLocationDepth.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.MaxLocationDepth.Hint',
-    scope: 'world',
-    config: true,
-    type: Number,
-    default: 5,
-  },
+  // Max location depth setting removed
 
   REALTIME_SYNC_ENABLED: {
     key: 'realtimeSyncEnabled',
@@ -124,15 +88,17 @@ export const SETTINGS = {
     default: '[]',
   },
 
-  SEMANTIC_MAPPING_ENABLED: {
-    key: 'semanticMappingEnabled',
-    name: 'ARCHIVIST_SYNC.Settings.SemanticMapping.Name',
-    hint: 'ARCHIVIST_SYNC.Settings.SemanticMapping.Hint',
-    scope: 'world',
-    config: false,
+  CHAT_HISTORY_ENABLED: {
+    key: 'chatHistoryEnabled',
+    name: 'ARCHIVIST_SYNC.Settings.ChatHistoryEnabled.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ChatHistoryEnabled.Hint',
+    scope: 'client',
+    config: true,
     type: Boolean,
-    default: false,
+    default: true,
   },
+
+  // Semantic mapping setting removed
 };
 
 /**
@@ -142,6 +108,14 @@ export const SETTINGS = {
 const ICON = 'modules/archivist-sync/assets/icons/archivist.svg';
 
 export const MENU_CONFIG = {
+  UPDATE_API_KEY: {
+    key: 'updateApiKey',
+    name: 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Name',
+    label: 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Label',
+    hint: 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Hint',
+    icon: 'fas fa-key',
+    restricted: true,
+  },
   RUN_SETUP_AGAIN: {
     key: 'runSetupAgain',
     name: 'ARCHIVIST_SYNC.Menu.RunSetup.Name',

@@ -1,8 +1,19 @@
 <section class="archivist-sheet">
     <aside class="archivist-sidebar">
         <header class="archivist-header">
-            <h2 class="archivist-title">{{document.name}}</h2>
+            {{#if setup.editingInfo}}
+            <input class="archivist-title-input" type="text" value="{{setup.name}}" />
+            {{else}}
+            <h2 class="archivist-title">{{setup.name}}</h2>
+            {{/if}}
             <small class="archivist-subtitle">Entry</small>
+            {{#if setup.isGM}}
+            <button type="button" class="archivist-edit-toggle" data-action="toggle-edit-mode"
+                title="{{#if setup.editingInfo}}Save Changes{{else}}Edit Sheet{{/if}}">
+                {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
+                    class="fa-solid fa-lock"></i>{{/if}}
+            </button>
+            {{/if}}
         </header>
         <nav class="archivist-nav tabs" data-group="archivist">
             <a class="item" data-tab="info">{{localize 'Info'}}</a>
@@ -20,11 +31,11 @@
             <div class="archivist-info">
                 {{#if setup.editingInfo}}
                 <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
-                    compact="true" toggled>
-                    {{{document.pages.contents.[0].text.content}}}
+                    compact="true" toggled data-toggled="true">
+                    {{{htmlContent}}}
                 </prose-mirror>
                 {{else}}
-                {{{document.pages.contents.[0].text.content}}}
+                {{{htmlContent}}}
                 {{/if}}
             </div>
         </section>

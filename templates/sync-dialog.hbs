@@ -5,34 +5,15 @@
         <span>Loading...</span>
     </div>
     {{else}}
-    <header class="sync-header">
-        <nav class="step-indicator">
-            <div class="step-number {{#if isStep1}}active{{/if}}" data-action="changeStep" data-step="1">
-                1
-            </div>
-            <div style="width: 240px; height: 2px; background: var(--arch-border);"></div>
-            <div class="step-number {{#if isStep2}}active{{/if}}" data-action="changeStep" data-step="2">
-                2
-            </div>
-        </nav>
-        <div class="step-labels">
-            <span class="step-label {{#if isStep1}}active{{/if}}" data-action="changeStep" data-step="1">Review
-                diffs</span>
-            <span class="step-label {{#if isStep2}}active{{/if}}" data-action="changeStep" data-step="2">Import
-                new</span>
-        </div>
-        <div class="actions">
-            <button type="button" data-action="refresh" title="Refresh" class="icon-btn">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-            <button type="button" data-action="applySelected" class="primary">Apply Selected</button>
-        </div>
-    </header>
+    <div class="sync-toolbar">
+        <button type="button" data-action="refresh" title="Refresh" class="icon-btn">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
 
-    {{#if isStep1}}
     <section class="panel">
         <div class="panel-header">
-            <h3>Linked document diffs ({{stats.diffs}})</h3>
+            <h3>Review Diffs ({{stats.diffs}})</h3>
             <div class="bulk" data-scope="diffs">
                 <button type="button" data-action="selectAll">Select all</button>
                 <button type="button" data-action="selectNone">Select none</button>
@@ -78,12 +59,10 @@
             </table>
         </div>
     </section>
-    {{/if}}
 
-    {{#if isStep2}}
     <section class="panel">
         <div class="panel-header">
-            <h3>Unlinked Archivist documents ({{stats.imports}})</h3>
+            <h3>Import New ({{stats.imports}})</h3>
             <div class="bulk" data-scope="imports">
                 <button type="button" data-action="selectAll">Select all</button>
                 <button type="button" data-action="selectNone">Select none</button>
@@ -96,9 +75,7 @@
                         <th style="width: 40px;"></th>
                         <th style="width: 120px;">Type</th>
                         <th>Name</th>
-                        <th style="width: 80px; text-align: center;">Actor</th>
-                        <th style="width: 80px; text-align: center;">Item</th>
-                        <th style="width: 80px; text-align: center;">Scene</th>
+                        <th style="width: 140px; text-align: center;">Create New</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -108,16 +85,12 @@
                         <td>{{r.type}}</td>
                         <td>{{r.name}}</td>
                         <td style="text-align: center;">
-                            <input type="checkbox" data-action="toggleCore" data-field="actor" {{#unless (eq
-                                r.type 'Character' )}}disabled{{/unless}} {{#if r.createCore.actor}}checked{{/if}} />
-                        </td>
-                        <td style="text-align: center;">
-                            <input type="checkbox" data-action="toggleCore" data-field="item" {{#unless (eq
-                                r.type 'Item' )}}disabled{{/unless}} {{#if r.createCore.item}}checked{{/if}} />
-                        </td>
-                        <td style="text-align: center;">
-                            <input type="checkbox" data-action="toggleCore" data-field="scene" {{#unless (eq
-                                r.type 'Location' )}}disabled{{/unless}} {{#if r.createCore.scene}}checked{{/if}} />
+                            {{#if r.coreType}}
+                            <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                                <input type="checkbox" data-action="toggleCore" {{#if r.createCore}}checked{{/if}} />
+                                <span style="text-transform: capitalize;">{{r.coreType}}</span>
+                            </label>
+                            {{/if}}
                         </td>
                     </tr>
                     {{/each}}
@@ -125,6 +98,10 @@
             </table>
         </div>
     </section>
-    {{/if}}
+
+    <footer class="sync-footer">
+        <button type="button" data-action="cancel" class="secondary">Cancel</button>
+        <button type="button" data-action="sync" class="primary">Sync</button>
+    </footer>
     {{/if}}
 </section>

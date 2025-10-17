@@ -1,0 +1,14 @@
+---
+description: Consistent UX conventions for Archivist Foundry modules (v13)
+globs: "src/**"
+alwaysApply: true
+---
+
+# UX / Style Conventions (v13)
+
+- **Window frame**: prefer standard V2 window with header controls; expose “Help” linking to module docs.
+- **Tabs**: use `TABS` configuration; initial tab is “overview”.
+- **Accessibility**: label form controls, use buttons with `type="button"` vs `type="submit"` intentionally.
+- **Positioning**: Use `setPosition` updates rather than direct style mutations.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+- **Context menus**: use `_createContextMenu(...)` when needed, not custom right-click handlers.  [oai_citation:12‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+- **Performance**: keep `_prepareContext` lean; defer heavy fetches to `_onFirstRender` with a loading state.

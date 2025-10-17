@@ -6,13 +6,24 @@
             {{else if document.img}}
             <img class="archivist-avatar" src="{{document.img}}" alt="" />
             {{/if}}
+            {{#if setup.editingInfo}}
+            <input class="archivist-title-input" type="text" value="{{setup.name}}" />
+            {{else}}
             <h2 class="archivist-title">{{setup.name}}</h2>
+            {{/if}}
             <div class="archivist-subtitle-with-actions">
                 <small class="archivist-subtitle">Character</small>
                 <button type="button" data-action="place-on-scene" title="Place on Scene">
                     <i class="fas fa-map-marker-alt"></i>
                 </button>
             </div>
+            {{#if setup.isGM}}
+            <button type="button" class="archivist-edit-toggle" data-action="toggle-edit-mode"
+                title="{{#if setup.editingInfo}}Save Changes{{else}}Edit Sheet{{/if}}">
+                {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
+                    class="fa-solid fa-lock"></i>{{/if}}
+            </button>
+            {{/if}}
         </header>
         <nav class="archivist-nav tabs" data-group="archivist">
             <a class="item" data-tab="info">Info</a>
@@ -30,7 +41,7 @@
             <div class="archivist-info">
                 {{#if setup.editingInfo}}
                 <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
-                    compact="true" toggled>
+                    compact="true" toggled data-toggled="true">
                     {{{htmlContent}}}
                 </prose-mirror>
                 {{else}}
