@@ -1,389 +1,6 @@
 <form class="archivist-world-setup" autocomplete="off">
     <div class="archivist-world-setup-root campaign-codex">
-        <style>
-            /* Default (Dark Theme) */
-            .world-setup-dialog {
-                --setup-primary: #4a90e2;
-                --setup-success: #47d16a;
-                --setup-warning: #ffb020;
-                --setup-danger: #dc3545;
-                --setup-bg: rgba(35, 38, 44, 1);
-                --setup-bg-alt: rgba(42, 45, 51, 1);
-                --setup-border: rgba(255, 255, 255, 0.12);
-                --setup-text: #e8e8e8;
-                --setup-text-muted: #b9b9b9;
-                --setup-panel: rgba(255, 255, 255, 0.03);
-            }
-
-            /* Light mode disabled: always use dark palette */
-
-            .world-setup-dialog .window-content {
-                padding: 0;
-                background: var(--cc-main-bg);
-            }
-
-            .setup-header {
-                background: var(--cc-accent80);
-                color: var(--cc-main-text);
-                padding: 20px;
-                text-align: center;
-            }
-
-            .setup-header h2 {
-                margin: 0 0 10px 0;
-                font-size: 24px;
-                font-weight: 600;
-            }
-
-            .setup-header p {
-                margin: 0;
-                opacity: 0.9;
-                font-size: 14px;
-            }
-
-            .progress-container {
-                background: color-mix(in srgb, var(--cc-border), transparent 70%);
-                height: 4px;
-                margin-top: 15px;
-                border-radius: 2px;
-                overflow: hidden;
-            }
-
-            .progress-fill {
-                background: var(--cc-accent);
-                height: 100%;
-                transition: width 0.3s ease;
-                border-radius: 2px;
-            }
-
-            /* Step 3: ensure campaign select has adequate height and readable options */
-            .world-setup-dialog #campaign-select {
-                min-height: 44px;
-                line-height: 1.4;
-                padding: 10px 12px;
-            }
-
-            .world-setup-dialog #campaign-select option {
-                padding: 8px 10px;
-                line-height: 1.5;
-            }
-
-            /* Step 4: ensure all select elements have adequate height and readable options */
-            .world-setup-dialog .setup-form-group select {
-                min-height: 44px;
-                line-height: 1.4;
-                padding: 10px 12px;
-            }
-
-            .world-setup-dialog .setup-form-group select option {
-                padding: 8px 10px;
-                line-height: 1.5;
-            }
-
-            .setup-content {
-                padding: 16px;
-                min-height: 300px;
-                display: flex;
-                flex-direction: column;
-            }
-
-            .step-indicator {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                gap: 10px;
-                margin-bottom: 30px;
-            }
-
-            .step-number {
-                width: 30px;
-                height: 30px;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-weight: 600;
-                font-size: 14px;
-                background: var(--setup-border);
-                color: var(--setup-text);
-            }
-
-            .step-number.active {
-                background: var(--setup-primary);
-                color: var(--setup-bg);
-            }
-
-            .step-number.completed {
-                background: var(--setup-success);
-                color: var(--setup-bg);
-            }
-
-            .step-content {
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                gap: 20px;
-            }
-
-            .step-title {
-                font-size: 18px;
-                font-weight: 600;
-                color: var(--cc-main-text);
-                margin: 0 0 10px 0;
-            }
-
-            .step-description {
-                color: var(--cc-text-muted);
-                line-height: 1.5;
-                margin-bottom: 20px;
-            }
-
-            .setup-form-group {
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-            }
-
-            .setup-form-group label {
-                font-weight: 600;
-                color: var(--cc-main-text);
-            }
-
-            .setup-form-group select,
-            .setup-form-group input {
-                padding: 10px;
-                border: 1px solid var(--cc-border);
-                border-radius: 4px;
-                font-size: 14px;
-            }
-
-            .setup-actions {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 16px;
-                border-top: 1px solid var(--cc-border);
-                background: var(--cc-sidebar-bg);
-            }
-
-            .setup-btn {
-                padding: 10px 20px;
-                border: none;
-                border-radius: 4px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.2s ease;
-            }
-
-            .setup-btn:disabled {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-
-            .setup-btn.primary {
-                background: var(--cc-accent);
-                color: white;
-            }
-
-            .setup-btn.primary:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--cc-accent), black 15%);
-            }
-
-            .setup-btn.secondary {
-                background: var(--cc-border-light);
-                color: var(--cc-main-text);
-            }
-
-            .setup-btn.secondary:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--cc-border), var(--cc-main-bg) 60%);
-            }
-
-            .setup-btn.success {
-                background: var(--cc-success);
-                color: white;
-            }
-
-            .setup-btn.success:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--cc-success), black 15%);
-            }
-
-            .world-info-box {
-                background: var(--cc-ui);
-                border: 1px solid var(--cc-border);
-                border-radius: 8px;
-                padding: 15px;
-                margin: 10px 0;
-            }
-
-            .world-info-box h4 {
-                margin: 0 0 10px 0;
-                color: var(--cc-main-text);
-            }
-
-            .world-info-box p {
-                margin: 5px 0;
-                color: #6c757d;
-                font-size: 14px;
-            }
-
-            .status-indicator {
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 8px 12px;
-                border-radius: 4px;
-                font-size: 14px;
-                font-weight: 600;
-            }
-
-            .status-indicator.success {
-                background: color-mix(in srgb, var(--cc-success), transparent 90%);
-                color: var(--cc-success);
-            }
-
-            .status-indicator.warning {
-                background: rgba(255, 193, 7, 0.1);
-                color: var(--setup-warning);
-            }
-
-            .loading-spinner {
-                display: inline-block;
-                width: 16px;
-                height: 16px;
-                border: 2px solid var(--cc-border);
-                border-top: 2px solid var(--cc-accent);
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-            }
-
-            @keyframes spin {
-                0% {
-                    transform: rotate(0deg);
-                }
-
-                100% {
-                    transform: rotate(360deg);
-                }
-            }
-
-            /* Step 5: Selection rows - equal name/select split and high-contrast visuals */
-            .world-setup-dialog .ws-select-row {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-                width: 100%;
-            }
-
-            .world-setup-dialog .ws-select-row input[type="checkbox"] {
-                flex-shrink: 0;
-            }
-
-            .world-setup-dialog .ws-select-row .ws-name {
-                flex: 1 1 0;
-                min-width: 0;
-                background: var(--setup-panel) !important;
-                color: var(--setup-text) !important;
-                border: 1px solid var(--setup-border) !important;
-                border-radius: 4px;
-                padding: 6px 10px;
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                height: 36px;
-            }
-
-            .world-setup-dialog .ws-select-row .ws-name img {
-                display: inline-block;
-                width: 20px;
-                height: 20px;
-                border-radius: 50%;
-                flex-shrink: 0;
-            }
-
-            .world-setup-dialog .ws-select-row select {
-                flex: 1 1 0;
-                min-width: 0;
-                background: var(--setup-panel) !important;
-                color: var(--setup-text) !important;
-                border: 1px solid var(--setup-border) !important;
-                border-radius: 4px;
-                padding: 6px 10px;
-                height: 36px;
-                line-height: 1.2;
-            }
-
-            /* Step 6: High-contrast progress logs */
-            .world-setup-dialog .ws-progress-log {
-                max-height: 200px;
-                overflow: auto;
-                background: var(--cc-ui) !important;
-                color: var(--cc-main-text) !important;
-                border: 1px solid var(--cc-border) !important;
-                padding: 8px;
-                border-radius: 6px;
-            }
-
-            .world-setup-dialog .ws-progress-log * {
-                color: var(--cc-main-text) !important;
-                background: transparent !important;
-            }
-
-            .world-setup-dialog .ws-progress-log ul {
-                margin: 0;
-                padding-left: 16px;
-            }
-
-            .world-setup-dialog .ws-progress-log li {
-                margin: 3px 0;
-                line-height: 1.35;
-            }
-
-            /* Step 4 Reconciliation: use distinct classes to avoid custom sheet vertical nav styles */
-            .world-setup-dialog nav.ws-recon-nav {
-                display: flex;
-                flex-direction: row;
-                gap: 8px;
-                border-bottom: 1px solid var(--cc-border);
-                margin-bottom: 10px;
-            }
-
-            .world-setup-dialog nav.ws-recon-nav .item {
-                padding: 8px 12px;
-                border-radius: 4px 4px 0 0;
-                cursor: pointer;
-                background: transparent;
-                color: var(--cc-text-muted);
-                text-decoration: none;
-                transition: background 0.2s ease;
-            }
-
-            .world-setup-dialog nav.ws-recon-nav .item:hover {
-                background: rgba(255, 255, 255, 0.06);
-                color: var(--cc-main-text);
-            }
-
-            .world-setup-dialog nav.ws-recon-nav .item.active {
-                background: var(--cc-ui);
-                color: var(--cc-main-text);
-                border: 1px solid var(--cc-border);
-                border-bottom-color: transparent;
-            }
-
-            .world-setup-dialog .ws-recon-content {
-                padding-top: 0;
-            }
-
-            .world-setup-dialog .ws-recon-content .tab {
-                display: none;
-            }
-
-            .world-setup-dialog .ws-recon-content .tab.active {
-                display: block;
-            }
-        </style>
+        <!-- All styles have been moved to archivist-sync.css for consistency -->
 
         <div class="setup-header">
             <h2>{{localize "ARCHIVIST_SYNC.worldSetup.title"}}</h2>
@@ -406,7 +23,7 @@
                 {{/if}}
             </div>
             {{#unless @last}}<div
-                style="width: 20px; height: 2px; background: {{#if (lt this ../currentStep)}}var(--setup-success){{else}}var(--setup-border){{/if}};">
+                style="width: 20px; height: 2px; background: {{#if (lt this ../currentStep)}}var(--cc-success){{else}}var(--cc-border){{/if}};">
             </div>{{/unless}}
             {{/each}}
         </div>
@@ -423,10 +40,10 @@
                     <p>{{foundryWorldDescription}}</p>
                     {{/if}}
                     <p><strong>{{localize "ARCHIVIST_SYNC.worldSetup.step1.nextSteps"}}</strong></p>
-                    <ul style="margin: 10px 0; padding-left: 20px; color: var(--setup-text);">
-                        <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
-                        <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
-                        <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
+                    <ul style="margin: 10px 0; padding-left: 20px; color: var(--cc-main-text);">
+                        <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step1"}}</li>
+                        <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step2"}}</li>
+                        <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step1.step3"}}</li>
                     </ul>
                 </div>
                 <div style="text-align:center; margin-top: 16px;">
@@ -462,7 +79,7 @@
 
                 {{#if isLoading}}
                 <div
-                    style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px 20px; color: var(--setup-text);">
+                    style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px 20px; color: var(--cc-main-text);">
                     <span class="loading-spinner" style="width:32px; height:32px; border-width:3px;"></span>
                     <span style="font-size:16px;">Loading reconciliation data…</span>
                     <span style="font-size:14px; opacity:0.75;">Fetching Archivist and Foundry documents</span>
@@ -470,7 +87,7 @@
                 {{else}}
                 {{#unless setupData.hasAnyCandidates}}
                 <div
-                    style="padding:8px; border:1px solid var(--cc-border); border-radius:6px; color: var(--setup-text); background: var(--setup-panel);">
+                    style="padding:8px; border:1px solid var(--cc-border); border-radius:6px; color: var(--cc-main-text); background: var(--cc-panel);">
                     No Foundry or Archivist candidates detected. You can proceed to the next step.
                 </div>
                 {{/unless}}
@@ -520,7 +137,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--cc-panel); border:1px solid var(--cc-border); border-radius:4px;">
                                     No Archivist characters found
                                 </div>
                                 {{/if}}
@@ -559,7 +176,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--cc-panel); border:1px solid var(--cc-border); border-radius:4px;">
                                     No Foundry actors found
                                 </div>
                                 {{/if}}
@@ -601,7 +218,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--cc-panel); border:1px solid var(--cc-border); border-radius:4px;">
                                     No Archivist items found
                                 </div>
                                 {{/if}}
@@ -637,7 +254,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--cc-panel); border:1px solid var(--cc-border); border-radius:4px;">
                                     No Foundry items found
                                 </div>
                                 {{/if}}
@@ -679,7 +296,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--cc-panel); border:1px solid var(--cc-border); border-radius:4px;">
                                     No Archivist locations found
                                 </div>
                                 {{/if}}
@@ -715,7 +332,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--cc-panel); border:1px solid var(--cc-border); border-radius:4px;">
                                     No Foundry scenes found
                                 </div>
                                 {{/if}}
@@ -873,9 +490,9 @@
                 {{#if syncStatus.total}}
                 <div style="margin:8px 0;">
                     <div
-                        style="height:6px; background:var(--setup-bg-alt); position:relative; border-radius:3px; overflow:hidden;">
+                        style="height:6px; background:var(--cc-main-bg-alt); position:relative; border-radius:3px; overflow:hidden;">
                         <div
-                            style="position:absolute; left:0; top:0; bottom:0; width: {{syncStatusPct}}%; background: var(--setup-primary);">
+                            style="position:absolute; left:0; top:0; bottom:0; width: {{syncStatusPct}}%; background: var(--cc-primary);">
                         </div>
                     </div>
                     <small>{{syncStatus.processed}} / {{syncStatus.total}} — {{syncStatus.current}}</small>
@@ -890,11 +507,6 @@
                     </ul>
                 </div>
                 {{/if}}
-                <div style="text-align:right;">
-                    <button type="button" class="setup-btn success" data-action="beginSync" {{#if
-                        isLoading}}disabled{{/if}}>{{localize
-                        "ARCHIVIST_SYNC.worldSetup.summary.beginSync"}}</button>
-                </div>
             </div>
             {{/if}}
             {{#if isStep2}}
@@ -905,20 +517,20 @@
             </div>
 
             <div class="world-info-box">
-                <h4><i class="fas fa-key" style="color: #ffc107;"></i> {{localize
+                <h4><i class="fas fa-key" style="color: var(--cc-warning);"></i> {{localize
                     "ARCHIVIST_SYNC.worldSetup.step2.getApiKey"}}</h4>
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.step2.noKeyYet"}}</p>
-                <ol style="margin: 10px 0; padding-left: 20px; color: var(--setup-text);">
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step1"}}</li>
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step2"}}</li>
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step3"}}</li>
-                    <li style="color: var(--setup-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step4"}}</li>
+                <ol style="margin: 10px 0; padding-left: 20px; color: var(--cc-main-text);">
+                    <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step1"}}</li>
+                    <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step2"}}</li>
+                    <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step3"}}</li>
+                    <li style="color: var(--cc-main-text);">{{localize "ARCHIVIST_SYNC.worldSetup.step2.step4"}}</li>
                 </ol>
                 <div
-                    style="background: color-mix(in srgb, var(--setup-warning), transparent 85%); border: 1px solid var(--setup-warning); border-radius: 4px; padding: 10px; margin: 10px 0;">
-                    <strong style="color: var(--setup-warning);">⚠️ {{localize
+                    style="background: color-mix(in srgb, var(--cc-warning), transparent 85%); border: 1px solid var(--cc-warning); border-radius: 4px; padding: 10px; margin: 10px 0;">
+                    <strong style="color: var(--cc-warning);">⚠️ {{localize
                         "ARCHIVIST_SYNC.worldSetup.step2.permissionsWarning"}}</strong>
-                    <p style="margin: 5px 0 0 0; color: var(--setup-warning); font-size: 14px;">{{localize
+                    <p style="margin: 5px 0 0 0; color: var(--cc-warning); font-size: 14px;">{{localize
                         "ARCHIVIST_SYNC.worldSetup.step2.permissionsDetails"}}</p>
                 </div>
             </div>
@@ -1023,6 +635,13 @@
                 <i class="fas fa-check"></i>
                 {{localize "ARCHIVIST_SYNC.worldSetup.buttons.complete"}}
             </button>
+            {{#if isStep6}}
+            <button type="button" class="setup-btn success" data-action="beginSync" {{#if
+                isLoading}}disabled{{/if}}>
+                <i class="fas fa-play"></i>
+                {{localize "ARCHIVIST_SYNC.worldSetup.summary.beginSync"}}
+            </button>
+            {{/if}}
             {{else}}
             <button type="button" data-action="nextStep" class="setup-btn primary" {{#unless
                 canProceed}}disabled{{/unless}}>
