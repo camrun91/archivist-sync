@@ -27,6 +27,25 @@ Use your repository’s release manifest URL (update the placeholder in `module.
 
 Tip: Also update the `url`, `manifest`, `download`, and `bugs` fields in `module.json` to point to your repo.
 
+### Beta Releases (Testing)
+
+Want to try the latest features before they're officially released? Install the beta channel with automatic updates:
+
+**Beta Manifest URL (with auto-updates):**
+```
+https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.json
+```
+
+**Installation:**
+1. In Foundry VTT, go to **Add-on Modules**
+2. Click **Install Module**
+3. Paste the beta manifest URL above
+4. Click **Install**
+
+✨ **Automatic Updates**: Once installed, Foundry will automatically detect and prompt you to install new beta releases. No need to reinstall or change the manifest URL!
+
+⚠️ **Note**: Beta releases may contain experimental features or known issues. They are not published to the official Foundry VTT package repository. You can switch back to the stable release at any time by uninstalling the beta and installing the production version.
+
 ## Getting Started
 
 ### 1) Launch World Setup

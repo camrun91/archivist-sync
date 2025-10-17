@@ -5,6 +5,12 @@ All notable changes to the Archivist Sync module will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2025-10-16
+
+## Fixed
+- Merged CSS files
+- World setup tabs no longer auto switch when selecting a checkbox
+
 ## [1.2.0] - 2025-10-16
 
 ## Added
