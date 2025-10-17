@@ -1,0 +1,164 @@
+name: Auto Release on Version Bump
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "module.json"
+      - "package.json"
+
+jobs:
+  check-and-release:
+    name: Check Version and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current version from module.json
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' module.json)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Current version in module.json: $VERSION"
+
+      - name: Check if package.json version matches
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          MODULE_VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          if [ "$PACKAGE_VERSION" != "$MODULE_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "   module.json: $MODULE_VERSION"
+            echo "   package.json: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Versions match: $MODULE_VERSION"
+
+      - name: Check if CHANGELOG has been updated
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "❌ CHANGELOG.md has not been updated for version $VERSION"
+            echo "   Please add a section for version $VERSION in CHANGELOG.md"
+            exit 1
+          fi
+
+          echo "✅ CHANGELOG.md contains section for version $VERSION"
+
+      - name: Check if release already exists
+        id: check_release
+        run: |
+          TAG="${{ steps.get_version.outputs.TAG }}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "ℹ️  Tag $TAG already exists, skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✨ Tag $TAG does not exist, will create release"
+          fi
+
+      - name: Setup Node.js
+        if: steps.check_release.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        if: steps.check_release.outputs.exists == 'false'
+        run: npm ci
+
+      # - name: Run linter
+      #   if: steps.check_release.outputs.exists == 'false'
+      #   run: npm run lint
+
+      - name: Create module archive
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          # Create a clean zip of the module
+          zip -r module.zip \
+            module.json \
+            README.md \
+            CHANGELOG.md \
+            CONTRIBUTING.md \
+            assets/ \
+            lang/ \
+            scripts/ \
+            styles/ \
+            templates/ \
+            -x "*.git*" -x "*node_modules*" -x "*.DS_Store"
+
+          echo "📦 Archive created: module.zip"
+          ls -lh module.zip
+
+      - name: Extract changelog for this version
+        if: steps.check_release.outputs.exists == 'false'
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+
+          # Extract changelog section for this version
+          if [ -f CHANGELOG.md ]; then
+            awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > release_notes.md
+          fi
+
+          # If release notes are empty, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release $VERSION" > release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release_notes.md
+          fi
+
+          echo "📝 Release notes:"
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            module.zip
+            module.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set release environment variables
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "RELEASE_NAME=${{ steps.get_version.outputs.TAG }}" >> $GITHUB_ENV
+          echo "MANIFEST_FILE_PATH=module.json" >> $GITHUB_ENV
+
+      - name: Publish Module to FoundryVTT Website
+        if: steps.check_release.outputs.exists == 'false'
+        uses: Varriount/fvtt-autopublish@v2.0.2
+        with:
+          username: ${{ secrets.FOUNDRY_ADMIN_USERNAME }}
+          password: ${{ secrets.FOUNDRY_ADMIN_PASSWORD }}
+          module-id: ${{ secrets.FOUNDRY_ADMIN_MODULE_ID }}
+          manifest-url: https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_NAME }}/module.json
+          manifest-file: ${{ env.MANIFEST_FILE_PATH }}
+
+      - name: Notify on Success
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          echo "✅ Release ${{ steps.get_version.outputs.VERSION }} published successfully!"
+          echo "📦 Module archive: https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.TAG }}/module.zip"
+          echo "📄 Manifest: https://github.com/${{ github.repository }}/releases/download/${{ steps.get_version.outputs.TAG }}/module.json"
+          echo "🌐 Published to Foundry VTT package repository"
