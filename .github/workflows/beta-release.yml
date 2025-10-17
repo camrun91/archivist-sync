@@ -166,6 +166,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Configure Git
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Update beta-latest tag
         if: steps.check_release.outputs.exists == 'false'
         run: |
@@ -215,9 +221,6 @@ jobs:
       - name: Commit updated module.json back to staging
         if: steps.check_release.outputs.exists == 'false'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
           # Check if module.json has changes
           if git diff --quiet module.json; then
             echo "ℹ️  No changes to module.json, skipping commit"
