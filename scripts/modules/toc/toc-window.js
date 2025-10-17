@@ -291,6 +291,7 @@ class ArchivistHub extends foundry.applications.api.HandlebarsApplicationMixin(
 
     async _onTogglePerm(event) {
         event.preventDefault();
+        if (!game.user?.isGM) return; // players cannot toggle visibility
         const li = event?.target?.closest?.('li[data-id]');
         if (!li) return;
         const kind = li.dataset.kind;
@@ -313,6 +314,7 @@ class ArchivistHub extends foundry.applications.api.HandlebarsApplicationMixin(
 
     async _onCreateRow(event) {
         event.preventDefault();
+        if (!game.user?.isGM) return; // players cannot create entries
         try {
             const typeLabel = {
                 pcs: 'PC',
@@ -343,7 +345,10 @@ class ArchivistHub extends foundry.applications.api.HandlebarsApplicationMixin(
             }
 
             // Open the newly created sheet via standard render
-            if (journal) await journal.sheet?.render?.(true);
+            if (journal) {
+                await journal.sheet?.render?.(true);
+                setTimeout(() => journal.sheet?.bringToFront?.(), 50);
+            }
 
             await this.render();
         } catch (e) {
@@ -398,6 +403,7 @@ class ArchivistHub extends foundry.applications.api.HandlebarsApplicationMixin(
 
     async _onOpenSyncDialog(event) {
         event?.preventDefault?.();
+        if (!game.user?.isGM) return; // GM-only
         try {
             const { SyncDialog } = await import('../../dialogs/sync-dialog.js');
             const dlg = new SyncDialog();

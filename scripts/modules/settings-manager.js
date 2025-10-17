@@ -20,15 +20,12 @@ export class SettingsManager {
     this._registerApiKey();
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
-    this._registerImportConfig();
     this._registerWorldInitialized();
-    this._registerAutoSort();
+    // Auto-sort removed; sorting is always enabled
     this._registerHideByOwnership();
-    this._registerOrganizeFolders();
-    this._registerMaxLocationDepth();
     this._registerRealtimeSync();
     this._registerChatHistory();
-    this._registerSemanticToggle();
+    this._registerUpdateApiKeyMenu();
     this._registerRunSetupAgainMenu();
   }
 
@@ -53,21 +50,7 @@ export class SettingsManager {
     });
   }
 
-  /**
-   * Register AI enablement toggles
-   * @private
-   */
-  _registerSemanticToggle() {
-    const semantic = SETTINGS.SEMANTIC_MAPPING_ENABLED;
-    game.settings.register(this.moduleId, semantic.key, {
-      name: game.i18n.localize(semantic.name),
-      hint: game.i18n.localize(semantic.hint),
-      scope: semantic.scope,
-      config: semantic.config,
-      type: semantic.type,
-      default: semantic.default,
-    });
-  }
+  // Semantic mapping setting removed
 
   /**
    * Register AI provider API keys
@@ -81,35 +64,9 @@ export class SettingsManager {
    */
   // MCP scopes setting removed
 
-  /**
-   * Mapping override JSON (per-world adjustable DSL tweaks)
-   */
-  _registerMappingOverride() {
-    game.settings.register(this.moduleId, 'mappingOverride', {
-      name: 'ARCHIVIST_SYNC.Settings.MappingOverride.Name',
-      hint: 'ARCHIVIST_SYNC.Settings.MappingOverride.Hint',
-      scope: 'world',
-      config: false,
-      type: String,
-      default: '{}',
-    });
-  }
+  // Mapping override setting removed
 
-  /**
-   * Register world-scoped import configuration setting (JSON)
-   * @private
-   */
-  _registerImportConfig() {
-    const setting = SETTINGS.IMPORT_CONFIG;
-    game.settings.register(this.moduleId, setting.key, {
-      name: game.i18n.localize(setting.name),
-      hint: game.i18n.localize(setting.hint),
-      scope: setting.scope,
-      config: setting.config,
-      type: setting.type,
-      default: setting.default,
-    });
-  }
+  // Import configuration setting removed
 
   /**
    * Register Selected World ID setting
@@ -152,6 +109,78 @@ export class SettingsManager {
   }
 
   /**
+   * Register Update API Key menu
+   * @private
+   */
+  _registerUpdateApiKeyMenu() {
+    game.settings.registerMenu(this.moduleId, MENU_CONFIG.UPDATE_API_KEY.key, {
+      name: game.i18n.localize(MENU_CONFIG.UPDATE_API_KEY.name),
+      label: game.i18n.localize(MENU_CONFIG.UPDATE_API_KEY.label),
+      hint: game.i18n.localize(MENU_CONFIG.UPDATE_API_KEY.hint),
+      icon: MENU_CONFIG.UPDATE_API_KEY.icon,
+      type: class extends foundry.applications.api.ApplicationV2 {
+        static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
+          id: 'archivist-update-api-key',
+          window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Title') },
+        });
+        async render(force = false, options = {}) {
+          const result = await foundry.applications.api.DialogV2.prompt({
+            window: {
+              title: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Title'),
+              minimizable: false
+            },
+            position: { width: 480 },
+            content: `
+              <p style="margin-bottom: 1rem;">${game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Description')}</p>
+              <div class="form-group">
+                <input 
+                  type="password" 
+                  name="apiKey" 
+                  placeholder="${game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Placeholder')}"
+                  style="width: 100%; padding: 0.5rem; font-family: monospace;"
+                  autofocus
+                />
+              </div>
+            `,
+            ok: {
+              label: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Update'),
+              icon: 'fas fa-check',
+              callback: (event, button) => {
+                const form = button.form;
+                return new FormData(form).get('apiKey');
+              }
+            },
+            cancel: {
+              label: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Cancel'),
+              icon: 'fas fa-times'
+            },
+            rejectClose: false
+          });
+
+          if (result) {
+            const newApiKey = String(result).trim();
+            if (!newApiKey) {
+              ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Empty'));
+            } else {
+              try {
+                const { settingsManager } = await import('./settings-manager.js');
+                const MODULE_ID = settingsManager.moduleId || (await import('./config.js')).CONFIG.MODULE_ID;
+                await game.settings.set(MODULE_ID, 'apiKey', newApiKey);
+                ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Success'));
+              } catch (e) {
+                console.error('[Archivist Sync] Failed to update API key', e);
+                ui.notifications.error('Failed to update API key');
+              }
+            }
+          }
+          return this;
+        }
+      },
+      restricted: MENU_CONFIG.UPDATE_API_KEY.restricted,
+    });
+  }
+
+  /**
    * Register settings menu
    * @private
    */
@@ -161,9 +190,11 @@ export class SettingsManager {
       label: game.i18n.localize(MENU_CONFIG.RUN_SETUP_AGAIN.label),
       hint: game.i18n.localize(MENU_CONFIG.RUN_SETUP_AGAIN.hint),
       icon: MENU_CONFIG.RUN_SETUP_AGAIN.icon,
-      type: class extends FormApplication {
-        constructor(...args) { super(...args); }
-        static get defaultOptions() { return foundry.utils.mergeObject(super.defaultOptions, { id: 'archivist-run-setup', title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') }); }
+      type: class extends foundry.applications.api.ApplicationV2 {
+        static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
+          id: 'archivist-run-setup',
+          window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') },
+        });
         async render(force = false, options = {}) {
           const confirmed = await foundry.applications.api.DialogV2.confirm({
             window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') },
@@ -172,13 +203,75 @@ export class SettingsManager {
           if (confirmed) {
             try {
               const { settingsManager } = await import('./settings-manager.js');
+              const MODULE_ID = settingsManager.moduleId || (await import('./config.js')).CONFIG.MODULE_ID;
+
+              console.warn('[Archivist Sync] ⚠️  RE-INITIALIZATION STARTED: Real-time sync will be DISABLED to prevent data loss');
+              ui.notifications?.info?.('Resetting Archivist setup...');
+
+              // CRITICAL: Suppress realtime sync to prevent cascading deletions to Archivist backend
+              try { settingsManager.suppressRealtimeSync?.(); } catch (_) { }
+
+              // Verify suppression is active
+              if (!settingsManager.isRealtimeSyncSuppressed?.()) {
+                console.error('[Archivist Sync] ❌ CRITICAL: Realtime sync suppression FAILED!');
+                ui.notifications?.error?.('Critical error: Unable to disable sync. Aborting to prevent data loss.');
+                return this;
+              }
+              console.log('[Archivist Sync] ✓ Real-time sync successfully suppressed');
+
+              // 1) Delete Archivist custom sheets (JournalEntries) flagged with our sheetType
+              try {
+                const journals = game.journal?.contents || [];
+                const toDelete = [];
+                for (const j of journals) {
+                  const flags = j.getFlag(MODULE_ID, 'archivist') || {};
+                  const st = String(flags.sheetType || '').toLowerCase();
+                  if (st === 'pc' || st === 'npc' || st === 'character' || st === 'item' || st === 'location' || st === 'faction' || st === 'recap') {
+                    toDelete.push(j);
+                  }
+                }
+                if (toDelete.length) {
+                  await Promise.allSettled(toDelete.map(j => j.delete({ render: false })));
+                }
+              } catch (e) {
+                console.warn('[Archivist Sync] Cleanup: failed deleting custom sheets', e);
+              }
+
+              // 2) Remove Archivist flags from core Actors, Items, Scenes (but do not delete the docs)
+              try {
+                const actors = game.actors?.contents || [];
+                await Promise.allSettled(actors.map(a => a?.unsetFlag?.(MODULE_ID, 'archivistId')));
+              } catch (e) {
+                console.warn('[Archivist Sync] Cleanup: actors unsetFlag failed', e);
+              }
+              try {
+                const items = game.items?.contents || [];
+                await Promise.allSettled(items.map(i => i?.unsetFlag?.(MODULE_ID, 'archivistId')));
+              } catch (e) {
+                console.warn('[Archivist Sync] Cleanup: items unsetFlag failed', e);
+              }
+              try {
+                const scenes = game.scenes?.contents || [];
+                await Promise.allSettled(scenes.map(s => s?.unsetFlag?.(MODULE_ID, 'archivistId')));
+              } catch (e) {
+                console.warn('[Archivist Sync] Cleanup: scenes unsetFlag failed', e);
+              }
+
+              // 3) Mark world uninitialized
               await settingsManager.setWorldInitialized(false);
               ui.notifications?.info?.(game.i18n.localize('ARCHIVIST_SYNC.messages.worldInitializedReset'));
-              // Reload to trigger setup flow again
+              console.log('[Archivist Sync] Re-initialization complete. Reloading...');
+              // Reload to trigger setup flow again (suppression will be cleared on reload)
               window.location.reload();
             } catch (e) {
-              console.warn('[Archivist Sync] Failed to reset world initialization', e);
+              console.error('[Archivist Sync] ❌ Failed to reset world initialization', e);
               ui.notifications?.error?.(game.i18n.localize('ARCHIVIST_SYNC.errors.resetFailed') || 'Reset failed');
+            } finally {
+              // Resume realtime sync if we didn't reload (error case)
+              try {
+                settingsManager.resumeRealtimeSync?.();
+                console.log('[Archivist Sync] Real-time sync resumed after error');
+              } catch (_) { }
             }
           }
           return this;
@@ -215,21 +308,7 @@ export class SettingsManager {
     return this.getSetting(SETTINGS.API_KEY.key);
   }
 
-  /**
-   * AI settings getters
-   */
-  getSemanticMappingEnabled() {
-    return !!this.getSetting(SETTINGS.SEMANTIC_MAPPING_ENABLED.key);
-  }
-  // AI provider getters and MCP scopes getter removed
-
-  getMappingOverride() {
-    return game.settings.get(this.moduleId, 'mappingOverride');
-  }
-
-  async setMappingOverride(json) {
-    return await game.settings.set(this.moduleId, 'mappingOverride', json);
-  }
+  // AI settings and mapping override getters removed
 
   /**
    * Get selected world ID
@@ -258,78 +337,7 @@ export class SettingsManager {
     await this.setSetting(SETTINGS.SELECTED_WORLD_NAME.key, worldName);
   }
 
-  /**
-   * Import configuration helpers
-   */
-  getImportConfig() {
-    try {
-      const json = this.getSetting(SETTINGS.IMPORT_CONFIG.key) || '{}';
-      const parsed = JSON.parse(json);
-      return this._withImportDefaults(parsed);
-    } catch (_) {
-      return this._withImportDefaults({});
-    }
-  }
-
-  async setImportConfig(config) {
-    const json = JSON.stringify(config ?? {});
-    await this.setSetting(SETTINGS.IMPORT_CONFIG.key, json);
-  }
-
-  _withImportDefaults(input) {
-    const systemId = game.system?.id || 'generic';
-    const defaults = {
-      version: 1,
-      actorMappings: {
-        pc: {
-          enabled: true,
-          descriptionPath: this._defaultDescriptionPath(systemId, 'pc'),
-          portraitPath: 'img',
-          writeBack: 'none',
-        },
-        npc: {
-          enabled: false,
-          descriptionPath: this._defaultDescriptionPath(systemId, 'npc'),
-          portraitPath: 'img',
-          writeBack: 'none',
-        },
-      },
-      includeRules: {
-        sources: {
-          worldActors: true,
-          compendiumActorPacks: [],
-          worldItems: false,
-          compendiumItemPacks: [],
-          journals: [],
-        },
-        filters: {
-          actors: {
-            mustHavePlayerOwner: true,
-            npcRequirePlacedToken: true,
-            includeFolders: { pcs: ['PCs'], npcs: [] },
-          },
-          items: {
-            includeActorOwnedFrom: 'pc', // 'pc' | 'pc+npc'
-            includeWorldItemFolders: [],
-          },
-          factions: { journalFolders: [] },
-        },
-      },
-      writeBack: { summaryMaxChars: 1200 },
-    };
-    return foundry.utils.mergeObject(defaults, input ?? {}, {
-      inplace: false,
-      insertKeys: true,
-      insertValues: true,
-      overwrite: false,
-    });
-  }
-
-  _defaultDescriptionPath(systemId, kind) {
-    if (systemId === 'dnd5e') return 'system.details.biography.value';
-    if (systemId === 'pf2e') return 'system.details.publicNotes';
-    return 'system.details.biography.value';
-  }
+  // Import configuration helpers removed
 
   /**
    * Check if API is configured
@@ -447,6 +455,16 @@ export class SettingsManager {
       type: setting.type,
       default: setting.default,
     });
+
+    const enabled = SETTINGS.CHAT_HISTORY_ENABLED;
+    game.settings.register(this.moduleId, enabled.key, {
+      name: game.i18n.localize(enabled.name),
+      hint: game.i18n.localize(enabled.hint),
+      scope: enabled.scope,
+      config: enabled.config,
+      type: enabled.type,
+      default: enabled.default,
+    });
   }
 
   /**
@@ -498,17 +516,7 @@ export class SettingsManager {
     });
   }
 
-  _registerAutoSort() {
-    const setting = SETTINGS.AUTO_SORT;
-    game.settings.register(this.moduleId, setting.key, {
-      name: game.i18n.localize(setting.name),
-      hint: game.i18n.localize(setting.hint),
-      scope: setting.scope,
-      config: setting.config,
-      type: setting.type,
-      default: setting.default,
-    });
-  }
+  // _registerAutoSort removed
 
   _registerHideByOwnership() {
     const setting = SETTINGS.HIDE_BY_OWNERSHIP;
@@ -522,46 +530,15 @@ export class SettingsManager {
     });
   }
 
-  getAutoSort() {
-    return !!this.getSetting(SETTINGS.AUTO_SORT.key);
-  }
+  // getAutoSort removed
 
   getHideByOwnership() {
     return !!this.getSetting(SETTINGS.HIDE_BY_OWNERSHIP.key);
   }
 
-  _registerOrganizeFolders() {
-    const setting = SETTINGS.ORGANIZE_FOLDERS;
-    game.settings.register(this.moduleId, setting.key, {
-      name: game.i18n.localize(setting.name),
-      hint: game.i18n.localize(setting.hint),
-      scope: setting.scope,
-      config: setting.config,
-      type: setting.type,
-      default: setting.default,
-    });
-  }
+  // Organize folders setting removed
 
-  getOrganizeFolders() {
-    return !!this.getSetting(SETTINGS.ORGANIZE_FOLDERS.key);
-  }
-
-  _registerMaxLocationDepth() {
-    const setting = SETTINGS.MAX_LOCATION_DEPTH;
-    game.settings.register(this.moduleId, setting.key, {
-      name: game.i18n.localize(setting.name),
-      hint: game.i18n.localize(setting.hint),
-      scope: setting.scope,
-      config: setting.config,
-      type: setting.type,
-      default: setting.default,
-      range: { min: 1, max: 10, step: 1 },
-    });
-  }
-
-  getMaxLocationDepth() {
-    return Number(this.getSetting(SETTINGS.MAX_LOCATION_DEPTH.key) || 5);
-  }
+  // Max location depth setting removed
 
   isRealtimeSyncEnabled() {
     // Always enabled; runtime suppression is handled via isRealtimeSyncSuppressed()

@@ -1,6 +1,7 @@
 import { CONFIG, SETTINGS } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
+import { ArchivistHub } from '../modules/toc/toc-window.js';
 
 /**
  * Standalone Archivist Chat window (per-user)
@@ -17,6 +18,8 @@ export class AskChatWindow {
 
   _loadHistory() {
     try {
+      const enabled = !!game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY_ENABLED.key);
+      if (!enabled) return [];
       const raw = game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key) || '{}';
       const byUser = JSON.parse(raw);
       const key = this._historyKey();
@@ -28,6 +31,8 @@ export class AskChatWindow {
 
   _saveHistory() {
     try {
+      const enabled = !!game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY_ENABLED.key);
+      if (!enabled) return;
       const raw = game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key) || '{}';
       const byUser = JSON.parse(raw || '{}');
       const key = this._historyKey();
@@ -50,7 +55,7 @@ export class AskChatWindow {
         messages: this._messages?.length ?? 0,
         isStreaming: this._isStreaming,
       });
-    } catch (_) {}
+    } catch (_) { }
     // Markdown → HTML → Foundry enrichHTML for assistant messages
     const enriched = [];
     for (const m of this._messages) {
@@ -133,6 +138,7 @@ export class AskChatWindow {
     const form = root?.querySelector?.('.ask-form');
     const input = root?.querySelector?.('.ask-input');
     const clearBtn = root?.querySelector?.('.chat-clear-btn');
+    const hubBtn = root?.querySelector?.('.archivist-hub-btn');
     const handleCopyClick = async e => {
       const btn = e.target?.closest?.('.copy-btn');
       if (!btn) return;
@@ -198,12 +204,21 @@ export class AskChatWindow {
       this._saveHistory();
       this.render(false);
     });
+
+    hubBtn?.addEventListener('click', ev => {
+      ev.preventDefault();
+      try {
+        (window.__ARCHIVIST_HUB__ ||= new ArchivistHub()).render(true);
+      } catch (e) {
+        console.error('[Archivist Sync] Failed to open Archivist Hub', e);
+      }
+    });
   }
 
   async render(_force) {
     try {
       console.log('[Archivist Sync][AskChatWindow] render()', { hasMount: !!this._mountEl });
-    } catch (_) {}
+    } catch (_) { }
     if (!this._mountEl) return;
     const data = await this.getData();
     const html = await foundry.applications.handlebars.renderTemplate(
@@ -216,7 +231,7 @@ export class AskChatWindow {
       const msgList = this._mountEl.querySelector?.('.messages');
       if (msgList) msgList.scrollTop = msgList.scrollHeight;
       console.log('[Archivist Sync][AskChatWindow] render() complete');
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async _onSend(text) {
@@ -287,7 +302,7 @@ export class AskChatWindow {
               container.scrollTop = container.scrollHeight;
               updated = true;
             }
-          } catch (_) {}
+          } catch (_) { }
           if (!updated) {
             this.render(false);
           }
@@ -313,7 +328,7 @@ export class AskChatWindow {
     if (this._streamAbort) {
       try {
         this._streamAbort.abort();
-      } catch (_) {}
+      } catch (_) { }
       this._isStreaming = false;
       this._streamAbort = null;
       this.render(false);

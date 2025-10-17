@@ -1,0 +1,23 @@
+---
+description: Global guardrails for Foundry VTT v13 projects using App V2
+globs: "**/*"
+alwaysApply: true
+---
+
+# Foundry V13 / App V2 – Global Rules
+
+You are working in a **Foundry VTT v13** module that **must** use the **ApplicationV2** framework and **DocumentSheetV2** sheets.
+
+## Absolutes
+- **Always** target `ApplicationV2` and `DocumentSheetV2` APIs from v13 docs.  
+- **Never** introduce V1 classes or jQuery-era hooks (`Application`, `FormApplication`, `DocumentSheet`, `$html`, `activateListeners(html)`, `getData()` returning POJOs, etc.).
+- Prefer modern DOM and event APIs (`addEventListener`, `EventTarget`) over jQuery.
+- Use lifecycle overrides provided by V2: `_prepareContext`, `_renderHTML`, `_onFirstRender`, `_onRender`, `_preClose`, `_onChangeForm`, `submit()`, etc.
+- For tabs, use the built-in `ApplicationV2.TABS` and `_getTabsConfig` rather than ad-hoc tab widgets.
+
+## Canonical references (v13)
+- `ApplicationV2` methods and lifecycle (render, setPosition, submit, tabs, header controls).  [oai_citation:0‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+- `DocumentSheetV2` hierarchy, accessors (`document`, `form`), and lifecycle (`_prepareContext`, `_renderHTML`, `_prepareSubmitData`, etc.).  [oai_citation:1‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.DocumentSheetV2.html)
+- Release notes confirming v13’s App V2 migration focus.  [oai_citation:2‡Foundry Virtual Tabletop](https://foundryvtt.com/releases/13.341?utm_source=chatgpt.com)
+
+When the user asks for examples, **generate only V2-style code** and call out any legacy snippet as an anti-pattern with a V2 rewrite.

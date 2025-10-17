@@ -154,21 +154,13 @@ export async function unlinkDocs(a, b, bucket) {
  */
 export async function setLocationParent(child, parentLocationId) {
     const flags = ensureFlags(child);
-    const maxDepth = settingsManager.getMaxLocationDepth?.() || 5;
 
-    // Compute depth by walking parent chain using stored parent ids; stop if exceeds max
-    let depth = 0;
+    // Walk parent chain using stored parent ids; only guard against cycles (no depth limit)
     let cur = parentLocationId;
     const guard = new Set();
     while (cur) {
-        depth += 1;
-        if (depth > maxDepth) {
-            ui.notifications?.warn?.(`Max location depth (${maxDepth}) reached.`);
-            return false;
-        }
         if (guard.has(cur)) break; // cycle guard
         guard.add(cur);
-        // Attempt to find next parent via indexer flags if available
         try {
             // First try match by archivistId
             let j = (game.journal?.contents || []).find(j => j.getFlag(CONFIG.MODULE_ID, 'archivist')?.archivistId === cur);
@@ -187,7 +179,7 @@ export async function setLocationParent(child, parentLocationId) {
 
     // If realtime sync is enabled and we have Archivist IDs, persist parent_id to API
     try {
-        if (settingsManager.isRealtimeSyncEnabled?.()) {
+        if (settingsManager.isRealtimeSyncEnabled?.() && !settingsManager.isRealtimeSyncSuppressed?.()) {
             const apiKey = settingsManager.getApiKey?.();
             const childId = flags.archivistId || child.getFlag(CONFIG.MODULE_ID, 'archivist')?.archivistId;
             if (apiKey && childId) {

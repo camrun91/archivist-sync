@@ -439,7 +439,11 @@ Hooks.once('ready', async function () {
             else if (t.key === 'location') journal = await Utils.createLocationJournal({ name, worldId });
             else if (t.key === 'faction') journal = await Utils.createFactionJournal({ name, worldId });
 
-            // DocumentSheet registry will open the selected sheet when the journal is opened by the user
+            // Open the newly created sheet and bring it to front
+            if (journal) {
+              journal.sheet?.render?.(true);
+              setTimeout(() => journal.sheet?.bringToFront?.(), 50);
+            }
           } catch (e) {
             console.warn('[Archivist Sync] create button failed', e);
           }
@@ -859,7 +863,7 @@ function installRealtimeSyncListeners() {
   Hooks.on('createActor', async doc => {
     try {
       // Always-on realtime rules; respect suppression during bulk ops
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       // Do not auto-create Archivist Characters from Foundry actor creations
       return;
     } catch (e) {
@@ -868,8 +872,7 @@ function installRealtimeSyncListeners() {
   });
   Hooks.on('createItem', async doc => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const id = doc.getFlag(CONFIG.MODULE_ID, 'archivistId');
       if (id) return;
       const payload = toItemPayload(doc);
@@ -886,8 +889,7 @@ function installRealtimeSyncListeners() {
   // JournalEntry create - create Archivist entities when a custom page-based sheet is created
   Hooks.on('createJournalEntry', async (entry, options, userId) => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       if (game.user.id !== userId) return;
 
       // Determine sheet type from flags set at creation time
@@ -964,7 +966,7 @@ function installRealtimeSyncListeners() {
 
   Hooks.on('createJournalEntryPage', async page => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       if (isRecapPage(page)) return; // Recaps are read-only for creation
       const metaId = page.getFlag(CONFIG.MODULE_ID, 'archivistId');
       if (metaId) return;
@@ -988,7 +990,7 @@ function installRealtimeSyncListeners() {
   Hooks.on('updateActor', async (doc, changes) => {
     try {
       // Always-on realtime rules; respect suppression during bulk ops
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       // Do not PATCH Archivist Characters from Foundry actor updates
       return;
     } catch (e) {
@@ -997,8 +999,7 @@ function installRealtimeSyncListeners() {
   });
   Hooks.on('updateItem', async (doc, changes) => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const id = doc.getFlag(CONFIG.MODULE_ID, 'archivistId');
       if (!id) return;
       const res = await archivistApi.updateItem(apiKey, id, toItemPayload(doc));
@@ -1010,7 +1011,7 @@ function installRealtimeSyncListeners() {
   Hooks.on('updateJournalEntryPage', async (page, changes) => {
     try {
       // Always-on realtime rules; respect suppression during bulk ops
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const meta = Utils.getPageArchivistMeta(page);
       if (!meta?.id) return;
       // Faction pages: update Faction
@@ -1063,8 +1064,7 @@ function installRealtimeSyncListeners() {
   // When a sheet's title changes, PATCH the corresponding Archivist entity name/title
   Hooks.on('updateJournalEntry', async (entry, diff) => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
-      if (settingsManager.isRealtimeSyncSuppressed?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const flags = entry.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
       const id = flags?.archivistId;
       const st = String(flags?.sheetType || '');
@@ -1088,7 +1088,7 @@ function installRealtimeSyncListeners() {
   // Delete (preDelete to capture flags before doc vanishes)
   Hooks.on('preDeleteActor', async doc => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const id = doc.getFlag(CONFIG.MODULE_ID, 'archivistId');
       if (!id) return;
       // No deleteCharacter API currently; we skip or could introduce one in API later
@@ -1098,7 +1098,7 @@ function installRealtimeSyncListeners() {
   });
   Hooks.on('preDeleteItem', async doc => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const id = doc.getFlag(CONFIG.MODULE_ID, 'archivistId');
       if (!id) return;
       if (archivistApi.deleteItem) await archivistApi.deleteItem(apiKey, id);
@@ -1108,7 +1108,7 @@ function installRealtimeSyncListeners() {
   });
   Hooks.on('preDeleteJournalEntryPage', async page => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const meta = Utils.getPageArchivistMeta(page);
       if (!meta?.id) return;
       if (isRecapPage(page)) return; // Recaps are read-only for delete
@@ -1133,7 +1133,7 @@ function installRealtimeSyncListeners() {
   // Delete custom sheets when the JournalEntry itself is deleted
   Hooks.on('preDeleteJournalEntry', async entry => {
     try {
-      if (!settingsManager.isRealtimeSyncEnabled?.()) return;
+      if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
       const flags = entry.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
       const id = flags?.archivistId;
       const st = String(flags?.sheetType || '').toLowerCase();
@@ -1202,7 +1202,11 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
           else if (key === 'item') journal = await Utils.createItemJournal({ name, worldId });
           else if (key === 'location') journal = await Utils.createLocationJournal({ name, worldId });
           else if (key === 'faction') journal = await Utils.createFactionJournal({ name, worldId });
-          // DocumentSheet registry will handle opening the chosen sheet
+          // Open the newly created sheet and bring it to front
+          if (journal) {
+            journal.sheet?.render?.(true);
+            setTimeout(() => journal.sheet?.bringToFront?.(), 50);
+          }
         } catch (e) {
           console.warn('[Archivist Sync] header create failed', e);
         }

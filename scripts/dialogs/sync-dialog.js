@@ -14,12 +14,12 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     constructor(options = {}) {
         super(options);
         this.isLoading = false;
-        this.step = 1; // 1: Diffs, 2: Imports
         this.model = {
             diffs: [], // { type, id, name, journalId, changes: { name?, description?, image?, links? }, deleted?:boolean, selected:boolean }
-            imports: [], // { type, id, name, image, description, selected:boolean, createCore:{actor?:boolean,item?:boolean,scene?:boolean} }
+            imports: [], // { type, id, name, image, description, selected:boolean, createCore:boolean, coreType:'actor'|'item'|'scene'|null }
             stats: { diffs: 0, imports: 0 },
         };
+        this._scrollPosition = 0;
     }
 
     static DEFAULT_OPTIONS = {
@@ -28,12 +28,12 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         position: { width: 900, height: 700 },
         classes: ['archivist-sync-dialog', 'sync-dialog'],
         actions: {
-            changeStep: SyncDialog.prototype._onChangeStep,
             selectAll: SyncDialog.prototype._onSelectAll,
             selectNone: SyncDialog.prototype._onSelectNone,
             toggleRow: SyncDialog.prototype._onToggleRow,
             toggleCore: SyncDialog.prototype._onToggleCreateCore,
-            applySelected: SyncDialog.prototype._onApplySelected,
+            sync: SyncDialog.prototype._onSync,
+            cancel: SyncDialog.prototype._onCancel,
             refresh: SyncDialog.prototype._onRefresh,
         },
     };
@@ -41,6 +41,22 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     static PARTS = {
         form: { template: 'modules/archivist-sync/templates/sync-dialog.hbs' },
     };
+
+    async _onRender(context, options) {
+        await super._onRender?.(context, options);
+        // Restore scroll position after render
+        const content = this.element?.querySelector?.('.sync-dialog-content');
+        if (content && this._scrollPosition !== undefined) {
+            content.scrollTop = this._scrollPosition;
+        }
+    }
+
+    _captureScrollPosition() {
+        const content = this.element?.querySelector?.('.sync-dialog-content');
+        if (content) {
+            this._scrollPosition = content.scrollTop;
+        }
+    }
 
     async _prepareContext() {
         // If not initialized, show loading and trigger background fetch
@@ -53,9 +69,6 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             // Return loading state immediately
             return {
                 isLoading: true,
-                step: this.step,
-                isStep1: this.step === 1,
-                isStep2: this.step === 2,
                 diffs: [],
                 imports: [],
                 stats: { diffs: 0, imports: 0 },
@@ -64,9 +77,6 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
         const ctx = {
             isLoading: this.isLoading,
-            step: this.step,
-            isStep1: this.step === 1,
-            isStep2: this.step === 2,
             diffs: this.model.diffs,
             imports: this.model.imports,
             stats: this.model.stats,
@@ -75,20 +85,13 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         return ctx;
     }
 
-    async _onChangeStep(event) {
-        event.preventDefault();
-        const btn = event?.target?.closest?.('[data-step]');
-        if (!btn) return;
-        this.step = Number(btn.dataset.step) || 1;
-        await this.render();
-    }
-
     async _onSelectAll(event) {
         event.preventDefault();
         const scope = event?.target?.closest?.('[data-scope]')?.dataset?.scope;
         if (!scope) return;
         if (scope === 'diffs') this.model.diffs.forEach(d => d.selected = true);
         if (scope === 'imports') this.model.imports.forEach(i => i.selected = true);
+        this._captureScrollPosition();
         await this.render();
     }
 
@@ -98,38 +101,34 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         if (!scope) return;
         if (scope === 'diffs') this.model.diffs.forEach(d => d.selected = false);
         if (scope === 'imports') this.model.imports.forEach(i => i.selected = false);
+        this._captureScrollPosition();
         await this.render();
     }
 
     async _onToggleRow(event) {
-        const li = event?.target?.closest?.('li[data-id]');
-        if (!li) return;
-        const kind = li?.dataset?.kind;
-        const id = String(li?.dataset?.id || '');
+        const row = event?.target?.closest?.('tr[data-id]');
+        if (!row) return;
+        const kind = row?.dataset?.kind;
+        const id = String(row?.dataset?.id || '');
         if (kind === 'diff') {
-            const row = this.model.diffs.find(x => String(x.id) === id);
-            if (row) row.selected = !row.selected;
+            const diffRow = this.model.diffs.find(x => String(x.id) === id);
+            if (diffRow) diffRow.selected = !diffRow.selected;
         } else if (kind === 'import') {
-            const row = this.model.imports.find(x => String(x.id) === id);
-            if (row) row.selected = !row.selected;
+            const importRow = this.model.imports.find(x => String(x.id) === id);
+            if (importRow) importRow.selected = !importRow.selected;
         }
+        this._captureScrollPosition();
         await this.render();
     }
 
     async _onToggleCreateCore(event) {
-        const li = event?.target?.closest?.('li[data-id]');
-        if (!li) return;
-        const id = String(li.dataset.id || '');
-        const field = event?.target?.dataset?.field;
-        if (!field) return;
+        const tr = event?.target?.closest?.('tr[data-id]');
+        if (!tr) return;
+        const id = String(tr.dataset.id || '');
         const row = this.model.imports.find(x => String(x.id) === id);
-        if (!row) return;
-        // Only enable valid combos
-        if (field === 'actor' && row.type !== 'Character') return;
-        if (field === 'item' && row.type !== 'Item') return;
-        if (field === 'scene' && row.type !== 'Location') return;
-        row.createCore = row.createCore || { actor: false, item: false, scene: false };
-        row.createCore[field] = !row.createCore[field];
+        if (!row || !row.coreType) return;
+        row.createCore = !row.createCore;
+        this._captureScrollPosition();
         await this.render();
     }
 
@@ -146,7 +145,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
     }
 
-    async _onApplySelected(event) {
+    async _onSync(event) {
         event.preventDefault();
         const apiKey = settingsManager.getApiKey?.();
         const campaignId = settingsManager.getSelectedWorldId?.();
@@ -157,9 +156,29 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         const selectedDiffs = this.model.diffs.filter(d => d.selected);
         const selectedImports = this.model.imports.filter(i => i.selected);
 
-        // Suppress real-time sync during apply to prevent duplicate POSTs to Archivist
+        // Show nothing selected warning
+        if (selectedDiffs.length === 0 && selectedImports.length === 0) {
+            ui.notifications?.warn?.('No items selected to sync.');
+            return;
+        }
+
+        // Set loading state and render to show spinner
+        this.isLoading = true;
+        await this.render();
+
+        // CRITICAL: Suppress real-time sync during apply to prevent duplicate POSTs to Archivist
+        console.warn('[SyncDialog] ⚠️  Real-time sync DISABLED during manual sync operations');
         try { settingsManager.suppressRealtimeSync?.(); } catch (_) { }
-        console.log('[SyncDialog] Real-time sync suppressed during apply');
+
+        // Verify suppression is active
+        if (!settingsManager.isRealtimeSyncSuppressed?.()) {
+            console.error('[SyncDialog] ❌ CRITICAL: Realtime sync suppression FAILED!');
+            ui.notifications?.error?.('Critical error: Unable to disable sync during operation.');
+            this.isLoading = false;
+            await this.render();
+            return;
+        }
+        console.log('[SyncDialog] ✓ Real-time sync successfully suppressed');
 
         try {
             // Apply diffs
@@ -173,13 +192,61 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             }
 
             ui.notifications?.info?.('Archivist sync applied.');
+            // Reload model to refresh the diff/import lists
             await this._loadModel(true);
-            await this.render();
+            // Force-refresh core directories and any open Archivist windows so UI reflects new docs
+            await this._refreshUIAfterSync?.();
+        } catch (error) {
+            console.error('[SyncDialog] Sync failed:', error);
+            ui.notifications?.error?.('Sync failed. See console for details.');
         } finally {
             // Resume real-time sync after apply
-            try { settingsManager.resumeRealtimeSync?.(); } catch (_) { }
-            console.log('[SyncDialog] Real-time sync resumed');
+            try {
+                settingsManager.resumeRealtimeSync?.();
+                console.log('[SyncDialog] ✓ Real-time sync resumed after sync operation');
+            } catch (_) { }
+            // Loading state will be set to false by _loadModel
+            await this.render();
         }
+    }
+
+    async _onCancel(event) {
+        event?.preventDefault?.();
+        this.close();
+    }
+
+    /** Force-refresh Foundry UI directories and open Archivist windows after a sync */
+    async _refreshUIAfterSync() {
+        try { await ui?.journal?.render?.({ force: true }); } catch (_) { }
+        try { await ui?.actors?.render?.({ force: true }); } catch (_) { }
+        try { await ui?.items?.render?.({ force: true }); } catch (_) { }
+        try { await ui?.scenes?.render?.({ force: true }); } catch (_) { }
+        // Refresh Archivist Hub if it's open
+        try { if (window.__ARCHIVIST_HUB__?.rendered) window.__ARCHIVIST_HUB__.render(false); } catch (_) { }
+    }
+
+    /**
+     * Normalize text for comparison by collapsing whitespace and newlines.
+     * This prevents false positives when comparing markdown with different newline styles.
+     * @param {string} text - The text to normalize
+     * @returns {string} - Normalized text
+     */
+    _normalizeTextForComparison(text) {
+        if (!text) return '';
+        return String(text)
+            .trim()
+            // Normalize line endings to \n
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n')
+            // Collapse multiple consecutive newlines to double newline (paragraph break)
+            .replace(/\n{3,}/g, '\n\n')
+            // Normalize spaces (collapse multiple spaces to one, but preserve newlines)
+            .replace(/[^\S\n]+/g, ' ')
+            // Trim whitespace from each line
+            .split('\n')
+            .map(line => line.trim())
+            .join('\n')
+            .trim();
     }
 
     // Build model: diffs and imports
@@ -248,7 +315,8 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                     : st === 'item' ? 'Item'
                         : st === 'location' ? 'Location'
                             : st === 'faction' ? 'Faction'
-                                : null;
+                                : (st === 'recap' || st === 'session') ? 'Session'
+                                    : null;
                 if (!type) continue;
                 const arch = byId[type].get(archId) || null;
                 if (!arch) {
@@ -258,7 +326,8 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                 const changes = {};
                 // Name/title mapping per type
                 const archName = type === 'Character' ? (arch.character_name || arch.name)
-                    : arch.name || arch.title || '';
+                    : type === 'Session' ? (arch.title || arch.name || '')
+                        : arch.name || arch.title || '';
                 if (String(j.name || '').trim() !== String(archName || '').trim()) {
                     changes.name = { from: j.name, to: archName };
                 }
@@ -266,11 +335,16 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                 try {
                     const textPage = (j?.pages?.contents || []).find(p => p.type === 'text') || null;
                     const stored = Utils.extractPageHtml(textPage) || '';
-                    const foundryPlain = Utils.toMarkdownIfHtml(stored).trim();
-                    const archMd = String((arch.description ?? arch.summary) || '').trim();
+                    const foundryPlain = Utils.toMarkdownIfHtml(stored);
+                    const archMd = String((arch.description ?? arch.summary) || '');
                     const archHtml = Utils.markdownToStoredHtml(archMd);
-                    const archivistPlain = Utils.toMarkdownIfHtml(archHtml).trim();
-                    if (archivistPlain && foundryPlain !== archivistPlain) {
+                    const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
+
+                    // Normalize both sides for comparison to handle newline/whitespace differences
+                    const foundryNormalized = this._normalizeTextForComparison(foundryPlain);
+                    const archivistNormalized = this._normalizeTextForComparison(archivistPlain);
+
+                    if (archivistNormalized && foundryNormalized !== archivistNormalized) {
                         changes.description = { from: stored, to: archMd };
                     }
                 } catch (_) { /* ignore */ }
@@ -341,12 +415,34 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                     skipped.push({ type, id, name: row.character_name || row.name || row.title || 'Untitled' });
                     return;
                 }
-                imports.push({ type, id, name: row.character_name || row.name || row.title || 'Untitled', description: row.description || row.summary || '', image: row.image || '', selected: false, createCore: { actor: false, item: false, scene: false } });
+                // Determine coreType for this import
+                const coreType = type === 'Character' ? 'actor'
+                    : type === 'Item' ? 'item'
+                        : type === 'Location' ? 'scene'
+                            : null;
+                // For Characters, capture PC vs NPC from Archivist row
+                let characterKind = undefined;
+                if (type === 'Character') {
+                    const raw = String(row.type || row.character_type || '').toUpperCase();
+                    characterKind = raw === 'NPC' ? 'NPC' : 'PC';
+                }
+                imports.push({
+                    type,
+                    id,
+                    name: row.character_name || row.name || row.title || 'Untitled',
+                    description: row.description || row.summary || '',
+                    image: row.image || '',
+                    selected: false,
+                    createCore: false,
+                    coreType,
+                    ...(characterKind ? { characterKind } : {})
+                });
             };
             for (const c of A.characters) pushImport('Character', c);
             for (const it of A.items) pushImport('Item', it);
             for (const l of A.locations) pushImport('Location', l);
             for (const f of A.factions) pushImport('Faction', f);
+            for (const s of A.sessions) pushImport('Session', s);
 
             console.log('[SyncDialog] Import candidates:', {
                 imports: imports.length,
@@ -374,7 +470,10 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             await j.update({ name: changes.name.to });
         }
         if (changes.description) {
-            await Utils.ensureJournalTextPage(j, String(changes.description.to || ''));
+            // Convert markdown to HTML before storing in Foundry
+            const markdownContent = String(changes.description.to || '');
+            const htmlContent = Utils.markdownToStoredHtml(markdownContent);
+            await Utils.ensureJournalTextPage(j, htmlContent);
         }
         if (changes.image) {
             await Utils.ensureJournalLeadImage(j, String(changes.image.to || ''));
@@ -393,6 +492,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             };
             const next = { ...(f || {}) };
             next.archivistRefs = next.archivistRefs || { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] };
+            next.archivistOutbound = next.archivistOutbound || { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] };
             // Add
             for (const add of (changes.links.add || [])) {
                 const bucket = buckets[String(add.type || '').toLowerCase()] || 'entries';
@@ -400,6 +500,10 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                 const sid = String(add.id);
                 if (!arr.includes(sid)) arr.push(sid);
                 next.archivistRefs[bucket] = arr;
+                // Mirror to outbound so future diffs don't consider this a stale outbound mismatch
+                const outArr = Array.isArray(next.archivistOutbound[bucket]) ? next.archivistOutbound[bucket] : [];
+                if (!outArr.includes(sid)) outArr.push(sid);
+                next.archivistOutbound[bucket] = outArr;
             }
             // Remove only from outbound buckets; leave inbound/associative intact
             const removeIds = new Set((changes.links.remove || []).map(x => String(x)));
@@ -407,41 +511,67 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             for (const key of outboundKeys) {
                 const arr = Array.isArray(next.archivistRefs[key]) ? next.archivistRefs[key] : [];
                 next.archivistRefs[key] = arr.filter(x => !removeIds.has(String(x)));
+                const outArr = Array.isArray(next.archivistOutbound[key]) ? next.archivistOutbound[key] : [];
+                next.archivistOutbound[key] = outArr.filter(x => !removeIds.has(String(x)));
             }
             await j.setFlag(CONFIG.MODULE_ID, 'archivist', next);
         }
     }
 
     async _applyImport(row, campaignId, apiKey) {
-        const sheetType = row.type === 'Character' ? 'pc' // default to PC; users can switch later
+        const sheetType = row.type === 'Character' ? ((String(row.characterKind || '').toUpperCase() === 'NPC') ? 'npc' : 'pc')
             : row.type === 'Item' ? 'item'
                 : row.type === 'Location' ? 'location'
                     : row.type === 'Faction' ? 'faction'
-                        : null;
+                        : row.type === 'Session' ? 'recap'
+                            : null;
         if (!sheetType) return;
+        // Convert markdown from Archivist to HTML for Foundry storage (sessions use summary)
+        const markdownContent = String((row.description || row.summary) || '');
+        const htmlContent = Utils.markdownToStoredHtml(markdownContent);
+
+        // For sessions, prefer Recaps folder and preserve session_date ordering
+        let folderId = undefined;
+        let sort = undefined;
+        if (sheetType === 'recap') {
+            try { folderId = await Utils.ensureJournalFolder('Recaps'); } catch (_) { }
+            if (row.session_date) {
+                try { sort = new Date(row.session_date).getTime(); } catch (_) { }
+            }
+        }
+
         const journal = await Utils.createCustomJournalForImport({
             name: row.name,
-            html: String(row.description || ''),
+            html: htmlContent,
             imageUrl: String(row.image || ''),
             sheetType,
             archivistId: row.id,
             worldId: campaignId,
+            folderId,
+            sort,
         });
         if (!journal) return;
+        // For sessions, set sessionDate flag for later edits
+        if (sheetType === 'recap' && row.session_date) {
+            try { await journal.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(row.session_date)); } catch (_) { }
+        }
         // Optionally create core docs
         try {
             const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
             flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
-            if (row.createCore?.actor && (sheetType === 'pc' || sheetType === 'npc')) {
-                const actor = await Actor.create({ name: row.name, type: sheetType === 'pc' ? 'character' : 'npc' }, { render: false });
+            if (row.createCore && row.coreType === 'actor' && (sheetType === 'pc' || sheetType === 'npc')) {
+                const img = String(row.image || '').trim();
+                const actor = await Actor.create({ name: row.name, type: sheetType === 'pc' ? 'character' : 'npc', ...(img ? { img } : {}) }, { render: false });
                 if (actor?.id) flags.foundryRefs.actors = [actor.id];
             }
-            if (row.createCore?.item && sheetType === 'item') {
-                const itm = await Item.create({ name: row.name, type: 'loot' }, { render: false });
+            if (row.createCore && row.coreType === 'item' && sheetType === 'item') {
+                const img = String(row.image || '').trim();
+                const itm = await Item.create({ name: row.name, type: 'loot', ...(img ? { img } : {}) }, { render: false });
                 if (itm?.id) flags.foundryRefs.items = [itm.id];
             }
-            if (row.createCore?.scene && sheetType === 'location') {
-                const sc = await Scene.create({ name: row.name }, { render: false });
+            if (row.createCore && row.coreType === 'scene' && sheetType === 'location') {
+                const img = String(row.image || '').trim();
+                const sc = await Scene.create({ name: row.name, ...(img ? { thumb: img, img } : {}) }, { render: false });
                 if (sc?.id) flags.foundryRefs.scenes = [sc.id];
             }
             await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);

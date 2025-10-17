@@ -1,0 +1,24 @@
+---
+description: Explicit anti-patterns to block V1/legacy code in v13 modules
+globs: "**/*"
+alwaysApply: true
+---
+
+# Do NOT use these in this project
+
+## Disallowed classes (V1)
+- `Application`, `FormApplication`, `DocumentSheet` (and any method like `getData()`, `activateListeners(html)`, `_updateObject(event, formData)` that expects jQuery/HTML args).  [oai_citation:1‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.DocumentSheetV2.html)
+
+## Disallowed idioms
+- jQuery-specific patterns: `$(...)`, `html.find(...)`, passing `html` objects into lifecycle hooks.
+- V1 render signature assumptions (boolean `force` without V2 options).
+- Manual tab widgets when `ApplicationV2` tabs exist.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+
+## Required alternatives
+- Use `ApplicationV2` / `DocumentSheetV2` lifecycle methods.
+- Use `addEventListener` on `this.element` or specific elements.
+- Use `submit()` and `_prepareSubmitData` for forms.
+- For context, compute in `_prepareContext`; for markup, use `_renderHTML`.
+---
+alwaysApply: true
+---

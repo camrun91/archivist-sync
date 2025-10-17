@@ -10,6 +10,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
         super(options);
         // Track editing state for the Info section across page-based sheets
         this._editingInfo = false;
+        // Global edit mode toggle (controls title + info editability)
+        this._editMode = false;
         // Track the currently selected tab across renders
         this._activeTab = 'info';
     }
@@ -42,6 +44,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
     }
 
     async _prepareContext(_options) {
+        console.log('[Archivist V2 Sheet] _prepareContext START', { editMode: this._editMode, editingInfo: this._editingInfo });
         const entry = this.document;
         const flags = entry?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
         const sheetType = String(flags.sheetType || 'entry');
@@ -92,9 +95,31 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
         const pageUuid = page?.uuid || '';
         const gmNotes = String(flags.gmNotes || '').trim();
         const isGM = game.user?.isGM || false;
-        // Default to editing enabled
-        if (this._editingInfo === false) this._editingInfo = true;
-        return { setup: { sheetType, name, image, editingInfo: !!this._editingInfo, pageUuid, rawContent, gmNotes, isGM }, htmlContent };
+        // Edit mode controls whether info/title are editable
+        this._editingInfo = !!this._editMode;
+        // Recap/session date support
+        let sessionDate = '';
+        let sessionDateFormatted = '';
+        let sessionDateInput = '';
+        try {
+            const pFlags = page?.getFlag?.(CONFIG.MODULE_ID, 'sessionDate') || '';
+            const eFlags = entry?.getFlag?.(CONFIG.MODULE_ID, 'sessionDate') || '';
+            sessionDate = String(pFlags || eFlags || '').trim();
+            if (sessionDate) {
+                // Use yyyy-MM-dd for <input type="date">
+                sessionDateInput = sessionDate.slice(0, 10);
+                // Format for display (matching Archivist Hub format)
+                try {
+                    const d = new Date(sessionDate);
+                    if (!isNaN(d.getTime())) {
+                        sessionDateFormatted = d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                    }
+                } catch (_) { }
+            }
+        } catch (_) { }
+        const result = { setup: { sheetType, name, image, editingInfo: !!this._editingInfo, pageUuid, rawContent, gmNotes, isGM, sessionDate: sessionDateFormatted, sessionDateInput }, htmlContent };
+        console.log('[Archivist V2 Sheet] _prepareContext END', { editMode: this._editMode, editingInfo: result.setup.editingInfo, sheetType: result.setup.sheetType });
+        return result;
     }
 
     _onRender(context, options) {
@@ -102,14 +127,55 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
         try {
             const root = this.element;
             const content = root.querySelector('.archivist-content') || root;
-            content.classList.add('archivist-dropzone');
-            content.addEventListener('drop', ev => this._onArchivistDrop(ev));
-            content.addEventListener('dragover', ev => ev.preventDefault());
+            const isGM = !!game.user?.isGM;
+            if (isGM) {
+                content.classList.add('archivist-dropzone');
+                content.addEventListener('drop', ev => this._onArchivistDrop(ev));
+                content.addEventListener('dragover', ev => ev.preventDefault());
+            }
 
             // Hide GM Notes tab from non-GMs
             if (!game.user?.isGM) {
                 const notesTabLink = root.querySelector('.archivist-nav .item[data-tab="notes"]');
                 if (notesTabLink) notesTabLink.style.display = 'none';
+            }
+
+            // When in edit mode, ensure ProseMirror editors are toggled on and hide their own Save buttons
+            try {
+                if (this._editingInfo) {
+                    root.querySelectorAll('prose-mirror').forEach(pm => {
+                        try {
+                            if (!pm.hasAttribute('toggled')) pm.setAttribute('toggled', '');
+                            // Nudge activation: simulate a click/focus after render
+                            setTimeout(() => {
+                                try { pm.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); } catch (_) { }
+                                try { pm.focus?.(); } catch (_) { }
+                            }, 0);
+                        } catch (_) { }
+                    });
+                    // Hide per-editor save buttons to avoid UX confusion
+                    root.querySelectorAll('.pm-menu [data-action="save"], .prosemirror [data-action="save"], .ProseMirror-menu [data-action="save"]').forEach(btn => {
+                        btn.style.display = 'none';
+                    });
+                }
+            } catch (_) { }
+
+            // In-sheet Edit Mode toggle (GM-only)
+            if (game.user?.isGM) {
+                try {
+                    const toggleBtn = root.querySelector('[data-action="toggle-edit-mode"]');
+                    console.log('[Archivist V2 Sheet] Edit toggle button found:', !!toggleBtn);
+                    if (toggleBtn && !toggleBtn.dataset.bound) {
+                        toggleBtn.addEventListener('click', ev => {
+                            console.log('[Archivist V2 Sheet] Edit toggle button CLICKED');
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            this._toggleEditMode();
+                        });
+                        toggleBtn.dataset.bound = 'true';
+                        console.log('[Archivist V2 Sheet] Edit toggle button listener bound');
+                    }
+                } catch (_) { }
             }
 
             // Ensure tabs toggle
@@ -175,10 +241,11 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 console.warn('[Archivist Sync][V2] GM notes editor init failed', e);
             }
 
-            // Unlink handler
+            // Unlink handler (GM-only)
             root.addEventListener('click', async ev => {
                 const btn = ev.target?.closest?.('[data-action="unlink"]');
                 if (!btn) return;
+                if (!game.user?.isGM) return;
                 ev.preventDefault();
                 ev.stopPropagation(); // Prevent card click
                 const bucket = btn.dataset.bucket;
@@ -226,6 +293,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 try {
                     const unlinkBtn = ev.target?.closest?.('[data-action="unlink-foundry-journal"]');
                     if (unlinkBtn) {
+                        if (!game.user?.isGM) return;
                         ev.preventDefault();
                         ev.stopPropagation();
                         const ref = unlinkBtn.dataset.journalRef || unlinkBtn.dataset.journalId;
@@ -244,6 +312,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             root.addEventListener('click', async ev => {
                 const btn = ev.target?.closest?.('[data-action="place-on-scene"]');
                 if (!btn) return;
+                if (!game.user?.isGM) return;
                 ev.preventDefault();
 
                 // Ensure an active scene is available
@@ -299,6 +368,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             root.addEventListener('click', async ev => {
                 const btn = ev.target?.closest?.('[data-action="send-item-to-player"]');
                 if (!btn) return;
+                if (!game.user?.isGM) return;
                 ev.preventDefault();
 
                 // Get the linked item for this sheet
@@ -376,6 +446,11 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             try {
                 root.querySelectorAll('prose-mirror').forEach(editor => {
                     if (editor.dataset.bound) return;
+                    if (!game.user?.isGM) {
+                        editor.setAttribute('disabled', 'true');
+                        editor.contentEditable = 'false';
+                        return;
+                    }
                     editor.addEventListener('save', async (event) => {
                         event.preventDefault();
                         event.stopPropagation();
@@ -405,48 +480,56 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             try {
                 const actorTarget = root.querySelector('[data-drop="actor"]');
                 if (actorTarget) {
-                    actorTarget.addEventListener('dragover', ev => ev.preventDefault());
-                    actorTarget.addEventListener('drop', async ev => {
-                        ev.preventDefault();
-                        try {
-                            const dataStr = ev.dataTransfer?.getData('text/plain') || '';
-                            const data = dataStr ? JSON.parse(dataStr) : null;
-                            const uuid = data?.uuid || data?.data?.uuid || data?.text;
-                            const doc = uuid ? await fromUuid(uuid) : null;
-                            if (doc?.documentName !== 'Actor') return;
-                            const flags = this._getArchivistFlags();
-                            flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
-                            flags.foundryRefs.actors = [doc.id];
-                            await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
-                            ui.notifications?.info?.('Linked actor to character');
-                            this.render(false);
-                        } catch (e) {
-                            console.warn('[Archivist Sync][V2] Actor drop failed', e);
-                        }
-                    });
+                    if (!game.user?.isGM) {
+                        actorTarget.style.pointerEvents = 'none';
+                    } else {
+                        actorTarget.addEventListener('dragover', ev => ev.preventDefault());
+                        actorTarget.addEventListener('drop', async ev => {
+                            ev.preventDefault();
+                            try {
+                                const dataStr = ev.dataTransfer?.getData('text/plain') || '';
+                                const data = dataStr ? JSON.parse(dataStr) : null;
+                                const uuid = data?.uuid || data?.data?.uuid || data?.text;
+                                const doc = uuid ? await fromUuid(uuid) : null;
+                                if (doc?.documentName !== 'Actor') return;
+                                const flags = this._getArchivistFlags();
+                                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
+                                flags.foundryRefs.actors = [doc.id];
+                                await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+                                ui.notifications?.info?.('Linked actor to character');
+                                this.render(false);
+                            } catch (e) {
+                                console.warn('[Archivist Sync][V2] Actor drop failed', e);
+                            }
+                        });
+                    }
                 }
 
                 const itemTarget = root.querySelector('[data-drop="item"]');
                 if (itemTarget) {
-                    itemTarget.addEventListener('dragover', ev => ev.preventDefault());
-                    itemTarget.addEventListener('drop', async ev => {
-                        ev.preventDefault();
-                        try {
-                            const dataStr = ev.dataTransfer?.getData('text/plain') || '';
-                            const data = dataStr ? JSON.parse(dataStr) : null;
-                            const uuid = data?.uuid || data?.data?.uuid || data?.text;
-                            const doc = uuid ? await fromUuid(uuid) : null;
-                            if (doc?.documentName !== 'Item') return;
-                            const flags = this._getArchivistFlags();
-                            flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
-                            flags.foundryRefs.items = [doc.id];
-                            await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
-                            ui.notifications?.info?.('Linked item to sheet');
-                            this.render(false);
-                        } catch (e) {
-                            console.warn('[Archivist Sync][V2] Item drop failed', e);
-                        }
-                    });
+                    if (!game.user?.isGM) {
+                        itemTarget.style.pointerEvents = 'none';
+                    } else {
+                        itemTarget.addEventListener('dragover', ev => ev.preventDefault());
+                        itemTarget.addEventListener('drop', async ev => {
+                            ev.preventDefault();
+                            try {
+                                const dataStr = ev.dataTransfer?.getData('text/plain') || '';
+                                const data = dataStr ? JSON.parse(dataStr) : null;
+                                const uuid = data?.uuid || data?.data?.uuid || data?.text;
+                                const doc = uuid ? await fromUuid(uuid) : null;
+                                if (doc?.documentName !== 'Item') return;
+                                const flags = this._getArchivistFlags();
+                                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
+                                flags.foundryRefs.items = [doc.id];
+                                await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+                                ui.notifications?.info?.('Linked item to sheet');
+                                this.render(false);
+                            } catch (e) {
+                                console.warn('[Archivist Sync][V2] Item drop failed', e);
+                            }
+                        });
+                    }
                 }
             } catch (_) { }
         } catch (e) {
@@ -456,6 +539,176 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             if (typeof this._renderLinkedGrids === 'function') this._renderLinkedGrids();
             if (typeof this._renderActorItemCards === 'function') this._renderActorItemCards();
         } catch (_) { }
+    }
+
+
+    async _toggleEditMode() {
+        console.log('[Archivist V2 Sheet] _toggleEditMode called, current editMode:', this._editMode);
+        if (!this._editMode) {
+            // Enter edit mode: suppress realtime API writes until commit
+            console.log('[Archivist V2 Sheet] Entering edit mode...');
+            try { settingsManager.suppressRealtimeSync?.(); } catch (_) { }
+            this._editMode = true;
+            this._editingInfo = true;
+            console.log('[Archivist V2 Sheet] Edit mode enabled, calling render...');
+            await this.render({ force: true });
+            console.log('[Archivist V2 Sheet] Render complete (edit mode ON)');
+            return;
+        }
+        // Leaving edit mode: commit local + remote changes
+        try {
+            console.log('[Archivist V2 Sheet] Leaving edit mode, committing...');
+            await this._commitEdits();
+            console.log('[Archivist V2 Sheet] Commit complete');
+        } catch (e) {
+            console.warn('[Archivist Sync][V2] commit: failed', e);
+        } finally {
+            this._editMode = false;
+            this._editingInfo = false;
+            console.log('[Archivist V2 Sheet] Edit mode disabled, calling render...');
+            try { settingsManager.resumeRealtimeSync?.(); } catch (_) { }
+            await this.render({ force: true });
+            console.log('[Archivist V2 Sheet] Render complete (edit mode OFF)');
+        }
+    }
+
+    /**
+     * Persist edits made while in edit mode and PATCH Archivist API.
+     */
+    async _commitEdits() {
+        console.log('[Archivist V2 Sheet] _commitEdits START');
+        const entry = this.document;
+        if (!entry) return;
+        const flags = this._getArchivistFlags();
+        const sheetType = String(flags.sheetType || 'entry').toLowerCase();
+        const apiKey = settingsManager.getApiKey?.();
+        const campaignId = settingsManager.getSelectedWorldId?.();
+        const archivistId = String(flags.archivistId || '');
+
+        // Read title input (if present) and update local document
+        try {
+            const titleInput = this.element?.querySelector?.('.archivist-title-input');
+            console.log('[Archivist V2 Sheet] Title input found:', !!titleInput, titleInput?.value);
+            if (titleInput) {
+                const next = String(titleInput.value || '').trim();
+                if (next && next !== entry.name) {
+                    console.log('[Archivist V2 Sheet] Updating title:', next);
+                    await entry.update({ name: next });
+                }
+            }
+        } catch (_) { }
+
+        // Resolve the primary text page for the Info tab
+        const pages = entry?.pages?.contents || [];
+        const infoPage = pages.find(p => {
+            try {
+                const pFlags = p.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                return pFlags.sheetType === (flags.sheetType || 'entry');
+            } catch (_) { return false; }
+        }) || pages.find(p => p.type === 'text') || pages[0] || null;
+
+        // Pull current editor content (unsaved) and update local page
+        let html = '';
+        try {
+            const root = this.element;
+            const textarea = root?.querySelector?.('textarea.archivist-info-textarea');
+            if (textarea) {
+                html = String(textarea.value || '');
+                console.log('[Archivist V2 Sheet] Textarea content length:', html.length);
+            } else {
+                const editor = root?.querySelector?.('section.tab[data-tab="info"] prose-mirror');
+                console.log('[Archivist V2 Sheet] ProseMirror editor found:', !!editor);
+                if (editor) {
+                    const value = Array.isArray(editor.value) ? editor.value[0] : editor.value;
+                    html = String(value || '');
+                    console.log('[Archivist V2 Sheet] Editor content length:', html.length);
+                }
+            }
+            if (infoPage) {
+                const fmt = Number(infoPage?.text?.format ?? 0);
+                const update = fmt === 2
+                    ? { 'text.markdown': html, 'text.format': 2 }
+                    : { 'text.content': html };
+                console.log('[Archivist V2 Sheet] Updating page content');
+                await infoPage.update(update);
+            }
+        } catch (e) {
+            console.warn('[Archivist Sync][V2] commit: failed updating page content', e);
+        }
+
+        // Recap session date input handling (also usable as plain string input)
+        let sessionDate = '';
+        if (sheetType === 'recap' || sheetType === 'session') {
+            try {
+                const dateEl = this.element?.querySelector?.('.recap-date-input');
+                console.log('[Archivist V2 Sheet] Recap date input found:', !!dateEl, dateEl?.value);
+                if (dateEl) sessionDate = String(dateEl.value || '').trim();
+                if (sessionDate) {
+                    // Recombine with original time part if present
+                    let originalIso = '';
+                    try {
+                        const pFlags = infoPage?.getFlag?.(CONFIG.MODULE_ID, 'sessionDate') || '';
+                        const eFlags = entry?.getFlag?.(CONFIG.MODULE_ID, 'sessionDate') || '';
+                        originalIso = String(pFlags || eFlags || '').trim();
+                    } catch (_) { }
+                    const originalTime = originalIso.includes('T') ? originalIso.split('T')[1] : '00:00:00';
+                    const recombined = `${sessionDate}T${originalTime}`;
+                    // Write both page and entry flags for robustness
+                    try { await infoPage?.setFlag?.(CONFIG.MODULE_ID, 'sessionDate', recombined); } catch (_) { }
+                    try { await entry?.setFlag?.(CONFIG.MODULE_ID, 'sessionDate', recombined); } catch (_) { }
+                }
+            } catch (_) { }
+        }
+
+        // Remote PATCH on toggle-off (if configured and id present)
+        try {
+            console.log('[Archivist V2 Sheet] Remote sync check:', { apiKey: !!apiKey, campaignId: !!campaignId, archivistId: !!archivistId, sheetType });
+            if (!apiKey || !campaignId || !archivistId) return;
+            const nameNow = entry.name;
+            if (sheetType === 'pc' || sheetType === 'npc' || sheetType === 'character') {
+                console.log('[Archivist V2 Sheet] Syncing Character to API');
+                await archivistApi.updateCharacter(apiKey, archivistId, {
+                    character_name: nameNow,
+                    description: html || undefined
+                });
+            } else if (sheetType === 'item') {
+                console.log('[Archivist V2 Sheet] Syncing Item to API');
+                await archivistApi.updateItem(apiKey, archivistId, {
+                    name: nameNow,
+                    description: html || undefined
+                });
+            } else if (sheetType === 'location') {
+                console.log('[Archivist V2 Sheet] Syncing Location to API');
+                await archivistApi.updateLocation(apiKey, archivistId, {
+                    name: nameNow,
+                    description: html || undefined
+                });
+            } else if (sheetType === 'faction') {
+                console.log('[Archivist V2 Sheet] Syncing Faction to API');
+                await archivistApi.updateFaction(apiKey, archivistId, {
+                    name: nameNow,
+                    description: html || undefined
+                });
+            } else if (sheetType === 'recap' || sheetType === 'session') {
+                console.log('[Archivist V2 Sheet] Syncing Recap/Session to API');
+                const summary = html || '';
+                const payload = { title: nameNow, summary };
+                if (sessionDate) {
+                    // Send full ISO (with time) using flags value if available
+                    let fullIso = '';
+                    try {
+                        const pFlags = infoPage?.getFlag?.(CONFIG.MODULE_ID, 'sessionDate') || '';
+                        const eFlags = entry?.getFlag?.(CONFIG.MODULE_ID, 'sessionDate') || '';
+                        fullIso = String(pFlags || eFlags || '').trim();
+                    } catch (_) { }
+                    payload.session_date = fullIso || `${sessionDate}T00:00:00`;
+                }
+                await archivistApi.updateSession(apiKey, archivistId, payload);
+            }
+        } catch (e) {
+            console.warn('[Archivist Sync][V2] commit: remote sync failed', e);
+        }
+        console.log('[Archivist V2 Sheet] _commitEdits END');
     }
 
     async _onArchivistDrop(event) {
@@ -664,7 +917,6 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             const byActorId = id => (game.actors?.contents || []).find(a => a.getFlag(CONFIG.MODULE_ID, 'archivistId') === id);
             const byItemId = id => (game.items?.contents || []).find(i => i.getFlag(CONFIG.MODULE_ID, 'archivistId') === id);
 
-            const autoSort = settingsManager.getAutoSort?.();
             const hideByOwnership = settingsManager.getHideByOwnership?.();
             const canSee = doc => !hideByOwnership || game.user?.isGM || doc?.testUserPermission?.(game.user, 'OBSERVED');
 
@@ -689,7 +941,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     const myId = (this._getArchivistFlags().archivistId || this.document.id);
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     ids = Array.isArray(out.characters) ? out.characters.slice() : [];
-                    if (autoSort) ids.sort();
+                    ids.sort();
                 } catch (_) { ids = []; }
                 for (const id of ids) {
                     const actor = byActorId(id);
@@ -718,7 +970,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     allCharIds = Array.isArray(out.characters) ? out.characters.slice() : [];
                 } catch (_) { allCharIds = []; }
-                if (autoSort) allCharIds.sort();
+                allCharIds.sort();
                 const classify = id => {
                     const target = byId(id);
                     const sheetType = String((target?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {}).sheetType || '').toLowerCase();
@@ -763,7 +1015,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     ids = Array.isArray(out.factions) ? out.factions.slice() : [];
                 } catch (_) { ids = []; }
-                if (autoSort) ids.sort();
+                ids.sort();
                 for (const id of ids) {
                     const j = byId(id);
                     if (j && !canSee(j)) continue;
@@ -790,7 +1042,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     ids = Array.isArray(out.items) ? out.items.slice() : [];
                 } catch (_) { ids = []; }
-                if (autoSort) ids.sort();
+                ids.sort();
                 for (const id of ids) {
                     const itm = byItemId(id);
                     if (itm && !canSee(itm)) continue;
@@ -813,7 +1065,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 const f = this._getArchivistFlags();
                 let jRefs = Array.isArray(f?.foundryRefs?.journals) ? f.foundryRefs.journals.slice() : [];
                 jRefs = uniq(jRefs);
-                if (autoSort) jRefs.sort();
+                jRefs.sort();
                 const frag = document.createDocumentFragment();
                 for (const ref of jRefs) {
                     // ref can be a JournalEntry id or a JournalEntryPage UUID
@@ -872,7 +1124,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     ids = Array.isArray(out.locationsAssociative) ? out.locationsAssociative.slice() : [];
                 } catch (_) { ids = []; }
                 ids = uniq(ids);
-                if (autoSort) ids.sort();
+                ids.sort();
                 const frag = document.createDocumentFragment();
                 for (const id of ids) {
                     const j = byId(id);
@@ -1027,25 +1279,29 @@ export class LocationPageSheetV2 extends ArchivistBasePageSheetV2 {
             // Parent drop target
             const parentTarget = root.querySelector('[data-drop="parent-location"]');
             if (parentTarget) {
-                parentTarget.addEventListener('dragover', ev => ev.preventDefault());
-                parentTarget.addEventListener('drop', async ev => {
-                    ev.preventDefault();
-                    try {
-                        const dataStr = ev.dataTransfer?.getData('text/plain') || '';
-                        const data = dataStr ? JSON.parse(dataStr) : null;
-                        const uuid = data?.uuid || data?.data?.uuid || data?.text;
-                        const doc = uuid ? await fromUuid(uuid) : null;
-                        const entry = doc?.documentName === 'JournalEntryPage' ? doc.parent : doc;
-                        if (entry?.documentName !== 'JournalEntry') return;
-                        const f = entry.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                        if (f.sheetType !== 'location') return;
-                        const parentKey = f.archivistId || entry.id;
-                        const success = await setLocationParent(this.document, parentKey);
-                        if (success) this.render(false);
-                    } catch (e) {
-                        console.warn('[Archivist Sync][V2] Parent drop failed', e);
-                    }
-                });
+                if (!game.user?.isGM) {
+                    parentTarget.style.pointerEvents = 'none';
+                } else {
+                    parentTarget.addEventListener('dragover', ev => ev.preventDefault());
+                    parentTarget.addEventListener('drop', async ev => {
+                        ev.preventDefault();
+                        try {
+                            const dataStr = ev.dataTransfer?.getData('text/plain') || '';
+                            const data = dataStr ? JSON.parse(dataStr) : null;
+                            const uuid = data?.uuid || data?.data?.uuid || data?.text;
+                            const doc = uuid ? await fromUuid(uuid) : null;
+                            const entry = doc?.documentName === 'JournalEntryPage' ? doc.parent : doc;
+                            if (entry?.documentName !== 'JournalEntry') return;
+                            const f = entry.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                            if (f.sheetType !== 'location') return;
+                            const parentKey = f.archivistId || entry.id;
+                            const success = await setLocationParent(this.document, parentKey);
+                            if (success) this.render(false);
+                        } catch (e) {
+                            console.warn('[Archivist Sync][V2] Parent drop failed', e);
+                        }
+                    });
+                }
             }
 
             // Render tree and cards

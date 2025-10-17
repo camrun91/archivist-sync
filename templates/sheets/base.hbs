@@ -6,8 +6,20 @@
             {{else if document.img}}
             <img class="archivist-avatar" src="{{document.img}}" alt="" />
             {{/if}}
-            <h2 class="archivist-title">{{document.name}}</h2>
+            {{#if setup.editingInfo}}
+            <input class="archivist-title-input" type="text" value="{{setup.name}}" />
+            {{else}}
+            <h2 class="archivist-title">{{setup.name}}</h2>
+            {{/if}}
             <small class="archivist-subtitle">{{localize sheetTypeLabel}}</small>
+            {{#if setup.isGM}}
+            <button type="button" class="archivist-edit-toggle" data-action="toggle-edit-mode"
+                title="{{#if setup.editingInfo}}Save{{else}}Edit{{/if}}">
+                {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
+                    class="fa-solid fa-lock"></i>{{/if}}
+                <span class="label">{{#if setup.editingInfo}}Save{{else}}Edit{{/if}}</span>
+            </button>
+            {{/if}}
         </header>
         <nav class="archivist-nav tabs" data-group="archivist">
             <a class="item" data-tab="info">{{localize 'Info'}}</a>
@@ -20,7 +32,16 @@
     </aside>
     <main class="archivist-content">
         <section class="tab" data-tab="info">
-            {{{document.pages.contents.[0].text.content}}}
+            <div class="archivist-info">
+                {{#if setup.editingInfo}}
+                <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
+                    compact="true" toggled>
+                    {{{htmlContent}}}
+                </prose-mirror>
+                {{else}}
+                {{{htmlContent}}}
+                {{/if}}
+            </div>
         </section>
         <section class="tab" data-tab="people">
             <div class="archivist-grid"></div>

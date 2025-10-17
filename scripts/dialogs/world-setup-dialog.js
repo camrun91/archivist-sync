@@ -716,6 +716,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           items: (cf.items || []).reduce((m, id) => { m[String(id)] = true; return m; }, {}),
           scenes: (cf.scenes || []).reduce((m, id) => { m[String(id)] = true; return m; }, {}),
         };
+        // Provide flags for whether there are any create candidates
+        const candidates = this._getCreateCandidates();
+        contextData.hasCreateCandidates = {
+          actors: (candidates.actors || []).length > 0,
+          items: (candidates.items || []).length > 0,
+          scenes: (candidates.scenes || []).length > 0,
+        };
       }
     } catch (_) { }
 
@@ -775,6 +782,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   async _onNextStep(event) {
     event.preventDefault();
     console.log('[World Setup] _onNextStep called, currentStep before increment:', this.currentStep);
+
+    // Special handling: if leaving step 4, must build sync plan first
+    if (this.currentStep === 4 && this._canProceedFromCurrentStep()) {
+      console.log('[World Setup] _onNextStep from step 4: building sync plan via _onConfirmSelections');
+      await this._onConfirmSelections(event);
+      // _onConfirmSelections already advances to step 5 and renders, so return here
+      return;
+    }
 
     if (this.currentStep < this.totalSteps && this._canProceedFromCurrentStep()) {
       this.currentStep++;
@@ -1254,8 +1269,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         campaignId,
       });
 
-      // Suppress realtime sync during setup to avoid unintended PATCH/creates
+      // CRITICAL: Suppress realtime sync during setup to avoid unintended PATCH/creates
+      console.warn('[World Setup] ⚠️  Real-time sync DISABLED during initial world setup');
       try { settingsManager.suppressRealtimeSync?.(); } catch (_) { }
+
+      // Verify suppression is active
+      if (!settingsManager.isRealtimeSyncSuppressed?.()) {
+        console.error('[World Setup] ❌ CRITICAL: Realtime sync suppression FAILED!');
+        ui.notifications?.error?.('Critical error: Unable to disable sync during setup.');
+        this._syncRunning = false;
+        await this.render();
+        return;
+      }
+      console.log('[World Setup] ✓ Real-time sync successfully suppressed');
 
       // Ensure Journal folders exist for each sheet type BEFORE importing
       try {
@@ -1481,6 +1507,104 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         if (res.success && newId) {
           await setArchivistFlag(job.kind, doc, newId);
           this.syncStatus.logs.push(`Created ${job.kind} '${doc.name}' in Archivist → ${newId}`);
+
+          // Create custom journal sheet for the newly exported entity
+          try {
+            let sheetType, targetFolderId, html, imageUrl;
+
+            if (job.kind === 'PC' || job.kind === 'NPC') {
+              sheetType = job.kind === 'PC' ? 'pc' : 'npc';
+              targetFolderId = job.kind === 'PC' ? this.setupData.destinations.pc : this.setupData.destinations.npc;
+              // Extract description from actor
+              const desc = doc?.system?.details?.biography?.value || doc?.system?.description || doc?.system?.details?.biography || '';
+              html = this._mdToHtml(desc);
+              imageUrl = doc?.img || undefined;
+
+              console.log(`[World Setup] Creating journal for exported ${job.kind}:`, {
+                name: doc.name,
+                archivistId: newId,
+                targetFolderId: targetFolderId || 'none',
+              });
+
+              const journal = await Utils.createCustomJournalForImport({
+                name: doc.name,
+                html,
+                imageUrl,
+                sheetType,
+                archivistId: newId,
+                worldId: campaignId,
+                folderId: targetFolderId || null,
+              });
+
+              if (journal && doc?.id) {
+                const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
+                flags.foundryRefs.actors = [doc.id];
+                await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+              }
+            } else if (job.kind === 'Item') {
+              sheetType = 'item';
+              targetFolderId = this.setupData.destinations.item;
+              const desc = doc?.system?.description?.value || doc?.system?.description || '';
+              html = this._mdToHtml(desc);
+              imageUrl = doc?.img || undefined;
+
+              console.log(`[World Setup] Creating journal for exported Item:`, {
+                name: doc.name,
+                archivistId: newId,
+                targetFolderId: targetFolderId || 'none',
+              });
+
+              const journal = await Utils.createCustomJournalForImport({
+                name: doc.name,
+                html,
+                imageUrl,
+                sheetType,
+                archivistId: newId,
+                worldId: campaignId,
+                folderId: targetFolderId || null,
+              });
+
+              if (journal && doc?.id) {
+                const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
+                flags.foundryRefs.items = [doc.id];
+                await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+              }
+            } else if (job.kind === 'Location') {
+              sheetType = 'location';
+              targetFolderId = this.setupData.destinations.location;
+              // Scenes don't have descriptions in their core data
+              html = '';
+              imageUrl = doc?.thumb || doc?.background?.src || undefined;
+
+              console.log(`[World Setup] Creating journal for exported Location:`, {
+                name: doc.name,
+                archivistId: newId,
+                targetFolderId: targetFolderId || 'none',
+              });
+
+              const journal = await Utils.createCustomJournalForImport({
+                name: doc.name,
+                html,
+                imageUrl,
+                sheetType,
+                archivistId: newId,
+                worldId: campaignId,
+                folderId: targetFolderId || null,
+              });
+
+              if (journal && doc?.id) {
+                const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
+                flags.foundryRefs.scenes = [doc.id];
+                await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+              }
+            }
+          } catch (e) {
+            console.warn(`[World Setup] Failed to create journal for ${job.kind}:`, e);
+            // Non-fatal: continue sync even if journal creation fails
+          }
         }
         this.syncStatus.processed++;
         await this.render();
@@ -1497,14 +1621,20 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       }
 
       // Resume realtime sync now that batch operations are complete
-      try { settingsManager.resumeRealtimeSync?.(); } catch (_) { }
+      try {
+        settingsManager.resumeRealtimeSync?.();
+        console.log('[World Setup] ✓ Real-time sync resumed after successful setup');
+      } catch (_) { }
       ui.notifications.info('Sync completed');
       try {
         await this.close();
       } catch (_) { }
     } catch (e) {
-      try { settingsManager.resumeRealtimeSync?.(); } catch (_) { }
-      console.error('Begin sync failed', e);
+      try {
+        settingsManager.resumeRealtimeSync?.();
+        console.log('[World Setup] Real-time sync resumed after error');
+      } catch (_) { }
+      console.error('[World Setup] ❌ Begin sync failed', e);
       ui.notifications.error('Sync failed');
     } finally {
       // Re-enable Begin Sync button
@@ -1514,53 +1644,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     }
   }
 
-  async _persistMappingToSettings() {
-    // Build a trimmed import config-like object
-    const cfg = settingsManager.getImportConfig?.() || {};
-    const next = foundry.utils.deepClone(cfg);
-    next.actorMappings = next.actorMappings || {};
-    next.actorMappings.pc = next.actorMappings.pc || {};
-    next.actorMappings.npc = next.actorMappings.npc || {};
-    next.actorMappings.pc.descriptionPath =
-      this.setupData.mapping.pc.descPath || next.actorMappings.pc.descriptionPath;
-    next.actorMappings.npc.descriptionPath =
-      this.setupData.mapping.npc.descPath || next.actorMappings.npc.descriptionPath;
-    // Store simple portrait/img hints
-    next.actorMappings.pc.portraitPath =
-      this.setupData.mapping.pc.imagePath || next.actorMappings.pc.portraitPath || 'img';
-    next.actorMappings.npc.portraitPath =
-      this.setupData.mapping.npc.imagePath || next.actorMappings.npc.portraitPath || 'img';
-    // Item mappings
-    next.itemMappings = next.itemMappings || {};
-    next.itemMappings.namePath =
-      this.setupData.mapping.item.namePath || next.itemMappings.namePath || 'name';
-    next.itemMappings.imagePath =
-      this.setupData.mapping.item.imagePath || next.itemMappings.imagePath || 'img';
-    next.itemMappings.descriptionPath =
-      this.setupData.mapping.item.descPath || next.itemMappings.descriptionPath;
-    // Include folders
-    next.includeRules = next.includeRules || {
-      filters: { actors: { includeFolders: { pcs: [], npcs: [] } }, items: {}, factions: {} },
-      sources: {},
-    };
-    next.includeRules.filters.actors.includeFolders.pcs =
-      next.includeRules.filters.actors.includeFolders.pcs || [];
-    next.includeRules.filters.actors.includeFolders.npcs =
-      next.includeRules.filters.actors.includeFolders.npcs || [];
-    if (this.setupData.destinations.pc) {
-      next.includeRules.filters.actors.includeFolders.pcs = [this.setupData.destinations.pc];
-    }
-    if (this.setupData.destinations.npc) {
-      next.includeRules.filters.actors.includeFolders.npcs = [this.setupData.destinations.npc];
-    }
-    // Persist item destination as includeWorldItemFolders (single folder id)
-    next.includeRules.filters.items = next.includeRules.filters.items || {};
-    if (this.setupData.destinations.item) {
-      next.includeRules.filters.items.includeWorldItemFolders = [this.setupData.destinations.item];
-    }
-    // Save
-    await settingsManager.setImportConfig?.(next);
-  }
+  // _persistMappingToSettings removed (import config setting removed)
 
   // Removed Archivist journal folder setup; journals are created only in user destinations
 
@@ -2112,6 +2196,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       for (const s of sessions) {
         const title = s.title || 'Session';
         const html = this._mdToHtml(s.summary);
+        // Use session_date timestamp as sort value for proper ordering in Foundry sidebar
+        const sortValue = new Date(s.session_date).getTime();
         const journal = await Utils.createCustomJournalForImport({
           name: title,
           html,
@@ -2120,6 +2206,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           archivistId: s.id,
           worldId: campaignId,
           folderId: recapFolderId || null,
+          sort: sortValue,
         });
         if (journal) {
           try { await journal.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(s.session_date)); } catch (_) { }

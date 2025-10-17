@@ -1,0 +1,69 @@
+---
+description: Rules and examples for DocumentSheetV2-based sheets (Actors, Items, Journals, custom)
+globs: "src/**"
+alwaysApply: true
+---
+
+# DocumentSheetV2 – Author sheets the V2 way
+
+## Sheet base
+Extend `DocumentSheetV2` directly (or a project `BaseSheet` that extends it). Use V2 accessors (`this.document`, `this.form`) and lifecycle:
+
+```ts
+import { HandlebarsApplicationMixin } from "foundry/applications/api.mjs";
+
+export class FactionSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
+  static override DEFAULT_OPTIONS = {
+    id: "archivist-faction-sheet",
+    window: { title: "Faction" },
+    classes: ["archivist", "sheet", "faction"],
+    position: { width: 600, height: "auto" },
+    form: { handler: FactionSheet.prototype._onSubmit },
+  };
+
+  get title() { return `Faction: ${this.document?.name ?? "Untitled"}`; }
+
+  override async _prepareContext(_options) {
+    return {
+      faction: this.document,
+      links: this.document.getFlag("archivist-sync", "links") ?? [],
+    };
+  }
+
+  override async _renderHTML(context, _options) {
+    return await renderTemplate("modules/archivist-sync/templates/faction.hbs", context);
+  }
+
+  protected async _onSubmit(ev: SubmitEvent) {
+    ev.preventDefault();
+    const data = this._prepareSubmitData(new FormData(this.form!));
+    await this.document.update(data);
+  }
+
+  protected override _prepareSubmitData(form: FormData) {
+    // Map HBS form fields to the document schema (v13).
+    return {
+      "system.description": form.get("description") ?? this.document.system?.description ?? "",
+      img: (form.get("img") as string) || this.document.img,
+    } as any;
+  }
+}
+```
+
+## Use the V2 hooks/methods
+- Rendering & context: `_prepareContext`, `_renderHTML`, `_onFirstRender`, `_onRender`, `_postRender`.
+- Forms: `_onChangeForm`, `submit()`, `_prepareSubmitData`, `_processSubmitData`.
+- Accessors: `document`, `form`, `title`, `element`, `classList`.
+All are described in `DocumentSheetV2`.  [oai_citation:1‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.DocumentSheetV2.html)
+
+## Images & assets
+Bind image fields to `document.img` (or relevant system path) and update via `this.document.update({ img })` in submit handlers—do **not** rely on V1 jQuery form traversal.
+
+## Tabs and header controls
+Reuse `ApplicationV2` mechanisms from the window base: `TABS`, `_getTabsConfig`, `_getHeaderControls`.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+
+## Journal-like content
+For rich text, prefer v13 editors or ProseMirror-based editors exposed by the system. Avoid direct DOM HTML scraping; persist via `update` on the document.
+---
+alwaysApply: true
+---

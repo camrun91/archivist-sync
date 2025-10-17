@@ -1,0 +1,259 @@
+---
+description: How to call the Archivist REST API from this project (canonical headers, endpoints, payloads, streaming, and pitfalls)
+globs: "**/*"
+alwaysApply: true
+---
+
+# Archivist API – Project Rules
+
+**Base URL:** `https://api.myarchivist.ai`  
+**Auth header (required unless noted):** `x-api-key: <YOUR_API_KEY>`  
+**Content type:** `application/json` unless otherwise specified.
+
+> The agent MUST use the shapes and behaviors below. Do not invent fields. Prefer small helper wrappers instead of inlining fetch logic repeatedly.
+
+---
+
+## Global Guidance
+
+- Always send `x-api-key` and `Content-Type: application/json` for write operations.
+- Prefer **cursor-safe helpers** (see “Client Helpers”) so auth and error handling are consistent.
+- Respect query params and pagination (`page`, `size`). Never assume full dumps.
+- Some endpoints support **wikilink preservation** via `with_links=true`.
+- **Beats PATCH** uses **JSON Merge Patch** (`Content-Type: application/merge-patch+json`).
+- Use **streaming** on `/v1/ask` when `stream=true` is requested; otherwise expect a standard JSON response.
+- Treat `404` and `422` bodies as informative JSON; do not discard.
+
+---
+
+## Endpoints (canonical usage & shapes)
+
+### Health (no auth)
+**GET** `/health` → 200
+```bash
+curl https://api.myarchivist.ai/health
+
+Returns:
+
+{ "status": "healthy", "service": "archivist-api", "version": "1.0.0", "environment": "production", "port": 8000, "timestamp": "2025-01-15T10:30:00.123456Z" }
+
+
+⸻
+
+Ask (RAG)
+
+POST /v1/ask — chat for campaign questions; supports streaming
+Headers: x-api-key, Content-Type: application/json
+Body (required): campaign_id, messages: [{ role, content }]
+Optional: stream: true
+
+Non-streaming example
+
+curl -X POST https://api.myarchivist.ai/v1/ask \
+  -H "x-api-key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{
+    "campaign_id": "your-campaign-id",
+    "messages": [ {"role":"user","content":"Who is Cassius Traven?"} ]
+  }'
+
+Response 200:
+
+{ "answer":"...", "monthlyTokensRemaining":12345, "hourlyTokensRemaining":6789 }
+
+Streaming (Node.js)
+
+const res = await fetch(`${BASE}/v1/ask`, {
+  method: "POST",
+  headers: { "x-api-key": API_KEY, "Content-Type": "application/json" },
+  body: JSON.stringify({ campaign_id, messages, stream: true })
+});
+if (!res.ok) throw await asApiError(res);
+const reader = res.body!.getReader();
+let chunk;
+while (!(chunk = await reader.read()).done) {
+  const text = new TextDecoder().decode(chunk.value);
+  // Process incremental tokens/chunks here
+}
+
+
+⸻
+
+Campaigns
+
+GET /v1/campaigns?page=&size= → paginated list
+GET /v1/campaigns/{campaign_id}
+POST /v1/campaigns (title*, description?, system?) → 201
+PATCH /v1/campaigns/{campaign_id} (title?, description?) → 200
+DELETE /v1/campaigns/{campaign_id} → 204
+GET /v1/campaigns/{campaign_id}/stats → counts
+GET /v1/campaigns/{campaign_id}/links (+filters: from_id, from_type, to_id, to_type, alias, pagination)
+POST /v1/campaigns/{campaign_id}/links (from_id*, from_type*, to_id*, to_type*, alias?) → 201
+PATCH /v1/campaigns/{campaign_id}/links/{link_id} (alias?) → 200
+DELETE /v1/campaigns/{campaign_id}/links/{link_id} → 204
+
+Notes:
+	•	Treat DELETE 204 as success with no body.
+	•	Filters on /links are additive; prefer server-side filtering instead of client filtering large pages.
+
+⸻
+
+Characters
+
+GET /v1/characters?campaign_id=...&search=&character_type=&approved_only=&with_links=
+GET /v1/characters/{character_id}?with_links=
+POST /v1/characters (character_name*, campaign_id*, player_name?, description?, type?) → 201
+PATCH /v1/characters/{character_id} (character_name?, description?) → 200
+DELETE /v1/characters/{character_id} → 204
+
+⸻
+
+Sessions
+
+GET /v1/sessions?campaign_id=...&session_type=&public_only=&with_links=
+GET /v1/sessions/{session_id}?include_beats=&include_moments=&with_links=
+PATCH /v1/sessions/{session_id} (title?, summary?, session_date?) → 200
+
+⸻
+
+Beats
+
+GET /v1/beats?campaign_id=...&page=&size=&with_links= (ordered by index)
+GET /v1/beats/{beat_id}?with_links=
+POST /v1/beats (label*, type*=major|minor|step, campaign_id*, game_session_id?, description?, index?, parent_id?) → 201
+PATCH /v1/beats/{beat_id} — JSON Merge Patch, header must be application/merge-patch+json
+DELETE /v1/beats/{beat_id} → 204
+
+Important: When PATCHing beats, only include fields that should change. The server merges.
+
+await api.patch(`/v1/beats/${id}`, { index: 2 }, { mergePatch: true });
+
+
+⸻
+
+Moments
+
+GET /v1/moments?campaign_id=&session_id=&with_links=
+GET /v1/moments/{moment_id}?with_links=
+POST /v1/moments (label*, campaign_id*, session_id?, content?) → 201
+PATCH /v1/moments/{moment_id} (label?, content?) → 200
+DELETE /v1/moments/{moment_id} → 204
+
+⸻
+
+Factions
+
+GET /v1/factions?campaign_id=&with_links=
+GET /v1/factions/{faction_id}?with_links=
+POST /v1/factions (name*, campaign_id*, description?, type?) → 201
+PATCH /v1/factions/{faction_id} (name?, description?, type?) → 200
+DELETE /v1/factions/{faction_id} → 204
+
+⸻
+
+Locations
+
+GET /v1/locations?campaign_id=&with_links=
+GET /v1/locations/{location_id}?with_links=
+POST /v1/locations (name*, campaign_id*, description?, type?, parent_id?) → 201
+PATCH /v1/locations/{location_id} (name?, description?, type?, parent_id?) → 200
+DELETE /v1/locations/{location_id} → 204
+
+⸻
+
+Items
+
+GET /v1/items?campaign_id=&with_links=
+GET /v1/items/{item_id}?with_links=
+POST /v1/items (name*, campaign_id*, description?, type?) → 201
+PATCH /v1/items/{item_id} (name?, description?, type?) → 200
+DELETE /v1/items/{item_id} → 204
+
+⸻
+
+Client Helpers (use these in this project)
+
+Create a tiny wrapper so all calls are consistent and type-safe:
+
+// src/lib/archivistApi.ts
+const BASE = "https://api.myarchivist.ai";
+const API_KEY = game.settings.get("archivist-sync", "apiKey") as string; // stored securely in Foundry settings
+
+type FetchOpts = {
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  headers?: Record<string, string>;
+  body?: any;
+  mergePatch?: boolean; // for Beats PATCH
+  signal?: AbortSignal;
+};
+
+export async function api(path: string, opts: FetchOpts = {}) {
+  const headers: Record<string, string> = {
+    "x-api-key": API_KEY,
+    ...(opts.mergePatch
+      ? { "Content-Type": "application/merge-patch+json" }
+      : { "Content-Type": "application/json" }),
+    ...opts.headers
+  };
+  const res = await fetch(`${BASE}${path}`, {
+    method: opts.method ?? "GET",
+    headers,
+    body: opts.body != null
+      ? (typeof opts.body === "string" ? opts.body : JSON.stringify(opts.body))
+      : undefined,
+    signal: opts.signal
+  });
+  if (!res.ok) throw await asApiError(res);
+  const ct = res.headers.get("content-type") ?? "";
+  return ct.includes("application/json") ? res.json() : res.text();
+}
+
+export async function asApiError(res: Response) {
+  let detail: any = undefined;
+  try { detail = await res.json(); } catch {}
+  const err = new Error(detail?.detail || `HTTP ${res.status}`);
+  (err as any).status = res.status;
+  (err as any).detail = detail;
+  return err;
+}
+
+Usage:
+
+// List campaigns (page 1, size 20)
+const { data, total, page, size, pages } = await api(`/v1/campaigns?page=1&size=20`);
+
+// Create a beat
+const newBeat = await api(`/v1/beats`, {
+  method: "POST",
+  body: { label: "The Final Battle", type: "major", campaign_id }
+});
+
+// Merge-patch a beat (index only)
+await api(`/v1/beats/${beatId}`, {
+  method: "PATCH",
+  mergePatch: true,
+  body: { index: 2 }
+});
+
+
+⸻
+
+Common Pitfalls (and the correct approach)
+	•	Missing x-api-key → 401 {"detail":"Invalid API key"}.
+Fix: Always include the header via the helper.
+	•	Wrong content type on Beats PATCH → 415/422.
+Fix: Use mergePatch: true which sets application/merge-patch+json.
+	•	Forgetting campaign_id for list/create → 422 {"detail":"campaign_id is required"}.
+Fix: Pass it explicitly.
+	•	Assuming deletions return JSON → 204 has no body.
+Fix: Treat 204 as success and skip parsing.
+	•	Dropping wikilinks when rendering in Foundry.
+Fix: Use with_links=true when you need raw [[Link]] markup preserved.
+
+⸻
+
+Foundry Integration Notes
+	•	Store the API key in a module setting (game.settings.register) and never hard-code it.
+	•	For streaming from /v1/ask, pipe chunks into your ApplicationV2 instance to update the UI progressively (avoid blocking the UI thread).
+	•	Respect pagination in UI lists (campaigns, beats, moments, etc.); provide “Load more” or page controls.
+
+If an endpoint here conflicts with ad-hoc code, the rule is: the reference above wins. Prefer the shared api() helper and these shapes for all calls.
