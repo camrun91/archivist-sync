@@ -24,12 +24,15 @@ The beta release system now provides **automatic updates** for testers using a s
 
 ### For Developers (staging branch):
 
-1. Push version bump to `staging` branch
+1. Make changes and push to `staging` branch (no version bump required!)
 2. Workflow automatically:
-   - Creates `v1.3.0-beta.{BUILD_NUMBER}` release
+   - Reads version from `module.json` (e.g., `1.3.0`)
+   - Creates `v1.3.0-beta.{BUILD_NUMBER}` release (auto-increments)
    - Force-updates `beta-latest` tag to point to this release
    - Updates `module.json` URLs to point to `beta-latest`
    - Commits changes back to `staging`
+
+**Key Point:** You don't need to bump the version for each beta. The build number auto-increments with each push. Only update the version in `module.json` when you want to target a new release number (e.g., moving from `1.2.x` to `1.3.0`).
 
 ### For Beta Testers (users):
 
@@ -110,14 +113,14 @@ The beta release system now provides **automatic updates** for testers using a s
 ## Testing the Setup
 
 1. Create a `staging` branch if it doesn't exist
-2. Make a small change
-3. Update version in `module.json` and `package.json` to next version (e.g., `1.3.0`)
-4. Commit and push to `staging`
-5. Check GitHub Actions for workflow execution
-6. Verify two releases appear:
-   - `v1.3.0-beta.1` (or similar)
-   - `beta-latest`
-7. Test the beta-latest manifest URL in Foundry
+2. Make a small change (any code change, even a comment)
+3. Commit and push to `staging`
+4. Check GitHub Actions for workflow execution
+5. Verify two releases appear:
+   - `v{VERSION}-beta.{BUILD_NUMBER}` (e.g., `v1.2.0-beta.15`)
+   - `beta-latest` (updated to point to the new beta)
+6. Test the beta-latest manifest URL in Foundry
+7. Make another change and push → verify build number increments automatically
 
 ## Questions?
 

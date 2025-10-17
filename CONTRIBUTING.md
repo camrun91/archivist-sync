@@ -82,8 +82,8 @@ See [.github/RELEASE_WORKFLOW.md](.github/RELEASE_WORKFLOW.md) for detailed docu
 
 **For Beta Testing:**
 1. Merge your feature to `staging`
-2. Update versions in `module.json` and `package.json`
-3. Push to `staging` → automatic beta release created
+2. Push to `staging` → automatic beta release created with auto-incrementing build number
+3. No version bump needed! (Only update version when targeting a new release)
 
 **For Production Release:**
 1. Update `CHANGELOG.md` with release notes

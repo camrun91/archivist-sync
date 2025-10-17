@@ -46,12 +46,15 @@ This module uses two separate GitHub Actions workflows for releases:
 
 ### How to create a beta release:
 1. Work on the `staging` branch
-2. Update version in both `module.json` and `package.json` (use the target version, e.g., `1.3.0`)
+2. Make your changes (code, features, bug fixes, etc.)
 3. Commit and push to `staging`
-4. The workflow will:
-   - Create a release tagged `v1.3.0-beta.42` (where 42 is the build number)
-   - Update `module.json` to point to this beta release
-   - Commit the changes back to `staging`
+4. The workflow **automatically runs** and:
+   - Reads the version from `module.json` (e.g., `1.3.0`)
+   - Creates a release tagged `v1.3.0-beta.{BUILD_NUMBER}` (auto-incrementing)
+   - Updates `module.json` to point to `beta-latest`
+   - Commits the changes back to `staging`
+
+**Note:** You do NOT need to bump the version for each beta! The workflow uses the GitHub run number to auto-increment beta builds. Only update the version when you're ready to target a new release number.
 
 ### How users install beta releases:
 
