@@ -101,6 +101,12 @@
         "Name": "Archivist Chat",
         "Label": "Archivist Chat",
         "Hint": "Ask questions about your campaign with RAG"
+      },
+      "Documentation": {
+        "Name": "Documentation",
+        "Label": "Documentation",
+        "Hint": "View Archivist Sync documentation and user guide",
+        "Title": "Archivist Sync Documentation"
       }
     },
     "dialog": {},
@@ -230,7 +236,11 @@
         "nextSteps": "Here's what we'll do:",
         "step1": "Configure your Archivist API key",
         "step2": "Connect to your Archivist campaign world",
-        "step3": "Complete the initialization process"
+        "step3": "Complete the initialization process",
+        "helpTitle": "Need Help?",
+        "helpText": "If you close this window, it will open again when you reload the VTT until you complete the setup process.",
+        "helpNote": "You can also access this setup wizard later from the Game Settings menu under Archivist Sync → Run World Setup Again.",
+        "viewDocs": "View Documentation"
       },
       "step2": {
         "title": "Enter Your API Key",

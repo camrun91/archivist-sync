@@ -147,6 +147,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       validateApiKey: WorldSetupDialog.prototype._onValidateApiKey,
       syncWorlds: WorldSetupDialog.prototype._onSyncWorlds,
       selectWorld: WorldSetupDialog.prototype._onSelectWorld,
+      openDocumentation: WorldSetupDialog.prototype._onOpenDocumentation,
       // Step 3 actions
       loadCampaigns: WorldSetupDialog.prototype._onLoadCampaigns,
       createCampaign: WorldSetupDialog.prototype._onCreateCampaign,
@@ -892,6 +893,22 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     } finally {
       this.isValidatingApi = false;
       await this.render();
+    }
+  }
+
+  /**
+   * Handle open documentation button click
+   * @param {Event} event - Click event
+   * @private
+   */
+  async _onOpenDocumentation(event) {
+    event.preventDefault();
+    try {
+      const { DocumentationWindow } = await import('./documentation-window.js');
+      (window.__ARCHIVIST_DOCS__ ||= new DocumentationWindow()).render(true);
+    } catch (e) {
+      console.error('[Archivist Sync] Failed to open documentation window', e);
+      ui.notifications?.error?.('Failed to open documentation window');
     }
   }
 

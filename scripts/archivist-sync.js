@@ -118,11 +118,11 @@ Hooks.once('setup', function () {
 Hooks.on('getSceneControlButtons', controls => {
   try {
     // Guard against settings not yet registered during very early lifecycle
-    let isWorldSelected = false;
-    try { isWorldSelected = !!settingsManager.isWorldSelected?.(); } catch (_) { isWorldSelected = false; }
+    let isWorldInitialized = false;
+    try { isWorldInitialized = !!settingsManager.isWorldInitialized?.(); } catch (_) { isWorldInitialized = false; }
     console.log('[Archivist Sync] getSceneControlButtons hook fired', {
       controlsType: Array.isArray(controls) ? 'array' : typeof controls,
-      isWorldSelected,
+      isWorldInitialized,
       worldId: (function () { try { return settingsManager.getSelectedWorldId?.(); } catch (_) { return null; } })(),
     });
 
@@ -145,7 +145,7 @@ Hooks.on('getSceneControlButtons', controls => {
         name: groupName,
         title: 'Archivist',
         icon: 'fas fa-book',
-        visible: !!isWorldSelected,
+        visible: !!isWorldInitialized,
         button: true,
         order: Object.keys(controls).length + 1,
         onChange: (event, active) => { if (active) canvas.tokens?.activate?.(); },
@@ -173,7 +173,7 @@ Hooks.on('getSceneControlButtons', controls => {
       name: 'archivist-hub',
       title: 'Archivist Hub',
       icon: 'fas fa-book',
-      visible: !!isWorldSelected,
+      visible: !!isWorldInitialized,
       onClick: () => openHub(),
       button: true,
     });
@@ -337,6 +337,10 @@ Hooks.once('ready', async function () {
   // Inject a Journal Directory header button to open Archivist Hub
   Hooks.on('renderJournalDirectory', (app, html) => {
     try {
+      // Only show hub button if world is initialized
+      const isWorldInitialized = settingsManager.isWorldInitialized?.();
+      if (!isWorldInitialized) return;
+
       const root = html instanceof jQuery ? html[0] : (html?.element || html);
       if (!root) return;
       const header =
@@ -364,6 +368,9 @@ Hooks.once('ready', async function () {
   // Inject quick-create buttons for Archivist sheets in the Journal Directory header
   Hooks.on('renderJournalDirectory', (app, html) => {
     try {
+      // Only show create buttons if world is initialized
+      const isWorldInitialized = settingsManager.isWorldInitialized?.();
+      if (!isWorldInitialized) return;
       if (!game.user?.isGM) return;
       const root = html instanceof jQuery ? html[0] : (html?.element || html);
       if (!root) return;
@@ -591,8 +598,8 @@ Hooks.once('ready', async function () {
         ui.controls.render({ controls: ui.controls.control?.name || 'notes', tool: ui.controls.tool?.name || undefined });
       }
 
-      const isWorldSelected = settingsManager.isWorldSelected();
-      if (!isWorldSelected) return;
+      const isWorldInitialized = settingsManager.isWorldInitialized();
+      if (!isWorldInitialized) return;
 
       // Check if our scene control group is active (v13+ API)
       const activeControl = ui.controls?.control?.name;
@@ -1157,6 +1164,9 @@ function installRealtimeSyncListeners() {
 // Header controls (v13): add quick-create buttons to Journal Directory
 Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
   try {
+    // Only show create buttons if world is initialized
+    const isWorldInitialized = settingsManager.isWorldInitialized?.();
+    if (!isWorldInitialized) return;
     if (!game.user?.isGM) return;
 
     const promptForName = async (title) => {

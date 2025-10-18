@@ -66,7 +66,7 @@ After initialization, an "Archivist Chat" tab appears in the Foundry sidebar. It
 - An Archivist campaign selected
 - World initialization completed via the setup wizard
 
-![Ask Archivist Chatbot](https://assets.rpgarchivist.io/foundry%3Achatbot.png)
+![Ask Archivist Chatbot](https://assets.myarchivist.ai/foundry%3Achatbot.png)
 
 ### 4) Archivist Hub
 Open the Archivist Hub from Scene Controls or the Journal directory header button. The hub provides:
@@ -78,9 +78,9 @@ Open the Archivist Hub from Scene Controls or the Journal directory header butto
   - Reconcile structural Location parent/child via `parent_id`
   - Synchronize sheet‑to‑sheet links to match Archivist Links
 
-![Archivist Hub](https://assets.rpgarchivist.io/foundry%3Ahub.png)
+![Archivist Hub](https://assets.myarchivist.ai/foundry%3Ahub.png)
 
-![Sync Manager](https://assets.rpgarchivist.io/foundry%3Async-manager.png)
+![Sync Manager](https://assets.myarchivist.ai/foundry%3Async-manager.png)
 
 ### 5) Real‑Time Sync (always active)
 The GM client automatically mirrors CRUD events and link changes to Archivist:
@@ -101,7 +101,7 @@ The module provides custom journal sheets to organize and link your campaign dat
 - **Faction**: Faction summary sheet with relation tabs
 - **Recap**: Session summary page bound to an existing Game Session (edits apply through real-time sync - create/delete are local to Foundry and will not create/delete Game Sessions in Archivist)
 
-![Custom Journal Sheet](https://assets.rpgarchivist.io/foundry%3Acustom-sheet.png)
+![Custom Journal Sheet](https://assets.myarchivist.ai/foundry%3Acustom-sheet.png)
 
 All sheets include:
 - **GM Notes tab**: Private notes visible only to GMs with rich text editing

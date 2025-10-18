@@ -124,6 +124,14 @@ export const MENU_CONFIG = {
     icon: 'fas fa-wand-magic-sparkles',
     restricted: true,
   },
+  DOCUMENTATION: {
+    key: 'documentation',
+    name: 'ARCHIVIST_SYNC.Menu.Documentation.Name',
+    label: 'ARCHIVIST_SYNC.Menu.Documentation.Label',
+    hint: 'ARCHIVIST_SYNC.Menu.Documentation.Hint',
+    icon: 'fas fa-book',
+    restricted: false,
+  },
 };
 
 /**

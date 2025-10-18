@@ -292,8 +292,9 @@ class ArchivistHub extends foundry.applications.api.HandlebarsApplicationMixin(
     async _onTogglePerm(event) {
         event.preventDefault();
         if (!game.user?.isGM) return; // players cannot toggle visibility
-        const li = event?.target?.closest?.('li[data-id]');
-        if (!li) return;
+        const button = event?.target?.closest?.('button[data-action="togglePerm"]');
+        const li = button?.closest?.('li[data-id]');
+        if (!li || !button) return;
         const kind = li.dataset.kind;
         const id = li.dataset.id;
         const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
@@ -304,7 +305,14 @@ class ArchivistHub extends foundry.applications.api.HandlebarsApplicationMixin(
                 const cur = Number(j?.ownership?.default ?? NON);
                 const next = cur >= OBS ? NON : OBS;
                 await j.update({ ownership: { default: next } });
-                await this.render();
+
+                // Update the icon locally without re-rendering the whole window
+                const icon = button.querySelector('i');
+                if (icon) {
+                    const newIconClass = next >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+                    icon.className = newIconClass;
+                    button.title = next >= OBS ? 'Hide from Players' : 'Show to Players';
+                }
                 return;
             }
         } catch (e) {
