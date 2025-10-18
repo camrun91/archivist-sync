@@ -95,18 +95,17 @@ The GM client automatically mirrors CRUD events and link changes to Archivist:
 
 The module provides custom journal sheets to organize and link your campaign data:
 
-- **Character**: PC/NPC overview sheet with linked Actor support, character info, and relation tabs (PCs, NPCs, Factions, Items, Locations)
-- **Item**: Item summary sheet with linked Item support and relation tabs
-- **Entry**: General article/handout with relation tabs
-- **Location**: Supports structural nesting (parent_id), ancestor/descendant trees, and associative Location↔Location links
-- **Faction**: Dashboard listing related people, entries, locations, and items
-- **Recap**: Session summary page bound to an existing Game Session (read-only for create/delete)
+- **Character**: PC/NPC overview sheet with linked Actor support (drop onto active Scene), character info, and relation tabs (PCs, NPCs, Factions, Items, Locations)
+- **Item**: Item summary sheet with linked Item support (send to Player) and relation tabs
+- **Location**: Supports structural nesting (parent_id), ancestor/descendant trees, associative Location↔Location links, and linked Scene support (toggle active Scene)
+- **Faction**: Faction summary sheet with relation tabs
+- **Recap**: Session summary page bound to an existing Game Session (edits apply through real-time sync - create/delete are local to Foundry and will not create/delete Game Sessions in Archivist)
 
 ![Custom Journal Sheet](https://assets.rpgarchivist.io/foundry%3Acustom-sheet.png)
 
 All sheets include:
 - **GM Notes tab**: Private notes visible only to GMs with rich text editing
-- **Drag‑and‑drop linking**: Drop any custom sheet onto another to create bidirectional links
+- **Drag‑and‑drop linking**: Drop any custom sheet, Journal entry, or Journal page, onto another to create bidirectional links
 - **Real-time sync**: Link/unlink actions automatically create/delete Link records in Archivist
 
 ### Structural vs. associative location links
