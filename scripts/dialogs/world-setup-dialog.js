@@ -32,36 +32,16 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       createFoundry: { actors: [], items: [], scenes: [] },
     };
     // Mapping discovery caches removed
-    this.folderOptions = {
-      pc: [],
-      npc: [],
-      item: [],
-      location: [],
-      faction: [],
-    };
+    this.folderOptions = { pc: [], npc: [], item: [], location: [], faction: [] };
     // Mapping options removed (keep empty object to avoid legacy access)
     this.mappingOptions = { actor: [], item: [] };
-    this.archivistCandidates = {
-      characters: [],
-      items: [],
-      locations: [],
-      factions: [],
-    };
-    this.eligibleDocs = {
-      pcs: [],
-      npcs: [],
-      items: [],
-      locations: [],
-      factions: [],
-    };
+    this.archivistCandidates = { characters: [], items: [], locations: [], factions: [] };
+    this.eligibleDocs = { pcs: [], npcs: [], items: [], locations: [], factions: [] };
     this.syncPlan = { createInFoundry: [], createInArchivist: [], link: [] };
     this.syncStatus = { total: 0, processed: 0, current: '', logs: [] };
     // Sync re-entrancy and lifecycle flags
     this._syncRunning = false;
     this._syncStarted = false;
-    // Track active tab per step to restore after re-render
-    this.activeTabStep4 = null;
-    this.activeTabStep5 = null;
   }
 
   /**
@@ -70,38 +50,33 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   async _prepareCreateFoundryChoices() {
     try {
       const R = this.setupData?.reconcile || {};
-      const arr = (v) => (Array.isArray(v) ? v : []);
-      const unmatched = (rows) => arr(rows).filter((r) => r && r.selected && !r.match);
+      const arr = v => (Array.isArray(v) ? v : []);
+      const unmatched = rows => arr(rows).filter(r => r && r.selected && !r.match);
 
-      const existing = this.setupData?.createFoundry || {
-        actors: [],
-        items: [],
-        scenes: [],
-      };
+      const existing = this.setupData?.createFoundry || { actors: [], items: [], scenes: [] };
       const actorIds = new Set((existing.actors || []).map(String));
       const itemIds = new Set((existing.items || []).map(String));
       const sceneIds = new Set((existing.scenes || []).map(String));
 
-      const characterIds = unmatched(R.characters?.archivist).map((r) => r.id);
-      const itemIdsSrc = unmatched(R.items?.archivist).map((r) => r.id);
-      const locationIds = unmatched(R.locations?.archivist).map((r) => r.id);
+      const characterIds = unmatched(R.characters?.archivist).map(r => r.id);
+      const itemIdsSrc = unmatched(R.items?.archivist).map(r => r.id);
+      const locationIds = unmatched(R.locations?.archivist).map(r => r.id);
 
-      if (actorIds.size === 0) characterIds.forEach((id) => actorIds.add(String(id)));
-      if (itemIds.size === 0) itemIdsSrc.forEach((id) => itemIds.add(String(id)));
-      if (sceneIds.size === 0) locationIds.forEach((id) => sceneIds.add(String(id)));
+      if (actorIds.size === 0) characterIds.forEach(id => actorIds.add(String(id)));
+      if (itemIds.size === 0) itemIdsSrc.forEach(id => itemIds.add(String(id)));
+      if (sceneIds.size === 0) locationIds.forEach(id => sceneIds.add(String(id)));
 
       this.setupData.createFoundry = {
         actors: Array.from(actorIds),
         items: Array.from(itemIds),
         scenes: Array.from(sceneIds),
       };
-    } catch (_) {}
+    } catch (_) { }
   }
 
   _getCreateCandidates() {
     const R = this.setupData?.reconcile || {};
-    const pick = (rows) =>
-      Array.isArray(rows) ? rows.filter((r) => r && r.selected && !r.match) : [];
+    const pick = rows => (Array.isArray(rows) ? rows.filter(r => r && r.selected && !r.match) : []);
     return {
       actors: pick(R.characters?.archivist),
       items: pick(R.items?.archivist),
@@ -114,9 +89,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const kind = el?.dataset?.kind;
     const id = el?.dataset?.id;
     if (!kind || !id) return;
-    const list = Array.isArray(this.setupData.createFoundry?.[kind])
-      ? this.setupData.createFoundry[kind]
-      : [];
+    const list = Array.isArray(this.setupData.createFoundry?.[kind]) ? this.setupData.createFoundry[kind] : [];
     const sid = String(id);
     const i = list.map(String).indexOf(sid);
     if (el.checked && i === -1) list.push(sid);
@@ -127,15 +100,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const kind = event?.target?.dataset?.kind;
     if (!kind) return;
     const cand = this._getCreateCandidates()[kind] || [];
-    this.setupData.createFoundry[kind] = cand.map((c) => String(c.id));
+    this.setupData.createFoundry[kind] = cand.map(c => String(c.id));
     // Update checkboxes in DOM without full re-render
     const root = this.element;
     if (root) {
-      root
-        .querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`)
-        .forEach((cb) => {
-          cb.checked = true;
-        });
+      root.querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`).forEach(cb => {
+        cb.checked = true;
+      });
     }
   }
 
@@ -146,11 +117,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     // Update checkboxes in DOM without full re-render
     const root = this.element;
     if (root) {
-      root
-        .querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`)
-        .forEach((cb) => {
-          cb.checked = false;
-        });
+      root.querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`).forEach(cb => {
+        cb.checked = false;
+      });
     }
   }
 
@@ -346,7 +315,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
     // Try to discover properties from system data model templates instead of creating actors
     for (const actorType of actorTypes) {
-      const hasExistingOfType = existingActors.some((a) => a.type === actorType);
+      const hasExistingOfType = existingActors.some(a => a.type === actorType);
 
       if (!hasExistingOfType) {
         try {
@@ -413,10 +382,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       { path: 'name', sample: 'Actor name' },
       { path: 'img', sample: 'Actor image path' },
       { path: 'system.details.biography.value', sample: 'Full biography text' },
-      {
-        path: 'system.details.biography.public',
-        sample: 'Public biography text',
-      },
+      { path: 'system.details.biography.public', sample: 'Public biography text' },
       { path: 'system.description.value', sample: 'Description text' },
       { path: 'system.details.trait', sample: 'Personality traits' },
       { path: 'system.details.ideal', sample: 'Ideals' },
@@ -427,10 +393,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       { path: 'system.details.race', sample: 'Character race' },
       { path: 'system.details.class', sample: 'Character class' },
       { path: 'system.biography.value', sample: 'Biography (alt path)' },
-      {
-        path: 'system.biography.public',
-        sample: 'Public biography (alt path)',
-      },
+      { path: 'system.biography.public', sample: 'Public biography (alt path)' },
     ];
 
     for (const pathInfo of knownPaths) {
@@ -459,48 +422,24 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     if (actorType === 'character') {
       return [
         ...baseProperties,
-        {
-          path: 'system.details.biography.value',
-          type: 'string',
-          sample: 'Full biography text',
-        },
-        {
-          path: 'system.details.trait',
-          type: 'string',
-          sample: 'Personality traits',
-        },
+        { path: 'system.details.biography.value', type: 'string', sample: 'Full biography text' },
+        { path: 'system.details.trait', type: 'string', sample: 'Personality traits' },
         { path: 'system.details.ideal', type: 'string', sample: 'Ideals' },
         { path: 'system.details.bond', type: 'string', sample: 'Bonds' },
         { path: 'system.details.flaw', type: 'string', sample: 'Flaws' },
-        {
-          path: 'system.details.appearance',
-          type: 'string',
-          sample: 'Physical appearance',
-        },
-        {
-          path: 'system.details.background',
-          type: 'string',
-          sample: 'Character background',
-        },
+        { path: 'system.details.appearance', type: 'string', sample: 'Physical appearance' },
+        { path: 'system.details.background', type: 'string', sample: 'Character background' },
       ];
     } else if (actorType === 'npc') {
       return [
         ...baseProperties,
-        {
-          path: 'system.details.biography.value',
-          type: 'string',
-          sample: 'Full biography text',
-        },
+        { path: 'system.details.biography.value', type: 'string', sample: 'Full biography text' },
         {
           path: 'system.details.biography.public',
           type: 'string',
           sample: 'Public biography text',
         },
-        {
-          path: 'system.description.value',
-          type: 'string',
-          sample: 'Description text',
-        },
+        { path: 'system.description.value', type: 'string', sample: 'Description text' },
       ];
     }
 
@@ -601,10 +540,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       { path: 'system.source', sample: 'Item source' },
       { path: 'system.requirements', sample: 'Requirements' },
       { path: 'system.chatFlavor', sample: 'Chat flavor text' },
-      {
-        path: 'system.unidentified.description',
-        sample: 'Unidentified description',
-      },
+      { path: 'system.unidentified.description', sample: 'Unidentified description' },
     ];
 
     for (const pathInfo of knownPaths) {
@@ -628,21 +564,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     return [
       { path: 'name', type: 'string', sample: 'Item name' },
       { path: 'img', type: 'string', sample: 'Item image path' },
-      {
-        path: 'system.description.value',
-        type: 'string',
-        sample: 'Item description',
-      },
-      {
-        path: 'system.description.short',
-        type: 'string',
-        sample: 'Short description',
-      },
-      {
-        path: 'system.description.chat',
-        type: 'string',
-        sample: 'Chat description',
-      },
+      { path: 'system.description.value', type: 'string', sample: 'Item description' },
+      { path: 'system.description.short', type: 'string', sample: 'Short description' },
+      { path: 'system.description.chat', type: 'string', sample: 'Chat description' },
       { path: 'system.source', type: 'string', sample: 'Item source' },
     ];
   }
@@ -655,10 +579,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     // Prepare folder options when needed
     try {
       const folders = game.folders?.contents || [];
-      const pick = (type) =>
+      const pick = type =>
         folders
-          .filter((f) => f.type === type)
-          .map((f) => ({ id: f.id, name: f.name, depth: f.depth || 0 }))
+          .filter(f => f.type === type)
+          .map(f => ({ id: f.id, name: f.name, depth: f.depth || 0 }))
           .sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name));
       this.folderOptions = {
         pc: pick('Actor'),
@@ -723,25 +647,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Fallback: derive counts directly from reconciliation selections if plan not populated
         if (!hasPlanNumbers) {
           const R = this.setupData?.reconcile || {};
-          const arr = (v) => (Array.isArray(v) ? v : []);
-          const isSel = (r) => r && r.selected !== false;
+          const arr = v => (Array.isArray(v) ? v : []);
+          const isSel = r => r && (r.selected !== false);
 
           const count = {
-            imp: {
-              characters: 0,
-              items: 0,
-              locations: 0,
-              factions: 0,
-              recaps: 0,
-            },
+            imp: { characters: 0, items: 0, locations: 0, factions: 0, recaps: 0 },
             exp: { characters: 0, items: 0, locations: 0, factions: 0 },
             lnk: { characters: 0, items: 0, locations: 0 },
           };
 
           for (const row of arr(R.characters?.archivist)) {
             if (!isSel(row)) continue;
-            if (row.match) count.lnk.characters++;
-            else count.imp.characters++;
+            if (row.match) count.lnk.characters++; else count.imp.characters++;
           }
           for (const row of arr(R.characters?.foundry)) {
             if (!isSel(row)) continue;
@@ -750,8 +667,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
           for (const row of arr(R.items?.archivist)) {
             if (!isSel(row)) continue;
-            if (row.match) count.lnk.items++;
-            else count.imp.items++;
+            if (row.match) count.lnk.items++; else count.imp.items++;
           }
           for (const row of arr(R.items?.foundry)) {
             if (!isSel(row)) continue;
@@ -760,8 +676,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
           for (const row of arr(R.locations?.archivist)) {
             if (!isSel(row)) continue;
-            if (row.match) count.lnk.locations++;
-            else count.imp.locations++;
+            if (row.match) count.lnk.locations++; else count.imp.locations++;
           }
           for (const row of arr(R.locations?.foundry)) {
             if (!isSel(row)) continue;
@@ -772,16 +687,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           count.imp.factions = this.archivistCandidates?.factions?.length || 0;
           count.imp.recaps = this.archivistCandidates?.recaps?.length || 0;
 
-          imp = count.imp;
-          exp = count.exp;
-          lnk = count.lnk;
+          imp = count.imp; exp = count.exp; lnk = count.lnk;
         }
 
-        const cf = this.setupData?.createFoundry || {
-          actors: [],
-          items: [],
-          scenes: [],
-        };
+        const cf = this.setupData?.createFoundry || { actors: [], items: [], scenes: [] };
         const createCounts = {
           characters: Array.isArray(cf.actors) ? cf.actors.length : 0,
           items: Array.isArray(cf.items) ? cf.items.length : 0,
@@ -789,69 +698,23 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         };
 
         contextData.summaryRows = [
-          {
-            key: 'Characters',
-            fromArchivist: Number(imp.characters || 0),
-            createFoundry: Number(createCounts.characters || 0),
-            toArchivist: Number(exp.characters || 0),
-            linked: Number(lnk.characters || 0),
-          },
-          {
-            key: 'Items',
-            fromArchivist: Number(imp.items || 0),
-            createFoundry: Number(createCounts.items || 0),
-            toArchivist: Number(exp.items || 0),
-            linked: Number(lnk.items || 0),
-          },
-          {
-            key: 'Locations',
-            fromArchivist: Number(imp.locations || 0),
-            createFoundry: Number(createCounts.locations || 0),
-            toArchivist: Number(exp.locations || 0),
-            linked: Number(lnk.locations || 0),
-            noteNoExport: true,
-          },
-          {
-            key: 'Factions',
-            fromArchivist: Number(imp.factions || 0),
-            createFoundry: 0,
-            toArchivist: 0,
-            linked: 0,
-            noteNoExport: true,
-          },
-          {
-            key: 'Recaps',
-            fromArchivist: Number(imp.recaps || 0),
-            createFoundry: 0,
-            toArchivist: 0,
-            linked: 0,
-            noteNoExport: true,
-          },
+          { key: 'Characters', fromArchivist: Number(imp.characters || 0), createFoundry: Number(createCounts.characters || 0), toArchivist: Number(exp.characters || 0), linked: Number(lnk.characters || 0) },
+          { key: 'Items', fromArchivist: Number(imp.items || 0), createFoundry: Number(createCounts.items || 0), toArchivist: Number(exp.items || 0), linked: Number(lnk.items || 0) },
+          { key: 'Locations', fromArchivist: Number(imp.locations || 0), createFoundry: Number(createCounts.locations || 0), toArchivist: Number(exp.locations || 0), linked: Number(lnk.locations || 0), noteNoExport: true },
+          { key: 'Factions', fromArchivist: Number(imp.factions || 0), createFoundry: 0, toArchivist: 0, linked: 0, noteNoExport: true },
+          { key: 'Recaps', fromArchivist: Number(imp.recaps || 0), createFoundry: 0, toArchivist: 0, linked: 0, noteNoExport: true },
         ];
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // Provide a quick lookup map for Step 5 checked states in template
     try {
       if (this.currentStep === 5) {
-        const cf = this.setupData?.createFoundry || {
-          actors: [],
-          items: [],
-          scenes: [],
-        };
+        const cf = this.setupData?.createFoundry || { actors: [], items: [], scenes: [] };
         contextData.createFoundryMap = {
-          actors: (cf.actors || []).reduce((m, id) => {
-            m[String(id)] = true;
-            return m;
-          }, {}),
-          items: (cf.items || []).reduce((m, id) => {
-            m[String(id)] = true;
-            return m;
-          }, {}),
-          scenes: (cf.scenes || []).reduce((m, id) => {
-            m[String(id)] = true;
-            return m;
-          }, {}),
+          actors: (cf.actors || []).reduce((m, id) => { m[String(id)] = true; return m; }, {}),
+          items: (cf.items || []).reduce((m, id) => { m[String(id)] = true; return m; }, {}),
+          scenes: (cf.scenes || []).reduce((m, id) => { m[String(id)] = true; return m; }, {}),
         };
         // Provide flags for whether there are any create candidates
         const candidates = this._getCreateCandidates();
@@ -861,7 +724,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           scenes: (candidates.scenes || []).length > 0,
         };
       }
-    } catch (_) {}
+    } catch (_) { }
 
     if (this.currentStep === 4) {
       console.log('[World Setup] _prepareContext for Step 4:', {
@@ -869,8 +732,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         hasAnyCandidates: contextData.setupData?.hasAnyCandidates,
         isLoading: contextData.isLoading,
         reconcileKeys: Object.keys(contextData.setupData?.reconcile || {}),
-        charactersArchivistCount:
-          contextData.setupData?.reconcile?.characters?.archivist?.length || 0,
+        charactersArchivistCount: contextData.setupData?.reconcile?.characters?.archivist?.length || 0,
         charactersFoundryCount: contextData.setupData?.reconcile?.characters?.foundry?.length || 0,
       });
     }
@@ -919,16 +781,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
    */
   async _onNextStep(event) {
     event.preventDefault();
-    console.log(
-      '[World Setup] _onNextStep called, currentStep before increment:',
-      this.currentStep
-    );
+    console.log('[World Setup] _onNextStep called, currentStep before increment:', this.currentStep);
 
     // Special handling: if leaving step 4, must build sync plan first
     if (this.currentStep === 4 && this._canProceedFromCurrentStep()) {
-      console.log(
-        '[World Setup] _onNextStep from step 4: building sync plan via _onConfirmSelections'
-      );
+      console.log('[World Setup] _onNextStep from step 4: building sync plan via _onConfirmSelections');
       await this._onConfirmSelections(event);
       // _onConfirmSelections already advances to step 5 and renders, so return here
       return;
@@ -955,7 +812,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       console.log('[World Setup] _onNextStep cannot proceed:', {
         currentStep: this.currentStep,
         totalSteps: this.totalSteps,
-        canProceed: this._canProceedFromCurrentStep(),
+        canProceed: this._canProceedFromCurrentStep()
       });
     }
   }
@@ -1091,10 +948,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const apiKey = this.setupData.apiKey || settingsManager.getApiKey();
       const title = game.world.title;
       const description = game.world.description || '';
-      const res = await archivistApi.createCampaign(apiKey, {
-        title,
-        description,
-      });
+      const res = await archivistApi.createCampaign(apiKey, { title, description });
       if (!res.success) throw new Error(res.message || 'Create failed');
       const id = res?.data?.id;
       const name = res?.data?.name || res?.data?.title || title || 'World';
@@ -1120,7 +974,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
    */
   async _onCampaignSelectChange(event) {
     const worldId = event?.target?.value || '';
-    const selected = this.worlds.find((w) => w.id === worldId);
+    const selected = this.worlds.find(w => w.id === worldId);
     this.setupData.selectedWorldId = worldId;
     this.setupData.selectedWorldName = selected?.name || selected?.title || '';
     try {
@@ -1128,7 +982,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Persist immediately so helper checks pass if used elsewhere
         await settingsManager.setSelectedWorld(worldId, this.setupData.selectedWorldName);
       }
-    } catch (_) {}
+    } catch (_) { }
     await this.render();
   }
 
@@ -1152,7 +1006,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         return;
       }
       // Foundry side — gather all Actors, Items, and Scenes (exclude compendium packs)
-      const getAll = (coll) => (coll?.contents || []).filter((d) => !d?.pack);
+      const getAll = (coll) => (coll?.contents || []).filter(d => !d?.pack);
       const foundryActors = getAll(game.actors);
       const foundryItems = getAll(game.items);
       const foundryScenes = getAll(game.scenes);
@@ -1171,18 +1025,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         archivistApi.listFactions(apiKey, campaignId),
         archivistApi.listSessions(apiKey, campaignId),
       ]);
-      console.log('[World Setup] Archivist API responses:', {
-        chars,
-        its,
-        locs,
-        facs,
-        sessions,
-      });
-      this.archivistCandidates.characters = chars.success ? chars.data || [] : [];
-      this.archivistCandidates.items = its.success ? its.data || [] : [];
-      this.archivistCandidates.locations = locs.success ? locs.data || [] : [];
-      this.archivistCandidates.factions = facs.success ? facs.data || [] : [];
-      this.archivistCandidates.recaps = sessions.success ? sessions.data || [] : [];
+      console.log('[World Setup] Archivist API responses:', { chars, its, locs, facs, sessions });
+      this.archivistCandidates.characters = chars.success ? (chars.data || []) : [];
+      this.archivistCandidates.items = its.success ? (its.data || []) : [];
+      this.archivistCandidates.locations = locs.success ? (locs.data || []) : [];
+      this.archivistCandidates.factions = facs.success ? (facs.data || []) : [];
+      this.archivistCandidates.recaps = sessions.success ? (sessions.data || []) : [];
       console.log('[World Setup] Archivist docs:', {
         characters: this.archivistCandidates.characters.length,
         items: this.archivistCandidates.items.length,
@@ -1221,24 +1069,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       this.setupData.reconcile = reconcile;
       this.setupData.hasAnyCandidates = Boolean(
         (reconcile?.characters?.archivist?.length || 0) +
-          (reconcile?.characters?.foundry?.length || 0) +
-          (reconcile?.items?.archivist?.length || 0) +
-          (reconcile?.items?.foundry?.length || 0) +
-          (reconcile?.locations?.archivist?.length || 0) +
-          (reconcile?.locations?.foundry?.length || 0) +
-          (reconcile?.factions?.archivist?.length || 0) +
-          (reconcile?.factions?.foundry?.length || 0)
+        (reconcile?.characters?.foundry?.length || 0) +
+        (reconcile?.items?.archivist?.length || 0) +
+        (reconcile?.items?.foundry?.length || 0) +
+        (reconcile?.locations?.archivist?.length || 0) +
+        (reconcile?.locations?.foundry?.length || 0) +
+        (reconcile?.factions?.archivist?.length || 0) +
+        (reconcile?.factions?.foundry?.length || 0)
       );
       console.log('[World Setup] Has candidates:', this.setupData.hasAnyCandidates);
       console.log('[World Setup] setupData.reconcile assigned:', this.setupData.reconcile);
-      console.log(
-        '[World Setup] Sample archivist character (first item):',
-        reconcile?.characters?.archivist?.[0]
-      );
-      console.log(
-        '[World Setup] Sample archivist location (first item):',
-        reconcile?.locations?.archivist?.[0]
-      );
+      console.log('[World Setup] Sample archivist character (first item):', reconcile?.characters?.archivist?.[0]);
+      console.log('[World Setup] Sample archivist location (first item):', reconcile?.locations?.archivist?.[0]);
 
       // stay on Selection step after refresh
       this.currentStep = 4;
@@ -1262,7 +1104,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
   _updateSelection(kind, id, updates) {
     const arr = this.setupData.selections[kind] || [];
-    const idx = arr.findIndex((x) => x.id === id);
+    const idx = arr.findIndex(x => x.id === id);
     if (idx >= 0) Object.assign(arr[idx], updates);
   }
 
@@ -1287,14 +1129,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   async _onSelectAll(event) {
     const kind = event?.target?.dataset?.kind;
     if (!kind) return;
-    (this.setupData.selections[kind] || []).forEach((s) => (s.selected = true));
+    (this.setupData.selections[kind] || []).forEach(s => (s.selected = true));
     await this.render();
   }
 
   async _onSelectNone(event) {
     const kind = event?.target?.dataset?.kind;
     if (!kind) return;
-    (this.setupData.selections[kind] || []).forEach((s) => (s.selected = false));
+    (this.setupData.selections[kind] || []).forEach(s => (s.selected = false));
     await this.render();
   }
 
@@ -1304,53 +1146,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const plan = {
       createInArchivist: [],
       link: [],
-      importFromArchivist: {
-        characters: 0,
-        items: 0,
-        locations: 0,
-        factions: 0,
-        recaps: 0,
-      },
+      importFromArchivist: { characters: 0, items: 0, locations: 0, factions: 0, recaps: 0 },
       exportToArchivist: { characters: 0, items: 0, locations: 0, factions: 0 },
       linked: { characters: 0, items: 0, locations: 0 },
-      counts: {
-        create: { pc: 0, npc: 0, item: 0, location: 0, faction: 0 },
-        link: { pc: 0, npc: 0, item: 0, location: 0, faction: 0 },
-      },
-      summary: {
-        pc: [],
-        npc: [],
-        item: [],
-        location: [],
-        faction: [],
-        session: [],
-      },
-      totalsBySource: {
-        archivist: {
-          characters: 0,
-          items: 0,
-          locations: 0,
-          factions: 0,
-          recaps: 0,
-        },
-        foundry: {
-          characters: 0,
-          items: 0,
-          locations: 0,
-          factions: 0,
-          recaps: 0,
-        },
-      },
+      counts: { create: { pc: 0, npc: 0, item: 0, location: 0, faction: 0 }, link: { pc: 0, npc: 0, item: 0, location: 0, faction: 0 } },
+      summary: { pc: [], npc: [], item: [], location: [], faction: [], session: [] },
+      totalsBySource: { archivist: { characters: 0, items: 0, locations: 0, factions: 0, recaps: 0 }, foundry: { characters: 0, items: 0, locations: 0, factions: 0, recaps: 0 } },
     };
-    const push = (arr, obj) => {
-      arr.push(obj);
-    };
-    const inc = (bucket, key) => {
-      plan.counts[bucket][key]++;
-    };
+    const push = (arr, obj) => { arr.push(obj); };
+    const inc = (bucket, key) => { plan.counts[bucket][key]++; };
 
     const R = this.setupData.reconcile || {};
-    const ensure = (v) => (Array.isArray(v) ? v : []);
+    const ensure = v => Array.isArray(v) ? v : [];
 
     // Characters: archivist (PC/NPC) to foundry actors
     for (const side of ['archivist', 'foundry']) {
@@ -1360,17 +1167,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           // If matched, it's a link; otherwise it's an import from Archivist
           if (row.match) {
             const kind = row.type === 'PC' ? 'pc' : 'npc';
-            push(plan.link, {
-              kind: row.type,
-              archivistId: row.id,
-              foundryId: row.match,
-              name: row.name,
-            });
-            plan.summary[kind].push({
-              name: row.name,
-              action: 'link',
-              foundryId: row.match,
-            });
+            push(plan.link, { kind: row.type, archivistId: row.id, foundryId: row.match, name: row.name });
+            plan.summary[kind].push({ name: row.name, action: 'link', foundryId: row.match });
             inc('link', kind);
             plan.linked.characters++;
           } else {
@@ -1382,11 +1180,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           if (!row.match) {
             const isPc = String(row.type || '').toLowerCase() === 'character';
             const kind = isPc ? 'pc' : 'npc';
-            push(plan.createInArchivist, {
-              kind: isPc ? 'PC' : 'NPC',
-              foundryId: row.id,
-              name: row.name,
-            });
+            push(plan.createInArchivist, { kind: isPc ? 'PC' : 'NPC', foundryId: row.id, name: row.name });
             plan.summary[kind].push({ name: row.name, action: 'create' });
             inc('create', kind);
             plan.exportToArchivist.characters++;
@@ -1399,17 +1193,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     for (const row of ensure(R.items?.archivist)) {
       if (!row.selected) continue;
       if (row.match) {
-        push(plan.link, {
-          kind: 'Item',
-          archivistId: row.id,
-          foundryId: row.match,
-          name: row.name,
-        });
-        plan.summary.item.push({
-          name: row.name,
-          action: 'link',
-          foundryId: row.match,
-        });
+        push(plan.link, { kind: 'Item', archivistId: row.id, foundryId: row.match, name: row.name });
+        plan.summary.item.push({ name: row.name, action: 'link', foundryId: row.match });
         inc('link', 'item');
         plan.linked.items++;
       } else {
@@ -1420,11 +1205,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     for (const row of ensure(R.items?.foundry)) {
       if (!row.selected) continue;
       if (!row.match) {
-        push(plan.createInArchivist, {
-          kind: 'Item',
-          foundryId: row.id,
-          name: row.name,
-        });
+        push(plan.createInArchivist, { kind: 'Item', foundryId: row.id, name: row.name });
         plan.summary.item.push({ name: row.name, action: 'create' });
         inc('create', 'item');
         plan.exportToArchivist.items++;
@@ -1435,17 +1216,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     for (const row of ensure(R.locations?.archivist)) {
       if (!row.selected) continue;
       if (row.match) {
-        push(plan.link, {
-          kind: 'Location',
-          archivistId: row.id,
-          foundryId: row.match,
-          name: row.name,
-        });
-        plan.summary.location.push({
-          name: row.name,
-          action: 'link',
-          foundryId: row.match,
-        });
+        push(plan.link, { kind: 'Location', archivistId: row.id, foundryId: row.match, name: row.name });
+        plan.summary.location.push({ name: row.name, action: 'link', foundryId: row.match });
         inc('link', 'location');
         plan.linked.locations++;
       } else {
@@ -1457,11 +1229,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       if (!row.selected) continue;
       if (!row.match) {
         // Foundry scene with no match -> create Location in Archivist
-        push(plan.createInArchivist, {
-          kind: 'Location',
-          foundryId: row.id,
-          name: row.name,
-        });
+        push(plan.createInArchivist, { kind: 'Location', foundryId: row.id, name: row.name });
         plan.summary.location.push({ name: row.name, action: 'create' });
         inc('create', 'location');
         plan.exportToArchivist.locations++;
@@ -1491,9 +1259,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     try {
       // Disable Begin Sync button while running
       this.isLoading = true;
-      try {
-        await this.render();
-      } catch (_) {}
+      try { await this.render(); } catch (_) { }
 
       const apiKey = this.setupData.apiKey || settingsManager.getApiKey();
       const campaignId = this.setupData.selectedWorldId || settingsManager.getSelectedWorldId();
@@ -1505,9 +1271,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       // CRITICAL: Suppress realtime sync during setup to avoid unintended PATCH/creates
       console.warn('[World Setup] ⚠️  Real-time sync DISABLED during initial world setup');
-      try {
-        settingsManager.suppressRealtimeSync?.();
-      } catch (_) {}
+      try { settingsManager.suppressRealtimeSync?.(); } catch (_) { }
 
       // Verify suppression is active
       if (!settingsManager.isRealtimeSyncSuppressed?.()) {
@@ -1522,12 +1286,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       // Ensure Journal folders exist for each sheet type BEFORE importing
       try {
         console.log('[World Setup] Creating organized folders...');
-        const ensureFolder = async (name) => {
-          try {
-            return await Utils.ensureJournalFolder(name);
-          } catch (_) {
-            return null;
-          }
+        const ensureFolder = async name => {
+          try { return await Utils.ensureJournalFolder(name); } catch (_) { return null; }
         };
         const folders = {
           pc: await ensureFolder('Archivist - PCs'),
@@ -1574,13 +1334,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       });
 
       // Also account for Foundry creations requested in Step 5
-      const cf = this.setupData?.createFoundry || {
-        actors: [],
-        items: [],
-        scenes: [],
-      };
-      const foundryCreatesTotal =
-        (cf.actors?.length || 0) + (cf.items?.length || 0) + (cf.scenes?.length || 0);
+      const cf = this.setupData?.createFoundry || { actors: [], items: [], scenes: [] };
+      const foundryCreatesTotal = (cf.actors?.length || 0) + (cf.items?.length || 0) + (cf.scenes?.length || 0);
       this.syncStatus.total = work.length + foundryCreatesTotal;
       this.syncStatus.processed = 0;
       await this.render();
@@ -1606,7 +1361,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       const getMappedFields = (kind, doc) => {
         // Mapping removed: only use core name and https image; no description extraction from system
-        const httpsOnly = (s) => {
+        const httpsOnly = s => {
           const v = String(s || '').trim();
           return v.startsWith('https://') ? v : undefined;
         };
@@ -1630,85 +1385,43 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const setArchivistFlag = async (kind, doc, archivistId) => {
         try {
           await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', archivistId);
-        } catch (_) {}
+        } catch (_) { }
       };
 
       // 1) Create Foundry core objects for unmatched Archivist entities as requested
       try {
         // Characters → create Actors
-        for (const id of cf.actors || []) {
-          const row = (this.setupData?.reconcile?.characters?.archivist || []).find(
-            (r) => String(r.id) === String(id)
-          );
-          if (!row) {
-            this.syncStatus.processed++;
-            continue;
-          }
+        for (const id of (cf.actors || [])) {
+          const row = (this.setupData?.reconcile?.characters?.archivist || []).find(r => String(r.id) === String(id));
+          if (!row) { this.syncStatus.processed++; continue; }
           const actorType = String(row.type || 'PC').toUpperCase() === 'NPC' ? 'npc' : 'character';
-          const folderId =
-            actorType === 'npc' ? this.setupData.destinations.npc : this.setupData.destinations.pc;
-          const actor = await Actor.create(
-            {
-              name: row.name || 'Character',
-              type: actorType,
-              folder: folderId || null,
-              ...(row.img ? { img: row.img } : {}),
-            },
-            { render: false }
-          );
-          try {
-            await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id);
-          } catch (_) {}
-          this.syncStatus.logs.push(
-            `Created Actor '${actor.name}' for Archivist Character ${row.id}`
-          );
+          const folderId = actorType === 'npc' ? this.setupData.destinations.npc : this.setupData.destinations.pc;
+          const actor = await Actor.create({ name: row.name || 'Character', type: actorType, folder: folderId || null, ...(row.img ? { img: row.img } : {}) }, { render: false });
+          try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id); } catch (_) { }
+          this.syncStatus.logs.push(`Created Actor '${actor.name}' for Archivist Character ${row.id}`);
           this.syncStatus.processed++;
           await this.render();
         }
         // Items → create Items
-        for (const id of cf.items || []) {
-          const row = (this.setupData?.reconcile?.items?.archivist || []).find(
-            (r) => String(r.id) === String(id)
-          );
-          if (!row) {
-            this.syncStatus.processed++;
-            continue;
-          }
+        for (const id of (cf.items || [])) {
+          const row = (this.setupData?.reconcile?.items?.archivist || []).find(r => String(r.id) === String(id));
+          if (!row) { this.syncStatus.processed++; continue; }
           const folderId = this.setupData.destinations.item || null;
-          const item = await Item.create(
-            {
-              name: row.name || 'Item',
-              type: 'loot',
-              folder: folderId,
-              ...(row.img ? { img: row.img } : {}),
-            },
-            { render: false }
-          );
-          try {
-            await item.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id);
-          } catch (_) {}
+          const item = await Item.create({ name: row.name || 'Item', type: 'loot', folder: folderId, ...(row.img ? { img: row.img } : {}) }, { render: false });
+          try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id); } catch (_) { }
           this.syncStatus.logs.push(`Created Item '${item.name}' for Archivist Item ${row.id}`);
           this.syncStatus.processed++;
           await this.render();
         }
         // Locations → create Scenes (new capability)
-        for (const id of cf.scenes || []) {
-          const row = (this.setupData?.reconcile?.locations?.archivist || []).find(
-            (r) => String(r.id) === String(id)
-          );
-          if (!row) {
-            this.syncStatus.processed++;
-            continue;
-          }
+        for (const id of (cf.scenes || [])) {
+          const row = (this.setupData?.reconcile?.locations?.archivist || []).find(r => String(r.id) === String(id));
+          if (!row) { this.syncStatus.processed++; continue; }
           const sceneData = { name: row.name || 'Scene' };
           const scene = await Scene.create(sceneData, { render: false });
-          try {
-            await scene.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id);
-          } catch (_) {}
+          try { await scene.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id); } catch (_) { }
           // Also link the created Scene to the Location journal if present later during journal creation
-          this.syncStatus.logs.push(
-            `Created Scene '${scene.name}' for Archivist Location ${row.id}`
-          );
+          this.syncStatus.logs.push(`Created Scene '${scene.name}' for Archivist Location ${row.id}`);
           this.syncStatus.processed++;
           await this.render();
         }
@@ -1738,27 +1451,17 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             try {
               // Find the Location journal by archivistId
               const journals = game.journal?.contents || [];
-              const locJournal = journals.find((j) => {
+              const locJournal = journals.find(j => {
                 const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                return (
-                  f.sheetType === 'location' &&
-                  String(f.archivistId || '') === String(job.archivistId)
-                );
+                return f.sheetType === 'location' && String(f.archivistId || '') === String(job.archivistId);
               });
               if (locJournal && doc?.id) {
                 const flags = locJournal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                flags.foundryRefs = flags.foundryRefs || {
-                  actors: [],
-                  items: [],
-                  scenes: [],
-                  journals: [],
-                };
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
                 flags.foundryRefs.scenes = [doc.id];
                 await locJournal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
               }
-            } catch (_) {
-              /* noop */
-            }
+            } catch (_) { /* noop */ }
           }
           this.syncStatus.logs.push(`Linked ${job.kind} '${doc.name}' → ${job.archivistId}`);
           this.syncStatus.processed++;
@@ -1780,14 +1483,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
           res = await archivistApi.createCharacter(apiKey, payload);
         } else if (job.kind === 'Item') {
-          const payload = {
-            ...getMappedFields('Item', doc),
-            campaign_id: campaignId,
-          };
-          console.log(`Archivist Sync | Creating item:`, {
-            name: payload.name,
-            campaignId,
-          });
+          const payload = { ...getMappedFields('Item', doc), campaign_id: campaignId };
+          console.log(`Archivist Sync | Creating item:`, { name: payload.name, campaignId });
           res = await archivistApi.createItem(apiKey, payload);
         } else if (job.kind === 'Location') {
           // Creating Location from Foundry Scene (no description)
@@ -1803,10 +1500,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             ...(image ? { image } : {}),
             campaign_id: campaignId,
           };
-          console.log(`Archivist Sync | Creating location from Scene:`, {
-            name: payload.name,
-            campaignId,
-          });
+          console.log(`Archivist Sync | Creating location from Scene:`, { name: payload.name, campaignId });
           res = await archivistApi.createLocation(apiKey, payload);
         }
         const newId = res?.data?.id;
@@ -1820,16 +1514,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
             if (job.kind === 'PC' || job.kind === 'NPC') {
               sheetType = job.kind === 'PC' ? 'pc' : 'npc';
-              targetFolderId =
-                job.kind === 'PC'
-                  ? this.setupData.destinations.pc
-                  : this.setupData.destinations.npc;
+              targetFolderId = job.kind === 'PC' ? this.setupData.destinations.pc : this.setupData.destinations.npc;
               // Extract description from actor
-              const desc =
-                doc?.system?.details?.biography?.value ||
-                doc?.system?.description ||
-                doc?.system?.details?.biography ||
-                '';
+              const desc = doc?.system?.details?.biography?.value || doc?.system?.description || doc?.system?.details?.biography || '';
               html = this._mdToHtml(desc);
               imageUrl = doc?.img || undefined;
 
@@ -1851,12 +1538,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
               if (journal && doc?.id) {
                 const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                flags.foundryRefs = flags.foundryRefs || {
-                  actors: [],
-                  items: [],
-                  scenes: [],
-                  journals: [],
-                };
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
                 flags.foundryRefs.actors = [doc.id];
                 await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
               }
@@ -1885,12 +1567,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
               if (journal && doc?.id) {
                 const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                flags.foundryRefs = flags.foundryRefs || {
-                  actors: [],
-                  items: [],
-                  scenes: [],
-                  journals: [],
-                };
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
                 flags.foundryRefs.items = [doc.id];
                 await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
               }
@@ -1919,12 +1596,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
               if (journal && doc?.id) {
                 const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                flags.foundryRefs = flags.foundryRefs || {
-                  actors: [],
-                  items: [],
-                  scenes: [],
-                  journals: [],
-                };
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
                 flags.foundryRefs.scenes = [doc.id];
                 await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
               }
@@ -1941,36 +1613,34 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       // Mark world as initialized after first sync
       try {
         await settingsManager.completeWorldInitialization();
-      } catch (_) {}
+      } catch (_) { }
       if (window.ARCHIVIST_SYNC?.updateChatAvailability) {
         try {
           window.ARCHIVIST_SYNC.updateChatAvailability();
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // Resume realtime sync now that batch operations are complete
       try {
         settingsManager.resumeRealtimeSync?.();
         console.log('[World Setup] ✓ Real-time sync resumed after successful setup');
-      } catch (_) {}
+      } catch (_) { }
       ui.notifications.info('Sync completed');
       try {
         await this.close();
-      } catch (_) {}
+      } catch (_) { }
     } catch (e) {
       try {
         settingsManager.resumeRealtimeSync?.();
         console.log('[World Setup] Real-time sync resumed after error');
-      } catch (_) {}
+      } catch (_) { }
       console.error('[World Setup] ❌ Begin sync failed', e);
       ui.notifications.error('Sync failed');
     } finally {
       // Re-enable Begin Sync button
       this.isLoading = false;
       this._syncRunning = false;
-      try {
-        await this.render();
-      } catch (_) {}
+      try { await this.render(); } catch (_) { }
     }
   }
 
@@ -2006,43 +1676,40 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           ? reconcile.characters.archivist
           : [];
         for (const row of aChars) {
-          if (row?.id && row?.match)
-            mappedActorByArchivistId.set(String(row.id), String(row.match));
+          if (row?.id && row?.match) mappedActorByArchivistId.set(String(row.id), String(row.match));
         }
-      } catch (_) {}
+      } catch (_) { }
       try {
         const aItems = Array.isArray(reconcile?.items?.archivist) ? reconcile.items.archivist : [];
         for (const row of aItems) {
           if (row?.id && row?.match) mappedItemByArchivistId.set(String(row.id), String(row.match));
         }
-      } catch (_) {}
+      } catch (_) { }
 
       // Respect Step 4 imports: only import Archivist rows the user selected and that have no Foundry match
-      const ensure = (v) => (Array.isArray(v) ? v : []);
+      const ensure = v => (Array.isArray(v) ? v : []);
       const selectedArchivist = {
         characters: new Set(
           ensure(reconcile.characters?.archivist)
-            .filter((r) => r && r.selected && !r.match)
-            .map((r) => String(r.id))
+            .filter(r => r && r.selected && !r.match)
+            .map(r => String(r.id))
         ),
         items: new Set(
           ensure(reconcile.items?.archivist)
-            .filter((r) => r && r.selected && !r.match)
-            .map((r) => String(r.id))
+            .filter(r => r && r.selected && !r.match)
+            .map(r => String(r.id))
         ),
         locations: new Set(
           ensure(reconcile.locations?.archivist)
-            .filter((r) => r && r.selected && !r.match)
-            .map((r) => String(r.id))
+            .filter(r => r && r.selected && !r.match)
+            .map(r => String(r.id))
         ),
       };
 
       // Filter Archivist lists down to what the user actually chose to import
-      const characters = allCharacters.filter((c) =>
-        selectedArchivist.characters.has(String(c.id))
-      );
-      const items = allItems.filter((i) => selectedArchivist.items.has(String(i.id)));
-      const locations = allLocations.filter((l) => selectedArchivist.locations.has(String(l.id)));
+      const characters = allCharacters.filter(c => selectedArchivist.characters.has(String(c.id)));
+      const items = allItems.filter(i => selectedArchivist.items.has(String(i.id)));
+      const locations = allLocations.filter(l => selectedArchivist.locations.has(String(l.id)));
 
       const total = characters.length + items.length + locations.length + factions.length;
       console.log(
@@ -2058,41 +1725,27 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       await this.render();
 
       // Step 5 choices: create Foundry core docs only for explicitly selected Archivist IDs
-      const cf = this.setupData?.createFoundry || {
-        actors: [],
-        items: [],
-        scenes: [],
-      };
-      const shouldCreateActor = new Set((cf.actors || []).map((id) => String(id)));
-      const shouldCreateItem = new Set((cf.items || []).map((id) => String(id)));
+      const cf = this.setupData?.createFoundry || { actors: [], items: [], scenes: [] };
+      const shouldCreateActor = new Set((cf.actors || []).map(id => String(id)));
+      const shouldCreateItem = new Set((cf.items || []).map(id => String(id)));
 
       // Helper: find already-created docs by archivistId flag to avoid duplicates
-      const findActorByArchivistId = (id) => {
+      const findActorByArchivistId = id => {
         try {
           const actors = game.actors?.contents || [];
           const sid = String(id);
-          return (
-            actors.find((a) => String(a.getFlag(CONFIG.MODULE_ID, 'archivistId') || '') === sid) ||
-            null
-          );
-        } catch (_) {
-          return null;
-        }
+          return actors.find(a => String(a.getFlag(CONFIG.MODULE_ID, 'archivistId') || '') === sid) || null;
+        } catch (_) { return null; }
       };
-      const findItemByArchivistId = (id) => {
+      const findItemByArchivistId = id => {
         try {
           const coll = game.items?.contents || [];
           const sid = String(id);
-          return (
-            coll.find((it) => String(it.getFlag(CONFIG.MODULE_ID, 'archivistId') || '') === sid) ||
-            null
-          );
-        } catch (_) {
-          return null;
-        }
+          return coll.find(it => String(it.getFlag(CONFIG.MODULE_ID, 'archivistId') || '') === sid) || null;
+        } catch (_) { return null; }
       };
 
-      const createActor = async (c) => {
+      const createActor = async c => {
         // Use the 'type' field from Archivist API (either 'PC' or 'NPC')
         const archivistType = String(c.type || c.character_type || 'PC').toUpperCase();
         const foundryType = archivistType === 'NPC' ? 'npc' : 'character';
@@ -2105,15 +1758,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         const mappedFoundryId = mappedActorByArchivistId.get(String(c.id));
         let actor = null;
         if (mappedFoundryId) {
-          try {
-            actor = game.actors?.get?.(mappedFoundryId) || null;
-          } catch (_) {
-            actor = null;
-          }
+          try { actor = game.actors?.get?.(mappedFoundryId) || null; } catch (_) { actor = null; }
           if (actor) {
-            try {
-              await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id);
-            } catch (_) {}
+            try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id); } catch (_) { }
           }
         }
         // If no explicit mapping, check if we already created an Actor earlier in this run
@@ -2122,8 +1769,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         }
         if (!actor && shouldCreateActor.has(String(c.id))) {
           // Create actor (no system-mapped description write); map Archivist image to Foundry img when available
-          const imageUrl =
-            typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : undefined;
+          const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : undefined;
           const actorData = {
             name: c.character_name || c.name || 'Character',
             type: foundryType,
@@ -2137,8 +1783,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           if (imageUrl && imageUrl.includes('myarchivist.ai')) {
             actorData.prototypeToken = {
               texture: {
-                src: 'icons/svg/mystery-man.svg',
-              },
+                src: 'icons/svg/mystery-man.svg'
+              }
             };
           }
 
@@ -2152,9 +1798,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
 
           actor = await Actor.create(actorData, { render: false });
-          try {
-            await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id);
-          } catch (_) {}
+          try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id); } catch (_) { }
         }
 
         // Create a standalone JournalEntry for this character with the custom sheet
@@ -2162,10 +1806,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const name = c.character_name || c.name || actor.name || 'Character';
           const html = this._mdToHtml(c.description);
           const imageUrl = c.image || undefined;
-          const targetFolderId =
-            archivistType === 'NPC'
-              ? this.setupData.destinations.npc
-              : this.setupData.destinations.pc;
+          const targetFolderId = (archivistType === 'NPC'
+            ? this.setupData.destinations.npc
+            : this.setupData.destinations.pc);
 
           console.log(`[World Setup] Creating journal for ${archivistType}:`, {
             name,
@@ -2178,19 +1821,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             name,
             html,
             imageUrl,
-            sheetType: archivistType === 'NPC' ? 'npc' : 'pc',
+            sheetType: (archivistType === 'NPC' ? 'npc' : 'pc'),
             archivistId: c.id,
             worldId: campaignId,
             folderId: targetFolderId || null,
           });
           if (journal) {
             const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-            flags.foundryRefs = flags.foundryRefs || {
-              actors: [],
-              items: [],
-              scenes: [],
-              journals: [],
-            };
+            flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
             if (actor?.id) flags.foundryRefs.actors = [actor.id];
             await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
           }
@@ -2198,11 +1836,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           console.warn('Failed to create Character journal entry', e);
         }
       };
-      const createItem = async (i) => {
+      const createItem = async i => {
         const folderId = this.setupData.destinations.item || null;
 
         // Resolve a safe item type for system (fallback to 'loot')
-        const resolveItemType = (src) => {
+        const resolveItemType = src => {
           try {
             const raw = String(src?.type ?? src?.item_type ?? src?.category ?? '')
               .trim()
@@ -2236,15 +1874,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         const mappedFoundryId = mappedItemByArchivistId.get(String(i.id));
         let item = null;
         if (mappedFoundryId) {
-          try {
-            item = game.items?.get?.(mappedFoundryId) || null;
-          } catch (_) {
-            item = null;
-          }
+          try { item = game.items?.get?.(mappedFoundryId) || null; } catch (_) { item = null; }
           if (item) {
-            try {
-              await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id);
-            } catch (_) {}
+            try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id); } catch (_) { }
           }
         }
         if (!item) {
@@ -2253,8 +1885,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         }
         if (!item && shouldCreateItem.has(String(i.id))) {
           // Create item (no system-mapped description write); map Archivist image to Foundry img when available
-          const imageUrl =
-            typeof i.image === 'string' && i.image.trim().length ? i.image.trim() : undefined;
+          const imageUrl = typeof i.image === 'string' && i.image.trim().length ? i.image.trim() : undefined;
           const itemData = {
             name: i.name || 'Item',
             type: safeType,
@@ -2271,9 +1902,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
 
           item = await Item.create(itemData, { render: false });
-          try {
-            await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id);
-          } catch (_) {}
+          try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id); } catch (_) { }
         }
 
         // Create a standalone JournalEntry for this item with the custom sheet
@@ -2300,12 +1929,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
           if (journal) {
             const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-            flags.foundryRefs = flags.foundryRefs || {
-              actors: [],
-              items: [],
-              scenes: [],
-              journals: [],
-            };
+            flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
             if (item?.id) flags.foundryRefs.items = [item.id];
             await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
           }
@@ -2320,10 +1944,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const html = this._mdToHtml(e.description);
           const imageUrl =
             typeof e.image === 'string' && e.image.trim().length ? e.image.trim() : null;
-          const targetFolderId =
-            kind === 'Location'
-              ? this.setupData.destinations.location
-              : this.setupData.destinations.faction;
+          const targetFolderId = kind === 'Location'
+            ? this.setupData.destinations.location
+            : this.setupData.destinations.faction;
 
           const sheetType = kind.toLowerCase();
 
@@ -2344,9 +1967,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             folderId: targetFolderId || null,
           });
           // Ensure the journal has a visible thumbnail and lead image when provided
-          try {
-            if (journal && imageUrl) await Utils.ensureJournalLeadImage(journal, imageUrl);
-          } catch (_) {}
+          try { if (journal && imageUrl) await Utils.ensureJournalLeadImage(journal, imageUrl); } catch (_) { }
           if (journal && sheetType === 'location' && e.parent_id) {
             const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
             flags.parentLocationId = e.parent_id;
@@ -2356,23 +1977,16 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           if (journal && sheetType === 'location') {
             try {
               const scenes = game.scenes?.contents || [];
-              const scene = scenes.find(
-                (sc) => String(sc.getFlag(CONFIG.MODULE_ID, 'archivistId') || '') === String(e.id)
-              );
+              const scene = scenes.find(sc => String(sc.getFlag(CONFIG.MODULE_ID, 'archivistId') || '') === String(e.id));
               if (scene) {
                 const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                flags.foundryRefs = flags.foundryRefs || {
-                  actors: [],
-                  items: [],
-                  scenes: [],
-                  journals: [],
-                };
+                flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
                 const arr = Array.isArray(flags.foundryRefs.scenes) ? flags.foundryRefs.scenes : [];
                 if (!arr.includes(scene.id)) arr.push(scene.id);
                 flags.foundryRefs.scenes = arr;
                 await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
               }
-            } catch (_) {}
+            } catch (_) { }
           }
         } catch (err) {
           console.warn(`Failed to create ${kind} journal entry`, err);
@@ -2416,14 +2030,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Ensure parent/child relationships for Locations are reflected via flags before indexing
         try {
           const journals = game.journal?.contents || [];
-          const findLocJournalByArchivistId = (id) => {
+          const findLocJournalByArchivistId = id => {
             const sid = String(id);
-            return (
-              journals.find((j) => {
-                const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-                return f.sheetType === 'location' && String(f.archivistId || '') === sid;
-              }) || null
-            );
+            return journals.find(j => {
+              const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+              return f.sheetType === 'location' && String(f.archivistId || '') === sid;
+            }) || null;
           };
           for (const l of locations) {
             if (!l?.id) continue;
@@ -2436,12 +2048,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               await j.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
             }
           }
-        } catch (_) {}
+        } catch (_) { }
         await this._hydrateLinksFromArchivist(apiKey, campaignId);
-        try {
-          const { linkIndexer } = await import('../modules/links/indexer.js');
-          linkIndexer.buildFromWorld();
-        } catch (_) {}
+        try { const { linkIndexer } = await import('../modules/links/indexer.js'); linkIndexer.buildFromWorld(); } catch (_) { }
       } catch (e) {
         console.warn('Hydrating links from Archivist failed', e);
       }
@@ -2459,14 +2068,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const links = Array.isArray(resp.data) ? resp.data : [];
 
     // Helper: find a JournalEntry by Archivist ID
-    const findJournalByArchivistId = (id) => {
+    const findJournalByArchivistId = id => {
       try {
         const journals = game.journal?.contents || [];
         for (const j of journals) {
           const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
           if (String(flags.archivistId || '') === String(id || '')) return j;
         }
-      } catch (_) {}
+      } catch (_) { }
       return null;
     };
 
@@ -2488,14 +2097,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           factions: [],
           locationsAssociative: [],
         };
-        const otherType =
-          (String(otherId || '') === String(toId || '') ? L?.to_type : L?.from_type) || '';
-        const keyMap = {
-          Character: 'characters',
-          Item: 'items',
-          Location: 'locationsAssociative',
-          Faction: 'factions',
-        };
+        const otherType = (String(otherId || '') === String(toId || '') ? L?.to_type : L?.from_type) || '';
+        const keyMap = { Character: 'characters', Item: 'items', Location: 'locationsAssociative', Faction: 'factions' };
         const bucket = keyMap[otherType] || 'entries';
         const arr = Array.isArray(flags.archivistRefs[bucket]) ? flags.archivistRefs[bucket] : [];
         const otherKey = String(otherId || '');
@@ -2503,20 +2106,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         if (!next.includes(otherKey)) arr.push(otherId);
         flags.archivistRefs[bucket] = arr;
         // Also maintain directional outbound if this is the 'from' journal
-        if (
-          String(journal.getFlag(CONFIG.MODULE_ID, 'archivist')?.archivistId || '') ===
-          String(fromId)
-        ) {
+        if (String(journal.getFlag(CONFIG.MODULE_ID, 'archivist')?.archivistId || '') === String(fromId)) {
           flags.archivistOutbound = flags.archivistOutbound || {
-            characters: [],
-            items: [],
-            entries: [],
-            factions: [],
-            locationsAssociative: [],
+            characters: [], items: [], entries: [], factions: [], locationsAssociative: []
           };
-          const obArr = Array.isArray(flags.archivistOutbound[bucket])
-            ? flags.archivistOutbound[bucket]
-            : [];
+          const obArr = Array.isArray(flags.archivistOutbound[bucket]) ? flags.archivistOutbound[bucket] : [];
           if (!obArr.map(String).includes(otherKey)) obArr.push(otherId);
           flags.archivistOutbound[bucket] = obArr;
         }
@@ -2543,7 +2137,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       return;
     }
 
-    const selectedWorld = this.worlds.find((w) => w.id === worldId);
+    const selectedWorld = this.worlds.find(w => w.id === worldId);
     if (selectedWorld) {
       const displayName = selectedWorld?.name || selectedWorld?.title || 'World';
       this.setupData.selectedWorldId = worldId;
@@ -2570,8 +2164,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     if (!s) return '';
     return s
       .replace(/\r\n/g, '\n')
-      .split('\n\n') // Split on double newlines to create paragraphs
-      .map((para) => {
+      .split('\n\n')  // Split on double newlines to create paragraphs
+      .map(para => {
         // Within each paragraph, convert single newlines to <br>
         const content = para
           .replace(/\n/g, '<br>')
@@ -2590,7 +2184,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     try {
       const sessionsResp = await archivistApi.listSessions(apiKey, campaignId);
       if (!sessionsResp.success) return;
-      const sessions = (sessionsResp.data || []).filter((s) => !!s.session_date);
+      const sessions = (sessionsResp.data || []).filter(s => !!s.session_date);
 
       // Sort by ascending date (oldest first)
       sessions.sort(
@@ -2598,8 +2192,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       );
 
       // Create individual Recap journals, one per session, inside Recaps folder
-      const recapFolderId =
-        this.setupData.destinations?.recap || (await Utils.ensureJournalFolder('Recaps'));
+      const recapFolderId = this.setupData.destinations?.recap || (await Utils.ensureJournalFolder('Recaps'));
       for (const s of sessions) {
         const title = s.title || 'Session';
         const html = this._mdToHtml(s.summary);
@@ -2616,9 +2209,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           sort: sortValue,
         });
         if (journal) {
-          try {
-            await journal.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(s.session_date));
-          } catch (_) {}
+          try { await journal.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(s.session_date)); } catch (_) { }
         }
       }
     } catch (e) {
@@ -2655,7 +2246,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           window.ARCHIVIST_SYNC.installRealtimeSyncListeners();
           console.log('[Archivist Sync] Real-Time Sync listeners installed after setup');
         }
-      } catch (_) {}
+      } catch (_) { }
     } catch (error) {
       console.error('Error completing world setup:', error);
       ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.worldSetup.setupFailed'));
@@ -2770,7 +2361,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         apiKeyInput.focus();
 
         // Add Enter key listener for validation
-        apiKeyInput.addEventListener('keypress', (event) => {
+        apiKeyInput.addEventListener('keypress', event => {
           if (event.key === 'Enter') {
             event.preventDefault();
             this._onValidateApiKey(event);
@@ -2783,7 +2374,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     if (context.isStep3) {
       const campaignSelect = this.element.querySelector('#campaign-select');
       if (campaignSelect && !campaignSelect.dataset.bound) {
-        campaignSelect.addEventListener('change', (ev) => {
+        campaignSelect.addEventListener('change', ev => {
           const nextVal = ev?.target?.value || '';
           if (nextVal === this.setupData.selectedWorldId) return;
           this._onCampaignSelectChange(ev);
@@ -2806,39 +2397,21 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         const tabLinks = tabGroup.querySelectorAll('a.item[data-tab]');
         const tabContents = root.querySelectorAll('section.tab[data-tab]');
 
-        // Restore previously active tab or activate first tab by default
-        let restored = false;
-        if (this.activeTabStep4 && tabLinks.length > 0 && tabContents.length > 0) {
-          const targetLink = Array.from(tabLinks).find(
-            (l) => l.dataset.tab === this.activeTabStep4
-          );
-          const targetContent = root.querySelector(
-            `section.tab[data-tab="${this.activeTabStep4}"]`
-          );
-          if (targetLink && targetContent) {
-            targetLink.classList.add('active');
-            targetContent.classList.add('active');
-            restored = true;
-          }
-        }
-        if (!restored && tabLinks.length > 0 && tabContents.length > 0) {
+        // Activate first tab by default
+        if (tabLinks.length > 0 && tabContents.length > 0) {
           tabLinks[0].classList.add('active');
           tabContents[0].classList.add('active');
-          this.activeTabStep4 = tabLinks[0].dataset.tab;
         }
 
         // Handle tab clicks
-        tabLinks.forEach((link) => {
-          link.addEventListener('click', (ev) => {
+        tabLinks.forEach(link => {
+          link.addEventListener('click', ev => {
             ev.preventDefault();
             const targetTab = ev.currentTarget.dataset.tab;
 
-            // Track active tab
-            this.activeTabStep4 = targetTab;
-
             // Deactivate all tabs
-            tabLinks.forEach((l) => l.classList.remove('active'));
-            tabContents.forEach((c) => c.classList.remove('active'));
+            tabLinks.forEach(l => l.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
 
             // Activate clicked tab
             ev.currentTarget.classList.add('active');
@@ -2860,7 +2433,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       };
 
       // Select All/None toggle checkboxes in header
-      root.querySelectorAll('[data-action="recon-select-all-toggle"]').forEach((cb) => {
+      root.querySelectorAll('[data-action="recon-select-all-toggle"]').forEach(cb => {
         // Update checkbox state based on current selections
         const tab = cb.dataset?.tab;
         const side = cb.dataset?.side;
@@ -2868,13 +2441,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const r = this.setupData.reconcile?.[tab];
           if (r) {
             const list = r[side] || [];
-            const allSelected = list.length > 0 && list.every((row) => row.selected);
+            const allSelected = list.length > 0 && list.every(row => row.selected);
             cb.checked = allSelected;
           }
         }
 
         if (!cb.dataset.bound) {
-          cb.addEventListener('change', async (ev) => {
+          cb.addEventListener('change', async ev => {
             const tab = ev.currentTarget?.dataset?.tab;
             const side = ev.currentTarget?.dataset?.side;
             const checked = ev.currentTarget?.checked;
@@ -2893,10 +2466,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       // Delegate checkbox toggle
       if (!root.dataset.boundReconToggle) {
-        root.addEventListener('change', async (ev) => {
-          const cb = ev.target?.closest?.(
-            'input[type="checkbox"][data-action="recon-toggle-select"]'
-          );
+        root.addEventListener('change', async ev => {
+          const cb = ev.target?.closest?.('input[type="checkbox"][data-action="recon-toggle-select"]');
           if (!cb) return;
           const tab = cb.dataset.tab;
           const side = cb.dataset.side;
@@ -2905,14 +2476,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const r = this.setupData.reconcile?.[tab];
           if (!r) return;
           const list = r[side] || [];
-          const row = list.find((x) => x.id === id);
+          const row = list.find(x => x.id === id);
           if (!row) return;
           row.selected = checked;
           // Sync with matched counterpart
           const otherSide = side === 'archivist' ? 'foundry' : 'archivist';
           const mid = row.match || null;
           if (mid) {
-            const otherRow = (r[otherSide] || []).find((x) => x.id === mid);
+            const otherRow = (r[otherSide] || []).find(x => x.id === mid);
             if (otherRow) otherRow.selected = checked;
           }
           await this.render();
@@ -2922,7 +2493,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       // Delegate match dropdown change
       if (!root.dataset.boundReconMatch) {
-        root.addEventListener('change', async (ev) => {
+        root.addEventListener('change', async ev => {
           const sel = ev.target?.closest?.('select[data-action="recon-change-match"]');
           if (!sel) return;
           const tab = sel.dataset.tab;
@@ -2932,14 +2503,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const r = this.setupData.reconcile?.[tab];
           if (!r) return;
           const list = r[side] || [];
-          const row = list.find((x) => x.id === id);
+          const row = list.find(x => x.id === id);
           if (!row) return;
 
           // Clear previous symmetric link if any
           const otherSide = side === 'archivist' ? 'foundry' : 'archivist';
           const prev = row.match || null;
           if (prev) {
-            const prevRow = (r[otherSide] || []).find((x) => x.id === prev);
+            const prevRow = (r[otherSide] || []).find(x => x.id === prev);
             if (prevRow && prevRow.match === row.id) prevRow.match = null;
           }
 
@@ -2947,7 +2518,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const nextId = value && value !== 'NA' ? value : null;
           row.match = nextId;
           if (nextId) {
-            const target = (r[otherSide] || []).find((x) => x.id === nextId);
+            const target = (r[otherSide] || []).find(x => x.id === nextId);
             if (target) target.match = row.id;
           }
           await this.render();
@@ -2965,42 +2536,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       if (tabGroup && !tabGroup.dataset.boundTabs) {
         const tabLinks = tabGroup.querySelectorAll('a.item[data-tab]');
         const tabContents = root.querySelectorAll('main.ws-recon-content section.tab[data-tab]');
-
-        // Restore previously active tab or activate first tab by default
-        let restored = false;
-        if (this.activeTabStep5 && tabLinks.length > 0 && tabContents.length > 0) {
-          const targetLink = Array.from(tabLinks).find(
-            (l) => l.dataset.tab === this.activeTabStep5
-          );
-          const targetContent = root.querySelector(
-            `main.ws-recon-content section.tab[data-tab="${this.activeTabStep5}"]`
-          );
-          if (targetLink && targetContent) {
-            targetLink.classList.add('active');
-            targetContent.classList.add('active');
-            restored = true;
-          }
-        }
-        if (!restored && tabLinks.length > 0 && tabContents.length > 0) {
+        if (tabLinks.length > 0 && tabContents.length > 0) {
           tabLinks[0].classList.add('active');
           tabContents[0].classList.add('active');
-          this.activeTabStep5 = tabLinks[0].dataset.tab;
         }
-
-        tabLinks.forEach((link) => {
-          link.addEventListener('click', (ev) => {
+        tabLinks.forEach(link => {
+          link.addEventListener('click', ev => {
             ev.preventDefault();
             const targetTab = ev.currentTarget.dataset.tab;
-
-            // Track active tab
-            this.activeTabStep5 = targetTab;
-
-            tabLinks.forEach((l) => l.classList.remove('active'));
-            tabContents.forEach((c) => c.classList.remove('active'));
+            tabLinks.forEach(l => l.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
             ev.currentTarget.classList.add('active');
-            const content = root.querySelector(
-              `main.ws-recon-content section.tab[data-tab="${targetTab}"]`
-            );
+            const content = root.querySelector(`main.ws-recon-content section.tab[data-tab="${targetTab}"]`);
             if (content) content.classList.add('active');
           });
         });
@@ -3008,10 +2555,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       }
 
       if (!root.dataset.boundCreateChoices) {
-        root.addEventListener('change', async (ev) => {
-          const cb = ev.target?.closest?.(
-            'input[type="checkbox"][data-action="toggleCreateChoice"]'
-          );
+        root.addEventListener('change', async ev => {
+          const cb = ev.target?.closest?.('input[type="checkbox"][data-action="toggleCreateChoice"]');
           if (cb) {
             await this._onToggleCreateChoice(ev);
             return;
@@ -3023,26 +2568,22 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             if (selAll.checked) {
               // Select all
               const cand = this._getCreateCandidates()[kind] || [];
-              this.setupData.createFoundry[kind] = cand.map((c) => String(c.id));
-              root
-                .querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`)
-                .forEach((checkbox) => {
-                  checkbox.checked = true;
-                });
+              this.setupData.createFoundry[kind] = cand.map(c => String(c.id));
+              root.querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`).forEach(checkbox => {
+                checkbox.checked = true;
+              });
             } else {
               // Deselect all
               this.setupData.createFoundry[kind] = [];
-              root
-                .querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`)
-                .forEach((checkbox) => {
-                  checkbox.checked = false;
-                });
+              root.querySelectorAll(`input[data-action="toggleCreateChoice"][data-kind="${kind}"]`).forEach(checkbox => {
+                checkbox.checked = false;
+              });
             }
             return;
           }
         });
         // Handle Clear buttons via click
-        root.addEventListener('click', async (ev) => {
+        root.addEventListener('click', async ev => {
           const clearBtn = ev.target?.closest?.('[data-action="createSelectNone"]');
           if (clearBtn) {
             ev.preventDefault();
@@ -3056,7 +2597,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
     // Legacy Step 4 (Mapping) removed – skip binding for legacy controls
     if (false && context.isStep4) {
-      const val = (sel) => this.element.querySelector(sel)?.value?.trim() || '';
+      const val = sel => this.element.querySelector(sel)?.value?.trim() || '';
       const updateMappingData = () => {
         this.setupData.mapping.pc.namePath = val('#map-pc-name');
         this.setupData.mapping.pc.imagePath = val('#map-pc-image');
@@ -3088,7 +2629,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         '#dest-item',
       ];
 
-      selectors.forEach((selector) => {
+      selectors.forEach(selector => {
         const element = this.element.querySelector(selector);
         if (element && !element.dataset.boundSetup) {
           element.addEventListener('change', updateMappingData);
@@ -3099,7 +2640,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       // Add file input handler for config loading
       const configFileInput = this.element.querySelector('#config-file-input');
       if (configFileInput && !configFileInput.dataset.boundSetup) {
-        configFileInput.addEventListener('change', async (event) => {
+        configFileInput.addEventListener('change', async event => {
           const file = event.target.files[0];
           if (!file) return;
 
@@ -3172,7 +2713,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       // Bind preset change validation in Step 4 (if the dropdown exists here)
       const presetSelect = this.element.querySelector('#ws-system-preset');
       if (presetSelect && !presetSelect.dataset.boundSetup) {
-        presetSelect.addEventListener('change', async (e) => {
+        presetSelect.addEventListener('change', async e => {
           const key = e?.target?.value || '';
           if (!key) {
             this.setupData.systemPreset = '';
@@ -3306,10 +2847,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     ].filter(Boolean);
 
     // Use our discovered mapping options to validate existence
-    const availableActor = new Set((this.mappingOptions.actor || []).map((o) => o.path));
-    const availableItem = new Set((this.mappingOptions.item || []).map((o) => o.path));
+    const availableActor = new Set((this.mappingOptions.actor || []).map(o => o.path));
+    const availableItem = new Set((this.mappingOptions.item || []).map(o => o.path));
 
-    const exists = (p) => {
+    const exists = p => {
       if (!p) return false;
       if (p === 'name' || p === 'img') return true; // safe defaults always exist
       if (p.startsWith('system.')) {
@@ -3319,7 +2860,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       return availableActor.has(p) || availableItem.has(p);
     };
 
-    const missing = testPaths.filter((p) => !exists(p));
+    const missing = testPaths.filter(p => !exists(p));
     if (missing.length) {
       throw new Error(
         `Preset unavailable: missing properties in this system → ${missing.join(', ')}`
@@ -3359,22 +2900,14 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
   console.log('[World Setup] _buildReconciliationModel called with:', input);
   const A = input.archivist || {};
   const F = input.foundry || {};
-  const toName = (v) => String(v || '').trim();
-  const normName = (v) => toName(v).toLowerCase();
+  const toName = v => String(v || '').trim();
+  const normName = v => toName(v).toLowerCase();
 
   // Foundry actors classification with fallback
   const actors = Array.isArray(F.actors) ? F.actors : [];
-  const actorsBase = actors.map((a) => ({
-    id: a.id,
-    name: toName(a.name),
-    img: a.img || '',
-    type: String(a.type || ''),
-    doc: a,
-  }));
-  let pcActors = actorsBase.filter((a) => a.type.toLowerCase() === 'character');
-  let npcActors = actorsBase.filter(
-    (a) => a.type.toLowerCase() === 'npc' || a.type.toLowerCase() === 'monster'
-  );
+  const actorsBase = actors.map(a => ({ id: a.id, name: toName(a.name), img: a.img || '', type: String(a.type || ''), doc: a }));
+  let pcActors = actorsBase.filter(a => a.type.toLowerCase() === 'character');
+  let npcActors = actorsBase.filter(a => a.type.toLowerCase() === 'npc' || a.type.toLowerCase() === 'monster');
   if (pcActors.length === 0 && npcActors.length === 0 && actorsBase.length > 0) {
     const acChars = Array.isArray(A.characters) ? A.characters : [];
     const acByName = new Map();
@@ -3384,47 +2917,19 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
     }
     for (const a of actorsBase) {
       const kind = acByName.get(normName(a.name)) || 'NPC';
-      if (kind === 'PC') pcActors.push(a);
-      else npcActors.push(a);
+      if (kind === 'PC') pcActors.push(a); else npcActors.push(a);
     }
   }
 
   // Foundry items and scenes
-  const fItems = (Array.isArray(F.items) ? F.items : []).map((i) => ({
-    id: i.id,
-    name: toName(i.name),
-    img: i.img || '',
-    doc: i,
-  }));
-  const fScenes = (Array.isArray(F.scenes) ? F.scenes : []).map((s) => ({
-    id: s.id,
-    name: toName(s.name),
-    img: s.thumb || s.background?.src || '',
-    doc: s,
-  }));
+  const fItems = (Array.isArray(F.items) ? F.items : []).map(i => ({ id: i.id, name: toName(i.name), img: i.img || '', doc: i }));
+  const fScenes = (Array.isArray(F.scenes) ? F.scenes : []).map(s => ({ id: s.id, name: toName(s.name), img: s.thumb || s.background?.src || '', doc: s }));
 
   // Archivist lists normalized
-  const aChars = (Array.isArray(A.characters) ? A.characters : []).map((c) => ({
-    id: String(c.id),
-    name: toName(c.character_name || c.name),
-    img: toName(c.image || ''),
-    type: String(c.type || c.character_type || 'PC').toUpperCase(),
-  }));
-  const aItems = (Array.isArray(A.items) ? A.items : []).map((i) => ({
-    id: String(i.id),
-    name: toName(i.name),
-    img: toName(i.image || ''),
-  }));
-  const aLocs = (Array.isArray(A.locations) ? A.locations : []).map((l) => ({
-    id: String(l.id),
-    name: toName(l.name || l.title),
-    img: toName(l.image || ''),
-  }));
-  const aFactions = (Array.isArray(A.factions) ? A.factions : []).map((f) => ({
-    id: String(f.id),
-    name: toName(f.name || f.title),
-    img: toName(f.image || ''),
-  }));
+  const aChars = (Array.isArray(A.characters) ? A.characters : []).map(c => ({ id: String(c.id), name: toName(c.character_name || c.name), img: toName(c.image || ''), type: String(c.type || c.character_type || 'PC').toUpperCase() }));
+  const aItems = (Array.isArray(A.items) ? A.items : []).map(i => ({ id: String(i.id), name: toName(i.name), img: toName(i.image || '') }));
+  const aLocs = (Array.isArray(A.locations) ? A.locations : []).map(l => ({ id: String(l.id), name: toName(l.name || l.title), img: toName(l.image || '') }));
+  const aFactions = (Array.isArray(A.factions) ? A.factions : []).map(f => ({ id: String(f.id), name: toName(f.name || f.title), img: toName(f.image || '') }));
 
   // Matching helpers (one-to-one by name and type/bucket)
   const matchByName = (left, right, getLeftName, getRightName, constraint) => {
@@ -3435,21 +2940,14 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
       for (const R of right) {
         if (usedRight.has(R.id)) continue;
         if (constraint && !constraint(L, R)) continue;
-        if (normName(getLeftName(L)) === normName(getRightName(R))) {
-          hit = R;
-          break;
-        }
+        if (normName(getLeftName(L)) === normName(getRightName(R))) { hit = R; break; }
       }
-      if (hit) {
-        usedRight.add(hit.id);
-        leftOut.push({ ...L, match: hit.id, selected: true });
-      } else {
-        leftOut.push({ ...L, match: null, selected: true });
-      }
+      if (hit) { usedRight.add(hit.id); leftOut.push({ ...L, match: hit.id, selected: true }); }
+      else { leftOut.push({ ...L, match: null, selected: true }); }
     }
     // Right side mirror
-    const rightOut = right.map((R) => {
-      const L = leftOut.find((x) => x.match === R.id) || null;
+    const rightOut = right.map(R => {
+      const L = leftOut.find(x => x.match === R.id) || null;
       return { ...R, match: L ? L.id : null, selected: true };
     });
     return { leftOut, rightOut };
@@ -3462,40 +2960,18 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
     // If Foundry actor has no meaningful type, allow match
     if (!fa.type || fa.type === '' || fa.type === 'base') return true;
     // Otherwise respect type matching
-    return ac.type === 'PC'
-      ? fa.type.toLowerCase() === 'character'
-      : fa.type.toLowerCase() === 'npc' || fa.type.toLowerCase() === 'monster';
+    return ac.type === 'PC' ? fa.type.toLowerCase() === 'character' : (fa.type.toLowerCase() === 'npc' || fa.type.toLowerCase() === 'monster');
   };
-  const { leftOut: aCharsOut, rightOut: fActorsOut } = matchByName(
-    aChars,
-    allActors,
-    (x) => x.name,
-    (x) => x.name,
-    charConstraint
-  );
+  const { leftOut: aCharsOut, rightOut: fActorsOut } = matchByName(aChars, allActors, x => x.name, x => x.name, charConstraint);
 
   // Items
-  const { leftOut: aItemsOut, rightOut: fItemsOut } = matchByName(
-    aItems,
-    fItems,
-    (x) => x.name,
-    (x) => x.name
-  );
+  const { leftOut: aItemsOut, rightOut: fItemsOut } = matchByName(aItems, fItems, x => x.name, x => x.name);
 
   // Locations vs Scenes
-  const { leftOut: aLocsOut, rightOut: fScenesOut } = matchByName(
-    aLocs,
-    fScenes,
-    (x) => x.name,
-    (x) => x.name
-  );
+  const { leftOut: aLocsOut, rightOut: fScenesOut } = matchByName(aLocs, fScenes, x => x.name, x => x.name);
 
   // Factions — Foundry side empty by default
-  const aFactionsOut = aFactions.map((f) => ({
-    ...f,
-    match: null,
-    selected: true,
-  }));
+  const aFactionsOut = aFactions.map(f => ({ ...f, match: null, selected: true }));
   const fFactionsOut = [];
 
   const result = {
@@ -3508,7 +2984,7 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
   // Post-pass: ensure exact-name matches are linked if still unmatched (helps systems without types)
   try {
     const ensureNameMatch = (leftArr, rightArr) => {
-      const rightByName = new Map(rightArr.map((r) => [normName(r.name), r]));
+      const rightByName = new Map(rightArr.map(r => [normName(r.name), r]));
       for (const l of leftArr) {
         if (!l.match) {
           const r = rightByName.get(normName(l.name));
