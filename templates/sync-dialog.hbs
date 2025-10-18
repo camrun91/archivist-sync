@@ -26,6 +26,7 @@
                         <th style="width: 40px;"></th>
                         <th style="width: 120px;">Type</th>
                         <th>Name</th>
+                        <th style="width: 80px; text-align: center;">Title</th>
                         <th style="width: 100px; text-align: center;">Description</th>
                         <th style="width: 80px; text-align: center;">Image</th>
                         <th style="width: 80px; text-align: center;">Links</th>
@@ -40,6 +41,10 @@
                         <td>
                             {{d.name}}
                             {{#if d.deleted}}<span class="badge danger">Deleted</span>{{/if}}
+                        </td>
+                        <td style="text-align: center;">
+                            {{#if d.changes.name}}<i class="fas fa-check"
+                                style="color: var(--arch-success);"></i>{{/if}}
                         </td>
                         <td style="text-align: center;">
                             {{#if d.changes.description}}<i class="fas fa-check"

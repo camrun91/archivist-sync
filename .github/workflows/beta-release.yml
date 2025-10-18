@@ -1,0 +1,219 @@
+name: Beta Release on Staging
+
+on:
+  push:
+    branches:
+      - staging
+    paths-ignore:
+      - "**.md"
+      - ".github/RELEASE_WORKFLOW.md"
+      - ".github/BETA_SETUP_SUMMARY.md"
+      - ".github/WORKFLOW_DIAGRAM.md"
+
+jobs:
+  beta-release:
+    name: Create Beta Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get current version from module.json
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' module.json)
+
+          # Strip any existing -beta suffix to get base version
+          BASE_VERSION="${VERSION%-beta*}"
+
+          # Create beta version with build number
+          BETA_VERSION="${BASE_VERSION}-beta.${GITHUB_RUN_NUMBER}"
+          TAG="v${BETA_VERSION}"
+
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "BETA_VERSION=$BETA_VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+
+          echo "📦 Version in module.json: $VERSION"
+          echo "📦 Base version: $BASE_VERSION"
+          echo "🧪 Beta version (with build #): $BETA_VERSION"
+          echo "🏷️  Tag: $TAG"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update module.json with beta URLs
+        run: |
+          REPO="${{ github.repository }}"
+
+          # Update manifest and download URLs to point to beta-latest (stable tag for updates)
+          jq --arg repo "$REPO" \
+            '.manifest = "https://github.com/\($repo)/releases/download/beta-latest/module.json" |
+             .download = "https://github.com/\($repo)/releases/download/beta-latest/module.zip"' \
+            module.json > module.json.tmp && mv module.json.tmp module.json
+
+          echo "✅ Updated module.json with beta-latest URLs (for automatic updates)"
+          echo "   Manifest: $(jq -r '.manifest' module.json)"
+          echo "   Download: $(jq -r '.download' module.json)"
+
+      - name: Create module archive
+        run: |
+          # Create a clean zip of the module
+          zip -r module.zip \
+            module.json \
+            README.md \
+            CHANGELOG.md \
+            CONTRIBUTING.md \
+            assets/ \
+            lang/ \
+            scripts/ \
+            styles/ \
+            templates/ \
+            -x "*.git*" -x "*node_modules*" -x "*.DS_Store"
+
+          echo "📦 Beta archive created: module.zip"
+          ls -lh module.zip
+
+      - name: Extract changelog for beta release
+        id: changelog
+        run: |
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          BETA_VERSION="${{ steps.get_version.outputs.BETA_VERSION }}"
+
+          # Try to extract changelog section for this version
+          if [ -f CHANGELOG.md ]; then
+            awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > release_notes.md
+          fi
+
+          # If release notes are empty or don't exist, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "# Beta Release $BETA_VERSION" > release_notes.md
+            echo "" >> release_notes.md
+            echo "⚠️ **This is a pre-release beta version for testing purposes.**" >> release_notes.md
+            echo "" >> release_notes.md
+            echo "This beta release is built from the \`staging\` branch and may contain experimental features or known issues." >> release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release_notes.md
+          else
+            # Prepend beta warning to existing changelog
+            echo "# Beta Release $BETA_VERSION" > release_notes_tmp.md
+            echo "" >> release_notes_tmp.md
+            echo "⚠️ **This is a pre-release beta version for testing purposes.**" >> release_notes_tmp.md
+            echo "" >> release_notes_tmp.md
+            cat release_notes.md >> release_notes_tmp.md
+            mv release_notes_tmp.md release_notes.md
+          fi
+
+          echo "📝 Beta release notes:"
+          cat release_notes.md
+
+      - name: Create GitHub Beta Release (versioned)
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          name: Beta ${{ steps.get_version.outputs.BETA_VERSION }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: true
+          files: |
+            module.zip
+            module.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update beta-latest tag
+        run: |
+          # Delete the old beta-latest tag (both locally and remotely)
+          git tag -d beta-latest 2>/dev/null || true
+          git push origin :refs/tags/beta-latest 2>/dev/null || true
+
+          # Create new beta-latest tag pointing to current commit
+          git tag -a beta-latest -m "Latest beta release: ${{ steps.get_version.outputs.BETA_VERSION }}"
+          git push origin beta-latest
+
+          echo "✅ Updated beta-latest tag to point to ${{ steps.get_version.outputs.BETA_VERSION }}"
+
+      - name: Create/Update beta-latest Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: beta-latest
+          name: Latest Beta Release
+          body: |
+            # Latest Beta Release
+
+            This is an automatically updated release that always points to the most recent beta version.
+
+            **Current Version:** ${{ steps.get_version.outputs.BETA_VERSION }}
+
+            ⚠️ **This is a pre-release beta version for testing purposes.**
+
+            To install this beta in Foundry VTT, use this manifest URL:
+            ```
+            https://github.com/${{ github.repository }}/releases/download/beta-latest/module.json
+            ```
+
+            Once installed, Foundry will automatically detect and prompt you to install new beta updates.
+
+            ---
+
+            **Specific Version:** For the full release notes, see [Beta ${{ steps.get_version.outputs.BETA_VERSION }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.TAG }})
+          draft: false
+          prerelease: true
+          files: |
+            module.zip
+            module.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit updated module.json back to staging
+        run: |
+          # Check if module.json has changes
+          if git diff --quiet module.json; then
+            echo "ℹ️  No changes to module.json, skipping commit"
+          else
+            git add module.json
+            git commit -m "chore: update module.json URLs for beta release ${{ steps.get_version.outputs.TAG }} [skip ci]"
+            git push origin staging
+            echo "✅ Pushed updated module.json to staging branch"
+          fi
+
+      - name: Notify on Success
+        run: |
+          echo "✅ Beta release ${{ steps.get_version.outputs.BETA_VERSION }} published successfully!"
+          echo ""
+          echo "📦 Versioned release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.TAG }}"
+          echo "🔄 Auto-update release: https://github.com/${{ github.repository }}/releases/tag/beta-latest"
+          echo ""
+          echo "🧪 This is a pre-release (beta) and will NOT be published to Foundry VTT"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📥 INSTALL INSTRUCTIONS FOR USERS:"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Use this manifest URL in Foundry VTT to install and receive automatic updates:"
+          echo ""
+          echo "  https://github.com/${{ github.repository }}/releases/download/beta-latest/module.json"
+          echo ""
+          echo "Once installed with this URL, Foundry will automatically prompt users"
+          echo "to update whenever a new beta is released!"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

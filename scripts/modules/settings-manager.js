@@ -27,6 +27,7 @@ export class SettingsManager {
     this._registerChatHistory();
     this._registerUpdateApiKeyMenu();
     this._registerRunSetupAgainMenu();
+    this._registerDocumentationMenu();
   }
 
   /**
@@ -177,6 +178,36 @@ export class SettingsManager {
         }
       },
       restricted: MENU_CONFIG.UPDATE_API_KEY.restricted,
+    });
+  }
+
+  /**
+   * Register Documentation menu
+   * @private
+   */
+  _registerDocumentationMenu() {
+    game.settings.registerMenu(this.moduleId, MENU_CONFIG.DOCUMENTATION.key, {
+      name: game.i18n.localize(MENU_CONFIG.DOCUMENTATION.name),
+      label: game.i18n.localize(MENU_CONFIG.DOCUMENTATION.label),
+      hint: game.i18n.localize(MENU_CONFIG.DOCUMENTATION.hint),
+      icon: MENU_CONFIG.DOCUMENTATION.icon,
+      type: class extends foundry.applications.api.ApplicationV2 {
+        static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
+          id: 'archivist-documentation-menu',
+          window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.Documentation.Title') },
+        });
+        async render(force = false, options = {}) {
+          try {
+            const { DocumentationWindow } = await import('../dialogs/documentation-window.js');
+            (window.__ARCHIVIST_DOCS__ ||= new DocumentationWindow()).render(true);
+          } catch (e) {
+            console.error('[Archivist Sync] Failed to open documentation window', e);
+            ui.notifications?.error?.('Failed to open documentation window');
+          }
+          return this;
+        }
+      },
+      restricted: MENU_CONFIG.DOCUMENTATION.restricted,
     });
   }
 
