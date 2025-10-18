@@ -140,6 +140,7 @@
 .diff-table tbody tr,
 .import-table tbody tr {
     transition: background 0.15s;
+    background: var(--arch-panel);
 }
 
 .diff-table tbody tr:hover,
