@@ -1147,15 +1147,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
   async _onBeginSync(event) {
     event?.preventDefault?.();
+    // Prevent multiple starts
+    if (this._syncStarted) return;
+
     // Projection confirmation (once per run)
+    let result;
     try {
       const current = !!settingsManager.getProjectDescriptionsEnabled?.();
-      const result = await foundry.applications.api.DialogV2.prompt({
+      result = await foundry.applications.api.DialogV2.prompt({
         window: { title: 'Confirm Sync & Projection' },
         position: { width: 560 },
         content: `
           <section class="archivist-setup-confirm" style="line-height:1.4">
-            <p>This will begin your initial sync. You can control whether Archivist appends description sections to core Actor, Item, and Scene description fields during setup.</p>
+            <p>This will begin your initial sync. You can control whether Archivist appends description sections to core Actor and Item description fields during setup.</p>
             <label style="display:flex; align-items:center; gap:.5rem; margin-top: .75rem;">
               <input type="checkbox" name="projectDescriptions" ${current ? 'checked' : ''} />
               <span><strong>Project Descriptions</strong> — Append an Archivist section to the most likely description field.</span>
@@ -1178,13 +1182,20 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         cancel: { label: 'Cancel', icon: 'fas fa-times' },
         rejectClose: true
       });
-      if (!result) return;
-      const enabled = !!result.project;
-      try { await game.settings.set(CONFIG.MODULE_ID, SETTINGS.PROJECT_DESCRIPTIONS.key, enabled); } catch (_) { }
-      try { await game.settings.set(CONFIG.MODULE_ID, SETTINGS.REALTIME_SYNC_ENABLED.key, !!result.realtime); } catch (_) { }
-    } catch (_) { /* ignore dialog errors and continue */ }
-    // Prevent multiple starts
-    if (this._syncStarted) return;
+    } catch (_) {
+      // User cancelled or closed the dialog - do not proceed with sync
+      console.log('[World Setup] Sync cancelled by user');
+      return;
+    }
+
+    if (!result) return;
+
+    // Apply settings from dialog
+    const enabled = !!result.project;
+    try { await game.settings.set(CONFIG.MODULE_ID, SETTINGS.PROJECT_DESCRIPTIONS.key, enabled); } catch (_) { }
+    try { await game.settings.set(CONFIG.MODULE_ID, SETTINGS.REALTIME_SYNC_ENABLED.key, !!result.realtime); } catch (_) { }
+
+    // Mark sync as started
     this._syncStarted = true;
     // Re-entrancy guard: prevent double execution
     if (this._syncRunning) return;
@@ -1791,6 +1802,54 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const shouldCreateActor = new Set((cf.actors || []).map(id => String(id)));
       const shouldCreateItem = new Set((cf.items || []).map(id => String(id)));
 
+      // If projection is enabled, we should also project descriptions/images into any
+      // pre-existing Foundry documents the user mapped by name in Step 4, even if we
+      // aren't creating those documents now.
+      const projectionEnabled = !!settingsManager.getProjectDescriptionsEnabled?.();
+
+      // Hydrate mapped existing Foundry Actors with Archivist content
+      if (projectionEnabled) {
+        try {
+          const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+          // Actors
+          for (const [archId, foundryId] of mappedActorByArchivistId.entries()) {
+            try {
+              const actor = game.actors?.get?.(foundryId) || null;
+              const c = allCharacters.find(x => String(x.id) === String(archId));
+              if (!actor || !c) continue;
+              if (c.description) {
+                const html = Utils.markdownToStoredHtml(String(c.description || ''));
+                await SlotResolver.projectDescription(actor, html);
+              }
+              const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
+              if (imageUrl) {
+                const update = { img: imageUrl };
+                if (imageUrl.includes('myarchivist.ai')) {
+                  update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
+                }
+                await actor.update(update, { render: false });
+              }
+            } catch (_) { /* continue */ }
+          }
+          // Items
+          for (const [archId, foundryId] of mappedItemByArchivistId.entries()) {
+            try {
+              const item = game.items?.get?.(foundryId) || null;
+              const it = allItems.find(x => String(x.id) === String(archId));
+              if (!item || !it) continue;
+              if (it.description) {
+                const html = Utils.markdownToStoredHtml(String(it.description || ''));
+                await SlotResolver.projectDescription(item, html);
+              }
+              const imageUrl = typeof it.image === 'string' && it.image.trim().length ? it.image.trim() : '';
+              if (imageUrl) {
+                await item.update({ img: imageUrl }, { render: false });
+              }
+            } catch (_) { /* continue */ }
+          }
+        } catch (_) { /* ignore projection errors */ }
+      }
+
       // Helper: find already-created docs by archivistId flag to avoid duplicates
       const findActorByArchivistId = id => {
         try {
@@ -1823,6 +1882,27 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { actor = game.actors?.get?.(mappedFoundryId) || null; } catch (_) { actor = null; }
           if (actor) {
             try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id); } catch (_) { }
+            // If projection is enabled, apply Archivist description and image to the existing Actor
+            if (projectionEnabled) {
+              try {
+                if (c.description) {
+                  const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+                  const html = Utils.markdownToStoredHtml(String(c.description || ''));
+                  await SlotResolver.projectDescription(actor, html);
+                }
+              } catch (_) { }
+              try {
+                const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
+                if (imageUrl) {
+                  // Update portrait image while preserving prototype token workaround when needed
+                  const update = { img: imageUrl };
+                  if (imageUrl.includes('myarchivist.ai')) {
+                    update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
+                  }
+                  await actor.update(update, { render: false });
+                }
+              } catch (_) { }
+            }
           }
         }
         // If no explicit mapping, check if we already created an Actor earlier in this run
@@ -1921,6 +2001,22 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { item = game.items?.get?.(mappedFoundryId) || null; } catch (_) { item = null; }
           if (item) {
             try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id); } catch (_) { }
+            // If projection is enabled, apply Archivist description and image to the existing Item
+            if (projectionEnabled) {
+              try {
+                if (i.description) {
+                  const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+                  const html = Utils.markdownToStoredHtml(String(i.description || ''));
+                  await SlotResolver.projectDescription(item, html);
+                }
+              } catch (_) { }
+              try {
+                const imageUrl = typeof i.image === 'string' && i.image.trim().length ? i.image.trim() : '';
+                if (imageUrl) {
+                  await item.update({ img: imageUrl }, { render: false });
+                }
+              } catch (_) { }
+            }
           }
         }
         if (!item) {
