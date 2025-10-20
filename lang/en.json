@@ -60,6 +60,14 @@
       "SemanticMapping": {
         "Name": "Semantic Field Mapping",
         "Hint": "Use AI to improve automatic field detection during import (experimental)"
+      },
+      "ProjectDescriptions": {
+        "Name": "Project Descriptions",
+        "Hint": "When enabled, Archivist will find the most likely description field on Actors, Items, and Scenes and append a separate Archivist section beneath any existing value."
+      },
+      "ProjectionLoopGuardMs": {
+        "Name": "Projection: Loop Guard (ms)",
+        "Hint": "Deprecated"
       }
     },
     "chat": {
@@ -216,7 +224,9 @@
       "saveFailed": "Failed to save world selection",
       "syncFailed": "Failed to sync data",
       "actorNotFound": "Actor not found",
-      "resetFailed": "Failed to reset world setup"
+      "resetFailed": "Failed to reset world setup",
+      "descriptionTooLong": "Description exceeds maximum length (10,000 characters)",
+      "descriptionTooLongMultiple": "Failed to process {count} entity/entities: {names}. Their descriptions exceed the maximum length of 10,000 characters. Please shorten the descriptions and try again."
     },
     "worldSetup": {
       "title": "Archivist World Setup",

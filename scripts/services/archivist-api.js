@@ -231,8 +231,10 @@ export class ArchivistApiService {
   async _handleResponse(response) {
     if (!response.ok) {
       let detail = '';
+      let errorData = null;
       try {
         const data = await response.clone().json();
+        errorData = data;
         detail = data?.detail || data?.message || '';
       } catch (_) {
         try {
@@ -241,8 +243,32 @@ export class ArchivistApiService {
           /* ignore */
         }
       }
+
+      // Check for description length validation error (422)
+      if (response.status === 422) {
+        const detailStr = String(detail).toLowerCase();
+        const isDescriptionTooLong =
+          detailStr.includes('description') &&
+          (detailStr.includes('too long') ||
+            detailStr.includes('exceeds') ||
+            detailStr.includes('maximum') ||
+            detailStr.includes('10000') ||
+            detailStr.includes('10,000'));
+
+        if (isDescriptionTooLong) {
+          const error = new Error(`Description exceeds maximum length (10,000 characters)`);
+          error.status = 422;
+          error.isDescriptionTooLong = true;
+          error.detail = errorData;
+          throw error;
+        }
+      }
+
       const suffix = detail ? ` — ${String(detail).slice(0, 300)}` : '';
-      throw new Error(`API request failed: ${response.status} ${response.statusText}${suffix}`);
+      const error = new Error(`API request failed: ${response.status} ${response.statusText}${suffix}`);
+      error.status = response.status;
+      error.detail = errorData;
+      throw error;
     }
     // 204 No Content returns no body, don't try to parse JSON
     if (response.status === 204) {
@@ -400,6 +426,7 @@ export class ArchivistApiService {
    * @param {object} payload
    */
   async createCharacter(apiKey, payload) {
+    const entityName = payload?.character_name || payload?.name || 'Unknown Character';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters`, {
@@ -412,18 +439,23 @@ export class ArchivistApiService {
         error.message?.includes('429') || error.message?.includes('rate limited');
       const isNetworkError =
         error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, {
         error: error.message,
-        payload: payload?.character_name || 'unknown',
+        payload: entityName,
         isRateLimited,
         isNetworkError,
+        isDescriptionTooLong,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create character',
         retryable: isRateLimited || isNetworkError,
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Character',
       };
     }
   }
@@ -435,6 +467,7 @@ export class ArchivistApiService {
    * @param {object} payload
    */
   async updateCharacter(apiKey, characterId, payload) {
+    const entityName = payload?.character_name || payload?.name || 'Unknown Character';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
@@ -443,8 +476,19 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to update character:`, error);
-      return { success: false, message: error.message || 'Failed to update character' };
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update character:`, {
+        error: error.message,
+        entityName,
+        isDescriptionTooLong,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to update character',
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Character',
+      };
     }
   }
 
@@ -494,6 +538,7 @@ export class ArchivistApiService {
   }
 
   async createFaction(apiKey, payload) {
+    const entityName = payload?.name || 'Unknown Faction';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/factions`, {
@@ -506,23 +551,29 @@ export class ArchivistApiService {
         error.message?.includes('429') || error.message?.includes('rate limited');
       const isNetworkError =
         error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create faction:`, {
         error: error.message,
-        payload: payload?.name || 'unknown',
+        payload: entityName,
         isRateLimited,
         isNetworkError,
+        isDescriptionTooLong,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create faction',
         retryable: isRateLimited || isNetworkError,
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Faction',
       };
     }
   }
 
   async updateFaction(apiKey, factionId, payload) {
+    const entityName = payload?.name || 'Unknown Faction';
     try {
       const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
       const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
@@ -531,8 +582,19 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to update faction:`, error);
-      return { success: false, message: error.message || 'Failed to update faction' };
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update faction:`, {
+        error: error.message,
+        entityName,
+        isDescriptionTooLong,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to update faction',
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Faction',
+      };
     }
   }
 
@@ -625,6 +687,7 @@ export class ArchivistApiService {
   }
 
   async createLocation(apiKey, payload) {
+    const entityName = payload?.name || 'Unknown Location';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/locations`, {
@@ -637,23 +700,29 @@ export class ArchivistApiService {
         error.message?.includes('429') || error.message?.includes('rate limited');
       const isNetworkError =
         error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create location:`, {
         error: error.message,
-        payload: payload?.name || 'unknown',
+        payload: entityName,
         isRateLimited,
         isNetworkError,
+        isDescriptionTooLong,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create location',
         retryable: isRateLimited || isNetworkError,
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Location',
       };
     }
   }
 
   async updateLocation(apiKey, locationId, payload) {
+    const entityName = payload?.name || 'Unknown Location';
     try {
       const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
       const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
@@ -662,8 +731,19 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to update location:`, error);
-      return { success: false, message: error.message || 'Failed to update location' };
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update location:`, {
+        error: error.message,
+        entityName,
+        isDescriptionTooLong,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to update location',
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Location',
+      };
     }
   }
 
@@ -711,6 +791,7 @@ export class ArchivistApiService {
    * Create an item
    */
   async createItem(apiKey, payload) {
+    const entityName = payload?.name || 'Unknown Item';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/items`, {
@@ -723,18 +804,23 @@ export class ArchivistApiService {
         error.message?.includes('429') || error.message?.includes('rate limited');
       const isNetworkError =
         error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create item:`, {
         error: error.message,
-        payload: payload?.name || 'unknown',
+        payload: entityName,
         isRateLimited,
         isNetworkError,
+        isDescriptionTooLong,
       });
 
       return {
         success: false,
         message: error.message || 'Failed to create item',
         retryable: isRateLimited || isNetworkError,
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Item',
       };
     }
   }
@@ -743,6 +829,7 @@ export class ArchivistApiService {
    * Update an item
    */
   async updateItem(apiKey, itemId, payload) {
+    const entityName = payload?.name || 'Unknown Item';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
@@ -751,8 +838,19 @@ export class ArchivistApiService {
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to update item:`, error);
-      return { success: false, message: error.message || 'Failed to update item' };
+      const isDescriptionTooLong = error.isDescriptionTooLong === true;
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update item:`, {
+        error: error.message,
+        entityName,
+        isDescriptionTooLong,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to update item',
+        isDescriptionTooLong,
+        entityName,
+        entityType: 'Item',
+      };
     }
   }
 

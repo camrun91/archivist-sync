@@ -21,6 +21,7 @@ export class SettingsManager {
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
     this._registerWorldInitialized();
+    this._registerJournalDestinations();
     // Auto-sort removed; sorting is always enabled
     this._registerHideByOwnership();
     this._registerRealtimeSync();
@@ -28,6 +29,7 @@ export class SettingsManager {
     this._registerUpdateApiKeyMenu();
     this._registerRunSetupAgainMenu();
     this._registerDocumentationMenu();
+    this._registerProjectionSettings();
   }
 
   /**
@@ -105,6 +107,25 @@ export class SettingsManager {
       onChange: value => {
         console.log(`${this.moduleTitle} | Selected world: ${value}`);
         this._onChatAvailabilityChange();
+      },
+    });
+  }
+
+  /**
+   * Register Journal Destinations setting
+   * @private
+   */
+  _registerJournalDestinations() {
+    const setting = SETTINGS.JOURNAL_DESTINATIONS;
+    game.settings.register(this.moduleId, setting.key, {
+      name: setting.name,
+      hint: setting.hint,
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+      onChange: value => {
+        console.log(`${this.moduleTitle} | Journal destinations updated:`, value);
       },
     });
   }
@@ -468,6 +489,26 @@ export class SettingsManager {
   }
 
   /**
+   * Get journal folder destinations for organizing Archivist journals
+   * @returns {{ pc: string, npc: string, item: string, location: string, faction: string }}
+   */
+  getJournalDestinations() {
+    return this.getSetting(SETTINGS.JOURNAL_DESTINATIONS.key) || { pc: '', npc: '', item: '', location: '', faction: '' };
+  }
+
+  /**
+   * Set journal folder destinations
+   * @param {{ pc?: string, npc?: string, item?: string, location?: string, faction?: string }} destinations
+   * @returns {Promise<void>}
+   */
+  async setJournalDestinations(destinations) {
+    const current = this.getJournalDestinations();
+    const updated = { ...current, ...destinations };
+    await this.setSetting(SETTINGS.JOURNAL_DESTINATIONS.key, updated);
+    Utils.log('Journal destinations updated:', updated);
+  }
+
+  /**
    * Refresh settings UI
    */
   refreshSettingsUi() {
@@ -561,6 +602,26 @@ export class SettingsManager {
     });
   }
 
+  _registerProjectionSettings() {
+    const proj = SETTINGS.PROJECT_DESCRIPTIONS;
+    game.settings.register(this.moduleId, proj.key, {
+      name: game.i18n.localize(proj.name),
+      hint: game.i18n.localize(proj.hint),
+      scope: proj.scope,
+      config: proj.config,
+      type: proj.type,
+      default: proj.default,
+    });
+  }
+
+  getProjectDescriptionsEnabled() {
+    return !!this.getSetting(SETTINGS.PROJECT_DESCRIPTIONS.key);
+  }
+
+  getProjectionLoopGuardMs() {
+    return 0; // Deprecated; retained for backward compatibility where referenced
+  }
+
   // getAutoSort removed
 
   getHideByOwnership() {
@@ -572,8 +633,11 @@ export class SettingsManager {
   // Max location depth setting removed
 
   isRealtimeSyncEnabled() {
-    // Always enabled; runtime suppression is handled via isRealtimeSyncSuppressed()
-    return true;
+    try {
+      return !!this.getSetting(SETTINGS.REALTIME_SYNC_ENABLED.key);
+    } catch (_) {
+      return true;
+    }
   }
 
   /**

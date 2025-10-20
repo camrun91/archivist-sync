@@ -1,15 +1,9 @@
-import { CONFIG } from './config.js';
-
-/**
- * Utility functions for Archivist Sync Module
- */
-export class Utils {
   /**
    * Return the current system id in lowercase (e.g., "dnd5e", "pf2e").
    */
   static getSystemId() {
-    return String(game?.system?.id || '').toLowerCase();
-  }
+  return String(game?.system?.id || '').toLowerCase();
+}
 
   /**
    * Safely get the first non-empty string value from an object using a list of dot-paths.
@@ -18,18 +12,18 @@ export class Utils {
    * @returns {string}
    */
   static pickFirstProperty(obj, paths = []) {
-    const get = (o, path) => {
-      try {
-        if (foundry?.utils?.getProperty) return foundry.utils.getProperty(o, path);
-      } catch (_) { }
-      return String(path).split('.').reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
-    };
-    for (const p of paths) {
-      const v = get(obj, p);
-      if (typeof v === 'string' && v.trim()) return v;
-    }
-    return '';
+  const get = (o, path) => {
+    try {
+      if (foundry?.utils?.getProperty) return foundry.utils.getProperty(o, path);
+    } catch (_) { }
+    return String(path).split('.').reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
+  };
+  for (const p of paths) {
+    const v = get(obj, p);
+    if (typeof v === 'string' && v.trim()) return v;
   }
+  return '';
+}
 
   /**
    * Compute the preferred READ paths for an Actor description based on system and actor type.
@@ -37,28 +31,28 @@ export class Utils {
    * @returns {string[]}
    */
   static getActorDescriptionReadPaths(actor) {
-    const sysId = this.getSystemId();
-    const isPC = String(actor?.type || '').toLowerCase() === 'character';
-    const isNPC = String(actor?.type || '').toLowerCase() === 'npc';
+  const sysId = this.getSystemId();
+  const isPC = String(actor?.type || '').toLowerCase() === 'character';
+  const isNPC = String(actor?.type || '').toLowerCase() === 'npc';
 
-    if (sysId === 'dnd5e') return ['system.details.biography.value', 'system.details.biography.public', 'system.description.value'];
+  if (sysId === 'dnd5e') return ['system.details.biography.value', 'system.details.biography.public', 'system.description.value'];
 
-    if (sysId === 'pf2e') {
-      if (isPC) return ['system.details.biography.backstory', 'system.details.publicNotes', 'system.description.value'];
-      if (isNPC) return ['system.details.publicNotes', 'system.details.notes.description', 'system.description.value'];
-      return ['system.details.biography.backstory', 'system.details.publicNotes', 'system.details.notes.description', 'system.description.value'];
-    }
-
-    // Generic fallbacks
-    return [
-      'system.details.biography.value',
-      'system.details.biography.public',
-      'system.description.value',
-      'system.details.description',
-      'system.details.publicNotes',
-      'system.description',
-    ];
+  if (sysId === 'pf2e') {
+    if (isPC) return ['system.details.biography.backstory', 'system.details.publicNotes', 'system.description.value'];
+    if (isNPC) return ['system.details.notes.description', 'system.details.publicNotes', 'system.description.value'];
+    return ['system.details.biography.backstory', 'system.details.notes.description', 'system.details.publicNotes', 'system.description.value'];
   }
+
+  // Generic fallbacks
+  return [
+    'system.details.biography.value',
+    'system.details.biography.public',
+    'system.description.value',
+    'system.details.description',
+    'system.details.publicNotes',
+    'system.description',
+  ];
+}
 
   /**
    * Compute the preferred WRITE path for projecting an Actor description back into the system.
@@ -66,21 +60,21 @@ export class Utils {
    * @returns {string} A dot-path suitable for Actor.update({ [path]: html })
    */
   static getActorDescriptionWritePath(actor) {
-    const sysId = this.getSystemId();
-    const isPC = String(actor?.type || '').toLowerCase() === 'character';
-    const isNPC = String(actor?.type || '').toLowerCase() === 'npc';
+  const sysId = this.getSystemId();
+  const isPC = String(actor?.type || '').toLowerCase() === 'character';
+  const isNPC = String(actor?.type || '').toLowerCase() === 'npc';
 
-    if (sysId === 'dnd5e') return 'system.details.biography.value';
+  if (sysId === 'dnd5e') return 'system.details.biography.value';
 
-    if (sysId === 'pf2e') {
-      if (isPC) return 'system.details.biography.backstory';
-      if (isNPC) return 'system.details.publicNotes';
-      return 'system.details.publicNotes';
-    }
-
-    // Generic destination
-    return 'system.description.value';
+  if (sysId === 'pf2e') {
+    if (isPC) return 'system.details.biography.backstory';
+    if (isNPC) return 'system.details.notes.description';
+    return 'system.details.publicNotes';
   }
+
+  // Generic destination
+  return 'system.description.value';
+}
 
   /**
    * Read an Actor description as plain text (Markdown-like) for ingest.
@@ -88,37 +82,11 @@ export class Utils {
    * @returns {string}
    */
   static readActorDescription(actor) {
-    const sysId = this.getSystemId();
-    const actorType = String(actor?.type || '').toLowerCase();
-    const paths = this.getActorDescriptionReadPaths(actor);
-    try {
-      console.log('[Utils.readActorDescription] Discovering actor description', {
-        system: sysId,
-        actorId: actor?.id,
-        actorName: actor?.name,
-        actorType,
-        paths
-      });
-    } catch (_) { }
-    const get = (o, p) => {
-      try { if (foundry?.utils?.getProperty) return foundry.utils.getProperty(o, p); } catch (_) { }
-      return String(p).split('.').reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
-    };
-    let selectedPath = null;
-    let raw = '';
-    for (const p of paths) {
-      const v = get(actor, p);
-      if (typeof v === 'string' && v.trim()) { selectedPath = p; raw = v; break; }
-    }
-    try {
-      console.log('[Utils.readActorDescription] Selected path', {
-        selectedPath: selectedPath || 'none',
-        length: String(raw || '').length,
-        preview: String(raw || '').slice(0, 120)
-      });
-    } catch (_) { }
-    return this.toMarkdownIfHtml(raw);
-  }
+  const paths = this.getActorDescriptionReadPaths(actor);
+  // Strip to text/markdown for ingest using our existing HTML->MD helper
+  const htmlOrText = this.pickFirstProperty(actor, paths);
+  return this.toMarkdownIfHtml(htmlOrText);
+}
 
   /**
    * Project a description onto an Actor at the proper system path.
@@ -127,21 +95,17 @@ export class Utils {
    * @param {string} markdown
    */
   static async projectActorDescription(actor, markdown) {
-    const destPath = this.getActorDescriptionWritePath(actor);
-    try {
-      console.log('[Utils.projectActorDescription] Projecting actor description', {
-        system: this.getSystemId(),
-        actorId: actor?.id,
-        actorName: actor?.name,
-        destPath,
-        markdownLength: String(markdown ?? '').length
-      });
-    } catch (_) { }
-    const html = this.markdownToStoredHtml(String(markdown ?? ''));
-    await actor.update({ [destPath]: html });
-    return destPath;
-  }
+  const destPath = this.getActorDescriptionWritePath(actor);
+  const html = this.markdownToStoredHtml(String(markdown ?? ''));
+  await actor.update({ [destPath]: html });
+  return destPath;
+}
+import { CONFIG } from './config.js';
 
+/**
+ * Utility functions for Archivist Sync Module
+ */
+export class Utils {
   /**
    * Resolve a valid Item type for the current system.
    * - Prefer a cached value after first resolution
@@ -451,18 +415,15 @@ export class Utils {
    * @returns {Array} Array of transformed character data
    */
   static transformActorsForSync(actors) {
-    return actors.map(actor => {
-      const desc = this.readActorDescription(actor);
-      return {
-        foundryId: actor.id,
-        name: actor.name,
-        type: actor.type,
-        description: desc,
-        level: actor.system?.details?.level || 1,
-        race: actor.system?.details?.race || '',
-        class: actor.system?.details?.class || '',
-      };
-    });
+    return actors.map(actor => ({
+      foundryId: actor.id,
+      name: actor.name,
+      type: actor.type,
+      description: actor.system?.details?.biography?.value || '',
+      level: actor.system?.details?.level || 1,
+      race: actor.system?.details?.race || '',
+      class: actor.system?.details?.class || '',
+    }));
   }
 
   /**
@@ -472,21 +433,20 @@ export class Utils {
    */
   static toApiCharacterPayload(actor, worldId) {
     const isPC = actor.type === 'character';
-    const sysId = this.getSystemId();
-    const description = this.readActorDescription(actor);
-    try {
-      console.log('[Utils.toApiCharacterPayload] Built description for actor', {
-        system: sysId,
-        actorId: actor?.id,
-        actorName: actor?.name,
-        actorType: actor?.type,
-        descriptionLength: String(description || '').length,
-      });
-    } catch (_) { }
+    const pick = (...paths) => {
+      for (const p of paths) {
+        try {
+          const v = foundry.utils.getProperty(actor, p);
+          if (typeof v === 'string' && v.trim()) return v;
+        } catch (_) { }
+      }
+      return '';
+    };
+    const bioHtml = pick('system.details.biography.value', 'system.details.biography.public', 'system.description.value');
     return {
       character_name: actor.name,
       player_name: actor?.system?.details?.player || '',
-      description,
+      description: this.toMarkdownIfHtml(bioHtml || ''),
       type: isPC ? 'PC' : 'NPC',
       campaign_id: worldId,
     };

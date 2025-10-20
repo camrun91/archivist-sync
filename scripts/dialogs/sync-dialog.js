@@ -536,14 +536,34 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         const markdownContent = String((row.description || row.summary) || '');
         const htmlContent = Utils.markdownToStoredHtml(markdownContent);
 
-        // For sessions, prefer Recaps folder and preserve session_date ordering
+        // Determine folder ID based on sheet type using saved destinations
         let folderId = undefined;
         let sort = undefined;
-        if (sheetType === 'recap') {
-            try { folderId = await Utils.ensureJournalFolder('Recaps'); } catch (_) { }
-            if (row.session_date) {
-                try { sort = new Date(row.session_date).getTime(); } catch (_) { }
+
+        try {
+            const destinations = settingsManager.getJournalDestinations?.() || {};
+
+            if (sheetType === 'pc' && destinations.pc) {
+                folderId = destinations.pc;
+            } else if (sheetType === 'npc' && destinations.npc) {
+                folderId = destinations.npc;
+            } else if (sheetType === 'item' && destinations.item) {
+                folderId = destinations.item;
+            } else if (sheetType === 'location' && destinations.location) {
+                folderId = destinations.location;
+            } else if (sheetType === 'faction' && destinations.faction) {
+                folderId = destinations.faction;
+            } else if (sheetType === 'recap') {
+                // For sessions/recaps, use Recaps folder and preserve session_date ordering
+                folderId = await Utils.ensureJournalFolder('Recaps');
+                if (row.session_date) {
+                    try { sort = new Date(row.session_date).getTime(); } catch (_) { }
+                }
             }
+
+            console.log('[Sync Dialog] Importing to folder:', { sheetType, folderId: folderId || 'root', name: row.name });
+        } catch (e) {
+            console.warn('[Sync Dialog] Failed to resolve folder destination:', e);
         }
 
         const journal = await Utils.createCustomJournalForImport({
@@ -557,6 +577,13 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             sort,
         });
         if (!journal) return;
+        // For locations, set parent relation from Archivist's parent_id
+        if (sheetType === 'location' && row.parent_id) {
+            try {
+                const { setLocationParent } = await import('../modules/links/helpers.js');
+                await setLocationParent(journal, String(row.parent_id));
+            } catch (_) { /* noop */ }
+        }
         // For sessions, set sessionDate flag for later edits
         if (sheetType === 'recap' && row.session_date) {
             try { await journal.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(row.session_date)); } catch (_) { }
@@ -572,7 +599,8 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             }
             if (row.createCore && row.coreType === 'item' && sheetType === 'item') {
                 const img = String(row.image || '').trim();
-                const itm = await Item.create({ name: row.name, type: 'loot', ...(img ? { img } : {}) }, { render: false });
+                const safeType = Utils.resolveItemType({ type: row?.type });
+                const itm = await Item.create({ name: row.name, type: safeType, ...(img ? { img } : {}) }, { render: false });
                 if (itm?.id) flags.foundryRefs.items = [itm.id];
             }
             if (row.createCore && row.coreType === 'scene' && sheetType === 'location') {
@@ -611,9 +639,36 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                         }
                         await journal.setFlag(CONFIG.MODULE_ID, 'archivist', f2);
                     }
+
+                    // Project description into core documents if created or bound
+                    try {
+                        const projectEnabled = settingsManager.getProjectDescriptionsEnabled?.();
+                        if (projectEnabled) {
+                            const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+                            // If we created a core doc, project into it; otherwise project into the journal page
+                            let targetDoc = null;
+                            const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                            const actorId = Array.isArray(flags?.foundryRefs?.actors) ? flags.foundryRefs.actors[0] : null;
+                            const itemId = Array.isArray(flags?.foundryRefs?.items) ? flags.foundryRefs.items[0] : null;
+                            const sceneId = Array.isArray(flags?.foundryRefs?.scenes) ? flags.foundryRefs.scenes[0] : null;
+                            if (actorId) targetDoc = game.actors?.get?.(actorId) || null;
+                            else if (itemId) targetDoc = game.items?.get?.(itemId) || null;
+                            else if (sceneId) targetDoc = game.scenes?.get?.(sceneId) || null;
+
+                            const md = String((row.description || row.summary) || '');
+                            const html = Utils.markdownToStoredHtml(md);
+
+                            if (targetDoc) {
+                                await SlotResolver.projectDescription(targetDoc, html);
+                            }
+                        }
+                    } catch (_) { }
                 }
             } catch (_) { }
         } catch (_) { }
+
+        // After import, rebuild link index so trees/associations are available
+        try { const { linkIndexer } = await import('../modules/links/indexer.js'); linkIndexer.buildFromWorld(); } catch (_) { }
     }
 }
 
