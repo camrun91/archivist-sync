@@ -803,6 +803,10 @@ function initializeDebugInterface() {
     installRealtimeSyncListeners,
     Utils,
     AskChatWindow,
+    async projection() {
+      const { SlotResolver } = await import('./modules/projection/slot-resolver.js');
+      return SlotResolver;
+    },
   };
 
   Utils.log('Debug interface initialized. Use window.ARCHIVIST_SYNC to access module components.');
@@ -981,11 +985,21 @@ function installRealtimeSyncListeners() {
         const res = await archivistApi.createFaction(apiKey, toFactionPayload(page));
         if (res?.success && res?.data?.id) {
           await Utils.setPageArchivistMeta(page, res.data.id, 'faction', worldId);
+        } else if (!res?.success && res?.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to create ${res.entityName || page?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+            { permanent: true }
+          );
         }
       } else if (isLocationPage(page)) {
         const res = await archivistApi.createLocation(apiKey, toLocationPayload(page));
         if (res?.success && res?.data?.id) {
           await Utils.setPageArchivistMeta(page, res.data.id, 'location', worldId);
+        } else if (!res?.success && res?.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to create ${res.entityName || page?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+            { permanent: true }
+          );
         }
       }
     } catch (e) {
@@ -1010,7 +1024,16 @@ function installRealtimeSyncListeners() {
       const id = doc.getFlag(CONFIG.MODULE_ID, 'archivistId');
       if (!id) return;
       const res = await archivistApi.updateItem(apiKey, id, toItemPayload(doc));
-      if (!res?.success) console.warn('[RTS] updateItem failed');
+      if (!res?.success) {
+        if (res.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to sync ${res.entityName || doc?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+            { permanent: true }
+          );
+        } else {
+          console.warn('[RTS] updateItem failed');
+        }
+      }
     } catch (e) {
       console.warn('[RTS] updateItem failed', e);
     }
@@ -1019,14 +1042,32 @@ function installRealtimeSyncListeners() {
     try {
       // Always-on realtime rules; respect suppression during bulk ops
       if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
+      // Op marker: ignore our projection-originated write operations
+      try {
+        const mod = changes?.flags?.[CONFIG.MODULE_ID];
+        if (mod && Object.prototype.hasOwnProperty.call(mod, 'op')) return;
+      } catch (_) { }
       const meta = Utils.getPageArchivistMeta(page);
       if (!meta?.id) return;
+      let res;
       // Faction pages: update Faction
       if (isFactionPage(page)) {
-        await archivistApi.updateFaction(apiKey, meta.id, toFactionPayload(page));
+        res = await archivistApi.updateFaction(apiKey, meta.id, toFactionPayload(page));
+        if (!res?.success && res?.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to sync ${res.entityName || page?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+            { permanent: true }
+          );
+        }
         // Location pages: update Location
       } else if (isLocationPage(page)) {
-        await archivistApi.updateLocation(apiKey, meta.id, toLocationPayload(page));
+        res = await archivistApi.updateLocation(apiKey, meta.id, toLocationPayload(page));
+        if (!res?.success && res?.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to sync ${res.entityName || page?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+            { permanent: true }
+          );
+        }
         // Recap pages: update Session title/summary only
       } else if (isRecapPage(page)) {
         // Recaps: update session summary/title only; do not create/delete
@@ -1043,24 +1084,48 @@ function installRealtimeSyncListeners() {
         const html = Utils.extractPageHtml(page);
         const isCharacter = flags?.sheetType === 'pc' || flags?.sheetType === 'npc' || flags?.sheetType === 'character';
         if (isCharacter && flags.archivistId) {
-          await archivistApi.updateCharacter(apiKey, flags.archivistId, {
+          res = await archivistApi.updateCharacter(apiKey, flags.archivistId, {
             description: Utils.toMarkdownIfHtml?.(html) || html,
           });
+          if (!res?.success && res?.isDescriptionTooLong) {
+            ui.notifications?.error?.(
+              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+              { permanent: true }
+            );
+          }
         }
         if (flags?.sheetType === 'item' && flags.archivistId) {
-          await archivistApi.updateItem(apiKey, flags.archivistId, {
+          res = await archivistApi.updateItem(apiKey, flags.archivistId, {
             description: Utils.toMarkdownIfHtml?.(html) || html,
           });
+          if (!res?.success && res?.isDescriptionTooLong) {
+            ui.notifications?.error?.(
+              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+              { permanent: true }
+            );
+          }
         }
         if (flags?.sheetType === 'location' && flags.archivistId) {
-          await archivistApi.updateLocation(apiKey, flags.archivistId, {
+          res = await archivistApi.updateLocation(apiKey, flags.archivistId, {
             description: Utils.toMarkdownIfHtml?.(html) || html,
           });
+          if (!res?.success && res?.isDescriptionTooLong) {
+            ui.notifications?.error?.(
+              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+              { permanent: true }
+            );
+          }
         }
         if (flags?.sheetType === 'faction' && flags.archivistId) {
-          await archivistApi.updateFaction(apiKey, flags.archivistId, {
+          res = await archivistApi.updateFaction(apiKey, flags.archivistId, {
             description: Utils.toMarkdownIfHtml?.(html) || html,
           });
+          if (!res?.success && res?.isDescriptionTooLong) {
+            ui.notifications?.error?.(
+              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+              { permanent: true }
+            );
+          }
         }
       }
     } catch (e) {
@@ -1072,6 +1137,11 @@ function installRealtimeSyncListeners() {
   Hooks.on('updateJournalEntry', async (entry, diff) => {
     try {
       if (!settingsManager.isRealtimeSyncEnabled?.() || settingsManager.isRealtimeSyncSuppressed?.()) return;
+      // Op marker: ignore projection-originated writes
+      try {
+        const mod = diff?.flags?.[CONFIG.MODULE_ID];
+        if (mod && Object.prototype.hasOwnProperty.call(mod, 'op')) return;
+      } catch (_) { }
       const flags = entry.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
       const id = flags?.archivistId;
       const st = String(flags?.sheetType || '');

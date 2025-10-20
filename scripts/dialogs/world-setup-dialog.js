@@ -1,7 +1,8 @@
-import { CONFIG } from '../modules/config.js';
+import { CONFIG, SETTINGS } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
 import { Utils } from '../modules/utils.js';
+import { AdapterRegistry } from '../modules/projection/adapter-registry.js';
 
 /**
  * World Setup Dialog - Step-by-step initialization process for new Foundry worlds
@@ -38,10 +39,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     this.archivistCandidates = { characters: [], items: [], locations: [], factions: [] };
     this.eligibleDocs = { pcs: [], npcs: [], items: [], locations: [], factions: [] };
     this.syncPlan = { createInFoundry: [], createInArchivist: [], link: [] };
-    this.syncStatus = { total: 0, processed: 0, current: '', logs: [] };
+    this.syncStatus = { total: 0, processed: 0, current: '', logs: [], descriptionTooLongErrors: [] };
     // Sync re-entrancy and lifecycle flags
     this._syncRunning = false;
     this._syncStarted = false;
+    // Track active tabs across renders
+    this._activeReconTab = null;
+    this._activeCreateTab = null;
   }
 
   /**
@@ -447,130 +451,6 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     return baseProperties;
   }
 
-  /**
-   * Discover Item properties by creating temporary items of different types
-   * Uses the new Document() constructor (v13+) instead of deprecated { temporary: true }
-   * @private
-   */
-  async _discoverItemProperties() {
-    const allProperties = new Map(); // Use Map to avoid duplicates by path
-    const itemTypes = ['weapon', 'equipment', 'consumable', 'spell', 'feat', 'loot']; // Common D&D 5e item types
-
-    // First, try to use existing items
-    const existingItems = game.items?.contents || [];
-    for (const item of existingItems.slice(0, 2)) {
-      // Sample max 2 existing
-      try {
-        const itemData = item.toObject();
-        const properties = this._discoverStringProperties(itemData);
-        for (const prop of properties) {
-          allProperties.set(prop.path, prop);
-        }
-        console.log(
-          `Archivist Sync | Discovered ${properties.length} properties from existing ${item.type} item: ${item.name}`
-        );
-      } catch (error) {
-        console.warn(`Error discovering properties from existing item ${item.name}:`, error);
-      }
-    }
-
-    // Try to discover properties from system data model templates instead of creating items
-    for (const itemType of itemTypes.slice(0, 3)) {
-      // Limit to first 3 types
-      try {
-        console.log(`Archivist Sync | Attempting system template discovery for ${itemType} item`);
-
-        // Try to access system data model template if available
-        let templateProperties = [];
-
-        // Check if we can access the system's data model templates
-        if (game.system?.model?.Item?.[itemType]) {
-          console.log(`Archivist Sync | Found system template for ${itemType}`);
-          const template = game.system.model.Item[itemType];
-          templateProperties = this._discoverStringProperties(template);
-
-          for (const prop of templateProperties) {
-            // Prefix with 'system.' since these are system model properties
-            const systemProp = {
-              ...prop,
-              path: prop.path.startsWith('system.') ? prop.path : `system.${prop.path}`,
-              sample: `${prop.sample} (from template)`,
-            };
-            allProperties.set(systemProp.path, systemProp);
-          }
-
-          console.log(
-            `Archivist Sync | Discovered ${templateProperties.length} properties from ${itemType} system template`
-          );
-        } else {
-          // Fallback: use predefined property sets for this item type
-          console.log(
-            `Archivist Sync | No system template found for ${itemType}, using fallback properties`
-          );
-          const fallbackProperties = this._getFallbackItemProperties(itemType);
-          for (const prop of fallbackProperties) {
-            allProperties.set(prop.path, prop);
-          }
-          console.log(
-            `Archivist Sync | Used ${fallbackProperties.length} fallback properties for ${itemType} item`
-          );
-        }
-      } catch (error) {
-        console.warn(`Error discovering properties for ${itemType} item:`, error);
-
-        // Final fallback: use predefined property sets
-        try {
-          const fallbackProperties = this._getFallbackItemProperties(itemType);
-          for (const prop of fallbackProperties) {
-            allProperties.set(prop.path, prop);
-          }
-          console.log(`Archivist Sync | Used fallback properties for ${itemType} item after error`);
-        } catch (fallbackError) {
-          console.warn(`Fallback also failed for ${itemType}:`, fallbackError);
-        }
-      }
-    }
-
-    // Add known D&D 5e item paths
-    const knownPaths = [
-      { path: 'name', sample: 'Item name' },
-      { path: 'img', sample: 'Item image path' },
-      { path: 'system.description.value', sample: 'Item description' },
-      { path: 'system.description.short', sample: 'Short description' },
-      { path: 'system.description.chat', sample: 'Chat description' },
-      { path: 'system.source', sample: 'Item source' },
-      { path: 'system.requirements', sample: 'Requirements' },
-      { path: 'system.chatFlavor', sample: 'Chat flavor text' },
-      { path: 'system.unidentified.description', sample: 'Unidentified description' },
-    ];
-
-    for (const pathInfo of knownPaths) {
-      if (!allProperties.has(pathInfo.path)) {
-        allProperties.set(pathInfo.path, {
-          path: pathInfo.path,
-          type: 'string',
-          sample: pathInfo.sample,
-        });
-      }
-    }
-
-    return Array.from(allProperties.values());
-  }
-
-  /**
-   * Get fallback properties for item types when temporary document creation fails
-   * @private
-   */
-  _getFallbackItemProperties(itemType) {
-    return [
-      { path: 'name', type: 'string', sample: 'Item name' },
-      { path: 'img', type: 'string', sample: 'Item image path' },
-      { path: 'system.description.value', type: 'string', sample: 'Item description' },
-      { path: 'system.description.short', type: 'string', sample: 'Short description' },
-      { path: 'system.description.chat', type: 'string', sample: 'Chat description' },
-      { path: 'system.source', type: 'string', sample: 'Item source' },
-    ];
-  }
 
   /**
    * Prepare context data for template rendering
@@ -1269,6 +1149,53 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     event?.preventDefault?.();
     // Prevent multiple starts
     if (this._syncStarted) return;
+
+    // Projection confirmation (once per run)
+    let result;
+    try {
+      const current = !!settingsManager.getProjectDescriptionsEnabled?.();
+      result = await foundry.applications.api.DialogV2.prompt({
+        window: { title: 'Confirm Sync & Projection' },
+        position: { width: 560 },
+        content: `
+          <section class="archivist-setup-confirm" style="line-height:1.4">
+            <p>This will begin your initial sync. You can control whether Archivist appends description sections to core Actor and Item description fields during setup.</p>
+            <label style="display:flex; align-items:center; gap:.5rem; margin-top: .75rem;">
+              <input type="checkbox" name="projectDescriptions" ${current ? 'checked' : ''} />
+              <span><strong>Project Descriptions</strong> — Append an Archivist section to the most likely description field.</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:.5rem; margin-top: .75rem;">
+              <input type="checkbox" name="realtimeSync" ${settingsManager.isRealtimeSyncEnabled?.() ? 'checked' : ''} />
+              <span><strong>Real‑Time Sync</strong> — When enabled, changes you make to Actors, Items, and selected Journals in Foundry will be mirrored to Archivist automatically. Disable during bulk imports to avoid unintended updates.</span>
+            </label>
+          </section>
+        `,
+        ok: {
+          label: 'Begin Sync',
+          icon: 'fas fa-check',
+          callback: (ev, button) => {
+            const form = button.form;
+            const fd = new FormData(form);
+            return { project: fd.get('projectDescriptions') === 'on', realtime: fd.get('realtimeSync') === 'on' };
+          }
+        },
+        cancel: { label: 'Cancel', icon: 'fas fa-times' },
+        rejectClose: true
+      });
+    } catch (_) {
+      // User cancelled or closed the dialog - do not proceed with sync
+      console.log('[World Setup] Sync cancelled by user');
+      return;
+    }
+
+    if (!result) return;
+
+    // Apply settings from dialog
+    const enabled = !!result.project;
+    try { await game.settings.set(CONFIG.MODULE_ID, SETTINGS.PROJECT_DESCRIPTIONS.key, enabled); } catch (_) { }
+    try { await game.settings.set(CONFIG.MODULE_ID, SETTINGS.REALTIME_SYNC_ENABLED.key, !!result.realtime); } catch (_) { }
+
+    // Mark sync as started
     this._syncStarted = true;
     // Re-entrancy guard: prevent double execution
     if (this._syncRunning) return;
@@ -1377,23 +1304,63 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       };
 
       const getMappedFields = (kind, doc) => {
-        // Mapping removed: only use core name and https image; no description extraction from system
+        // Best-guess description extraction using AdapterRegistry candidates
         const httpsOnly = s => {
           const v = String(s || '').trim();
           return v.startsWith('https://') ? v : undefined;
         };
+        const toPlain = html => Utils.toMarkdownIfHtml?.(String(html || '')) || String(html || '');
+        const gatherDescription = () => {
+          try {
+            const docType = doc?.documentName;
+            const candidates = AdapterRegistry.getCandidates(docType) || [
+              { path: 'system.description.value', weight: 90, html: true },
+              { path: 'system.details.description', weight: 85, html: true },
+              { path: 'system.details.biography.value', weight: 80, html: true },
+              { path: 'system.details.biography', weight: 75, html: true },
+              { path: 'flags.core.summary', weight: 70, html: true },
+            ];
+            const viable = candidates
+              .map(c => ({ ...c, val: foundry.utils.getProperty(doc, c.path) }))
+              .filter(c => typeof c.val === 'string' && c.val.trim().length > 0);
+            if (!viable.length) return '';
+            const scored = viable
+              .map(c => {
+                const s = String(c.val || '');
+                const hasHtml = !!c.html || /<\/?[a-z][\s\S]*>/i.test(s);
+                const score = (c.weight || 0) + (s.length ? 15 : 0) + (hasHtml ? 10 : 0);
+                return { score, s };
+              })
+              .sort((a, b) => b.score - a.score)[0];
+            return toPlain(scored?.s || '');
+          } catch (_) {
+            return '';
+          }
+        };
+
         if (kind === 'PC' || kind === 'NPC') {
           const image = httpsOnly(doc?.img);
+          const description = gatherDescription();
           return {
             character_name: String(doc?.name || ''),
+            ...(description ? { description } : {}),
             ...(image ? { image } : {}),
           };
         }
         if (kind === 'Item') {
           const image = httpsOnly(doc?.img);
+          const description = gatherDescription();
           return {
             name: String(doc?.name || ''),
+            ...(description ? { description } : {}),
             ...(image ? { image } : {}),
+          };
+        }
+        if (kind === 'Location') {
+          const description = gatherDescription();
+          return {
+            name: String(doc?.name || ''),
+            ...(description ? { description } : {}),
           };
         }
         return {};
@@ -1424,7 +1391,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const row = (this.setupData?.reconcile?.items?.archivist || []).find(r => String(r.id) === String(id));
           if (!row) { this.syncStatus.processed++; continue; }
           const folderId = this.setupData.destinations.item || null;
-          const item = await Item.create({ name: row.name || 'Item', type: 'loot', folder: folderId, ...(row.img ? { img: row.img } : {}) }, { render: false });
+          const safeType = Utils.resolveItemType({ type: row?.type });
+          const item = await Item.create({ name: row.name || 'Item', type: safeType, folder: folderId, ...(row.img ? { img: row.img } : {}) }, { render: false });
           try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id); } catch (_) { }
           this.syncStatus.logs.push(`Created Item '${item.name}' for Archivist Item ${row.id}`);
           this.syncStatus.processed++;
@@ -1480,6 +1448,60 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               }
             } catch (_) { /* noop */ }
           }
+          // Ensure a custom journal sheet exists for this mapped entity; create if missing
+          try {
+            const journals = game.journal?.contents || [];
+            const existing = journals.find(j => {
+              const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+              return String(f.archivistId || '') === String(job.archivistId || '');
+            });
+            if (!existing) {
+              let sheetType = null;
+              let targetFolderId = null;
+              let html = '';
+              let imageUrl = undefined;
+              if (job.kind === 'PC' || job.kind === 'NPC') {
+                sheetType = job.kind === 'PC' ? 'pc' : 'npc';
+                targetFolderId = job.kind === 'PC' ? this.setupData.destinations.pc : this.setupData.destinations.npc;
+                const desc = doc?.system?.details?.biography?.value || doc?.system?.description || doc?.system?.details?.biography || '';
+                html = Utils.toMarkdownIfHtml(String(desc || ''));
+                imageUrl = doc?.img || undefined;
+              } else if (job.kind === 'Item') {
+                sheetType = 'item';
+                targetFolderId = this.setupData.destinations.item;
+                const desc = doc?.system?.description?.value || doc?.system?.description || '';
+                html = Utils.toMarkdownIfHtml(String(desc || ''));
+                imageUrl = doc?.img || undefined;
+              } else if (job.kind === 'Location') {
+                sheetType = 'location';
+                targetFolderId = this.setupData.destinations.location;
+                // Scenes don't have descriptions in their core data
+                html = '';
+                imageUrl = doc?.thumb || doc?.background?.src || undefined;
+              }
+              if (sheetType) {
+                const journal = await Utils.createCustomJournalForImport({
+                  name: doc.name,
+                  html,
+                  imageUrl,
+                  sheetType,
+                  archivistId: job.archivistId,
+                  worldId: campaignId,
+                  folderId: targetFolderId || null,
+                });
+                if (journal && doc?.id) {
+                  const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                  flags.foundryRefs = flags.foundryRefs || { actors: [], items: [], scenes: [], journals: [] };
+                  if (job.kind === 'PC' || job.kind === 'NPC') flags.foundryRefs.actors = [doc.id];
+                  if (job.kind === 'Item') flags.foundryRefs.items = [doc.id];
+                  if (job.kind === 'Location') flags.foundryRefs.scenes = [doc.id];
+                  await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[World Setup] Failed ensuring custom journal for mapped entity', e);
+          }
           this.syncStatus.logs.push(`Linked ${job.kind} '${doc.name}' → ${job.archivistId}`);
           this.syncStatus.processed++;
           await this.render();
@@ -1520,6 +1542,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           console.log(`Archivist Sync | Creating location from Scene:`, { name: payload.name, campaignId });
           res = await archivistApi.createLocation(apiKey, payload);
         }
+
+        // Track description length errors
+        if (!res.success && res.isDescriptionTooLong) {
+          this.syncStatus.descriptionTooLongErrors.push({
+            name: res.entityName || doc?.name || 'Unknown',
+            type: res.entityType || job.kind,
+          });
+          this.syncStatus.logs.push(`❌ Failed ${job.kind} '${doc.name}': Description too long (max 10,000 characters)`);
+          this.syncStatus.processed++;
+          await this.render();
+          continue;
+        }
+
         const newId = res?.data?.id;
         if (res.success && newId) {
           await setArchivistFlag(job.kind, doc, newId);
@@ -1534,7 +1569,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               targetFolderId = job.kind === 'PC' ? this.setupData.destinations.pc : this.setupData.destinations.npc;
               // Extract description from actor
               const desc = doc?.system?.details?.biography?.value || doc?.system?.description || doc?.system?.details?.biography || '';
-              html = this._mdToHtml(desc);
+              html = Utils.toMarkdownIfHtml(String(desc || ''));
               imageUrl = doc?.img || undefined;
 
               console.log(`[World Setup] Creating journal for exported ${job.kind}:`, {
@@ -1563,7 +1598,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               sheetType = 'item';
               targetFolderId = this.setupData.destinations.item;
               const desc = doc?.system?.description?.value || doc?.system?.description || '';
-              html = this._mdToHtml(desc);
+              html = Utils.toMarkdownIfHtml(String(desc || ''));
               imageUrl = doc?.img || undefined;
 
               console.log(`[World Setup] Creating journal for exported Item:`, {
@@ -1631,6 +1666,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       try {
         await settingsManager.completeWorldInitialization();
       } catch (_) { }
+
+      // Save folder destinations for later use by Sync Dialog
+      try {
+        await settingsManager.setJournalDestinations(this.setupData.destinations);
+        console.log('[World Setup] Journal destinations saved to settings:', this.setupData.destinations);
+      } catch (e) {
+        console.warn('[World Setup] Failed to save journal destinations:', e);
+      }
+
       if (window.ARCHIVIST_SYNC?.updateChatAvailability) {
         try {
           window.ARCHIVIST_SYNC.updateChatAvailability();
@@ -1642,7 +1686,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         settingsManager.resumeRealtimeSync?.();
         console.log('[World Setup] ✓ Real-time sync resumed after successful setup');
       } catch (_) { }
-      ui.notifications.info('Sync completed');
+
+      // Check for description length errors
+      if (this.syncStatus.descriptionTooLongErrors && this.syncStatus.descriptionTooLongErrors.length > 0) {
+        const errorNames = this.syncStatus.descriptionTooLongErrors.map(e => `${e.name} (${e.type})`).join(', ');
+        const count = this.syncStatus.descriptionTooLongErrors.length;
+        const message = count === 1
+          ? `Failed to process ${errorNames}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`
+          : `Failed to process ${count} entities: ${errorNames}. Their descriptions exceed the maximum length of 10,000 characters. Please shorten the descriptions and try again.`;
+        ui.notifications.error(message, { permanent: true });
+      } else {
+        ui.notifications.info('Sync completed');
+      }
+
       try {
         await this.close();
       } catch (_) { }
@@ -1746,6 +1802,54 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const shouldCreateActor = new Set((cf.actors || []).map(id => String(id)));
       const shouldCreateItem = new Set((cf.items || []).map(id => String(id)));
 
+      // If projection is enabled, we should also project descriptions/images into any
+      // pre-existing Foundry documents the user mapped by name in Step 4, even if we
+      // aren't creating those documents now.
+      const projectionEnabled = !!settingsManager.getProjectDescriptionsEnabled?.();
+
+      // Hydrate mapped existing Foundry Actors with Archivist content
+      if (projectionEnabled) {
+        try {
+          const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+          // Actors
+          for (const [archId, foundryId] of mappedActorByArchivistId.entries()) {
+            try {
+              const actor = game.actors?.get?.(foundryId) || null;
+              const c = allCharacters.find(x => String(x.id) === String(archId));
+              if (!actor || !c) continue;
+              if (c.description) {
+                const html = Utils.markdownToStoredHtml(String(c.description || ''));
+                await SlotResolver.projectDescription(actor, html);
+              }
+              const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
+              if (imageUrl) {
+                const update = { img: imageUrl };
+                if (imageUrl.includes('myarchivist.ai')) {
+                  update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
+                }
+                await actor.update(update, { render: false });
+              }
+            } catch (_) { /* continue */ }
+          }
+          // Items
+          for (const [archId, foundryId] of mappedItemByArchivistId.entries()) {
+            try {
+              const item = game.items?.get?.(foundryId) || null;
+              const it = allItems.find(x => String(x.id) === String(archId));
+              if (!item || !it) continue;
+              if (it.description) {
+                const html = Utils.markdownToStoredHtml(String(it.description || ''));
+                await SlotResolver.projectDescription(item, html);
+              }
+              const imageUrl = typeof it.image === 'string' && it.image.trim().length ? it.image.trim() : '';
+              if (imageUrl) {
+                await item.update({ img: imageUrl }, { render: false });
+              }
+            } catch (_) { /* continue */ }
+          }
+        } catch (_) { /* ignore projection errors */ }
+      }
+
       // Helper: find already-created docs by archivistId flag to avoid duplicates
       const findActorByArchivistId = id => {
         try {
@@ -1778,6 +1882,27 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { actor = game.actors?.get?.(mappedFoundryId) || null; } catch (_) { actor = null; }
           if (actor) {
             try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id); } catch (_) { }
+            // If projection is enabled, apply Archivist description and image to the existing Actor
+            if (projectionEnabled) {
+              try {
+                if (c.description) {
+                  const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+                  const html = Utils.markdownToStoredHtml(String(c.description || ''));
+                  await SlotResolver.projectDescription(actor, html);
+                }
+              } catch (_) { }
+              try {
+                const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
+                if (imageUrl) {
+                  // Update portrait image while preserving prototype token workaround when needed
+                  const update = { img: imageUrl };
+                  if (imageUrl.includes('myarchivist.ai')) {
+                    update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
+                  }
+                  await actor.update(update, { render: false });
+                }
+              } catch (_) { }
+            }
           }
         }
         // If no explicit mapping, check if we already created an Actor earlier in this run
@@ -1821,7 +1946,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for this character with the custom sheet
         try {
           const name = c.character_name || c.name || actor.name || 'Character';
-          const html = this._mdToHtml(c.description);
+          const html = Utils.toMarkdownIfHtml(String(c.description || ''));
           const imageUrl = c.image || undefined;
           const targetFolderId = (archivistType === 'NPC'
             ? this.setupData.destinations.npc
@@ -1832,6 +1957,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             archivistId: c.id,
             archivistType,
             targetFolderId: targetFolderId || 'none',
+            descriptionLength: html.length,
+            descriptionPreview: html.substring(0, 100),
           });
 
           const journal = await Utils.createCustomJournalForImport({
@@ -1852,40 +1979,20 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         } catch (e) {
           console.warn('Failed to create Character journal entry', e);
         }
+
+        // Project description into Actor if enabled
+        try {
+          const enabled = !!settingsManager.getProjectDescriptionsEnabled?.();
+          if (enabled && actor && c.description) {
+            const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+            const html = Utils.markdownToStoredHtml(String(c.description || ''));
+            await SlotResolver.projectDescription(actor, html);
+          }
+        } catch (_) { }
       };
       const createItem = async i => {
         const folderId = this.setupData.destinations.item || null;
-
-        // Resolve a safe item type for system (fallback to 'loot')
-        const resolveItemType = src => {
-          try {
-            const raw = String(src?.type ?? src?.item_type ?? src?.category ?? '')
-              .trim()
-              .toLowerCase();
-            const candidates = [
-              'weapon',
-              'equipment',
-              'consumable',
-              'spell',
-              'feat',
-              'tool',
-              'loot',
-              'backpack',
-            ];
-            if (candidates.includes(raw)) return raw;
-            if (/weapon/.test(raw)) return 'weapon';
-            if (/armor|equipment/.test(raw)) return 'equipment';
-            if (/consum/.test(raw)) return 'consumable';
-            if (/spell/.test(raw)) return 'spell';
-            if (/feat|ability/.test(raw)) return 'feat';
-            if (/tool/.test(raw)) return 'tool';
-            if (/pack|bag|backpack/.test(raw)) return 'backpack';
-            return 'loot';
-          } catch (_) {
-            return 'loot';
-          }
-        };
-        const safeType = resolveItemType(i);
+        const safeType = Utils.resolveItemType(i);
 
         // If user mapped this Archivist item to an existing Foundry Item, link instead of creating
         const mappedFoundryId = mappedItemByArchivistId.get(String(i.id));
@@ -1894,6 +2001,22 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { item = game.items?.get?.(mappedFoundryId) || null; } catch (_) { item = null; }
           if (item) {
             try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id); } catch (_) { }
+            // If projection is enabled, apply Archivist description and image to the existing Item
+            if (projectionEnabled) {
+              try {
+                if (i.description) {
+                  const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+                  const html = Utils.markdownToStoredHtml(String(i.description || ''));
+                  await SlotResolver.projectDescription(item, html);
+                }
+              } catch (_) { }
+              try {
+                const imageUrl = typeof i.image === 'string' && i.image.trim().length ? i.image.trim() : '';
+                if (imageUrl) {
+                  await item.update({ img: imageUrl }, { render: false });
+                }
+              } catch (_) { }
+            }
           }
         }
         if (!item) {
@@ -1925,7 +2048,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for this item with the custom sheet
         try {
           const name = i.name || item.name || 'Item';
-          const html = this._mdToHtml(i.description);
+          const html = Utils.toMarkdownIfHtml(String(i.description || ''));
           const imageUrl = i.image || undefined;
           const targetFolderId = this.setupData.destinations.item;
 
@@ -1933,6 +2056,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             name,
             archivistId: i.id,
             targetFolderId: targetFolderId || 'none',
+            descriptionLength: html.length,
+            descriptionPreview: html.substring(0, 100),
           });
 
           const journal = await Utils.createCustomJournalForImport({
@@ -1953,12 +2078,22 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         } catch (e) {
           console.warn('Failed to create Item journal entry', e);
         }
+
+        // Project description into Item if enabled
+        try {
+          const enabled = !!settingsManager.getProjectDescriptionsEnabled?.();
+          if (enabled && item && i.description) {
+            const { SlotResolver } = await import('../modules/projection/slot-resolver.js');
+            const html = Utils.markdownToStoredHtml(String(i.description || ''));
+            await SlotResolver.projectDescription(item, html);
+          }
+        } catch (_) { }
       };
       const upsertIntoContainer = async (e, kind) => {
         // Create a standalone JournalEntry for location/faction
         try {
           const name = `${e.name || e.title || kind}`;
-          const html = this._mdToHtml(e.description);
+          const html = Utils.toMarkdownIfHtml(String(e.description || ''));
           const imageUrl =
             typeof e.image === 'string' && e.image.trim().length ? e.image.trim() : null;
           const targetFolderId = kind === 'Location'
@@ -1972,6 +2107,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             archivistId: e.id,
             sheetType,
             targetFolderId: targetFolderId || 'none',
+            descriptionLength: html.length,
+            descriptionPreview: html.substring(0, 100),
+            rawEntityKeys: Object.keys(e),
           });
 
           const journal = await Utils.createCustomJournalForImport({
@@ -1986,9 +2124,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           // Ensure the journal has a visible thumbnail and lead image when provided
           try { if (journal && imageUrl) await Utils.ensureJournalLeadImage(journal, imageUrl); } catch (_) { }
           if (journal && sheetType === 'location' && e.parent_id) {
-            const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-            flags.parentLocationId = e.parent_id;
-            await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+            try {
+              const { setLocationParent } = await import('../modules/links/helpers.js');
+              await setLocationParent(journal, String(e.parent_id));
+            } catch (_) { /* noop */ }
           }
           // Link created Scene (if any) that was created in Step 5 for this Location
           if (journal && sheetType === 'location') {
@@ -2044,8 +2183,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       }
       // After creating journals and pages, hydrate link graph from Archivist Links
       try {
-        // Ensure parent/child relationships for Locations are reflected via flags before indexing
+        // Ensure parent/child relationships for Locations using helper before indexing
         try {
+          const { setLocationParent } = await import('../modules/links/helpers.js');
           const journals = game.journal?.contents || [];
           const findLocJournalByArchivistId = id => {
             const sid = String(id);
@@ -2058,12 +2198,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             if (!l?.id) continue;
             const j = findLocJournalByArchivistId(l.id);
             if (!j) continue;
-            const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
             const parentId = l?.parent_id ? String(l.parent_id) : null;
-            if (parentId && flags.parentLocationId !== parentId) {
-              flags.parentLocationId = parentId;
-              await j.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
-            }
+            if (parentId) await setLocationParent(j, parentId);
           }
         } catch (_) { }
         await this._hydrateLinksFromArchivist(apiKey, campaignId);
@@ -2212,7 +2348,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const recapFolderId = this.setupData.destinations?.recap || (await Utils.ensureJournalFolder('Recaps'));
       for (const s of sessions) {
         const title = s.title || 'Session';
-        const html = this._mdToHtml(s.summary);
+        const html = String(s.summary || '');
         // Use session_date timestamp as sort value for proper ordering in Foundry sidebar
         const sortValue = new Date(s.session_date).getTime();
         const journal = await Utils.createCustomJournalForImport({
@@ -2426,6 +2562,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             ev.preventDefault();
             const targetTab = ev.currentTarget.dataset.tab;
 
+            // Save active tab
+            this._activeReconTab = targetTab;
+
             // Deactivate all tabs
             tabLinks.forEach(l => l.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
@@ -2438,6 +2577,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         });
 
         tabGroup.dataset.boundTabs = 'true';
+      }
+
+      // Restore active tab if we have one
+      if (this._activeReconTab) {
+        const targetLink = Array.from(tabLinks).find(l => l.dataset.tab === this._activeReconTab);
+        const targetContent = root.querySelector(`section.tab[data-tab="${this._activeReconTab}"]`);
+        if (targetLink && targetContent) {
+          tabLinks.forEach(l => l.classList.remove('active'));
+          tabContents.forEach(c => c.classList.remove('active'));
+          targetLink.classList.add('active');
+          targetContent.classList.add('active');
+        }
       }
 
       // Select All / None per tab
@@ -2475,7 +2626,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             for (const row of list) {
               row.selected = checked;
             }
-            await this.render();
+            // Update all checkboxes in the DOM without re-rendering
+            root.querySelectorAll(`input[data-action="recon-toggle-select"][data-tab="${tab}"][data-side="${side}"]`).forEach(checkbox => {
+              checkbox.checked = checked;
+            });
           });
           cb.dataset.bound = 'true';
         }
@@ -2501,9 +2655,17 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const mid = row.match || null;
           if (mid) {
             const otherRow = (r[otherSide] || []).find(x => x.id === mid);
-            if (otherRow) otherRow.selected = checked;
+            if (otherRow) {
+              otherRow.selected = checked;
+              // Update the matched checkbox in the DOM
+              const matchedCheckbox = root.querySelector(`input[data-action="recon-toggle-select"][data-tab="${tab}"][data-side="${otherSide}"][data-id="${mid}"]`);
+              if (matchedCheckbox) matchedCheckbox.checked = checked;
+            }
           }
-          await this.render();
+          // Update header "select all" checkbox state
+          const allSelected = list.length > 0 && list.every(x => x.selected);
+          const headerCheckbox = root.querySelector(`input[data-action="recon-select-all-toggle"][data-tab="${tab}"][data-side="${side}"]`);
+          if (headerCheckbox) headerCheckbox.checked = allSelected;
         });
         root.dataset.boundReconToggle = 'true';
       }
@@ -2528,7 +2690,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const prev = row.match || null;
           if (prev) {
             const prevRow = (r[otherSide] || []).find(x => x.id === prev);
-            if (prevRow && prevRow.match === row.id) prevRow.match = null;
+            if (prevRow && prevRow.match === row.id) {
+              prevRow.match = null;
+              // Update the previous match's dropdown in the DOM
+              const prevSelect = root.querySelector(`select[data-action="recon-change-match"][data-tab="${tab}"][data-side="${otherSide}"][data-id="${prev}"]`);
+              if (prevSelect) prevSelect.value = 'NA';
+            }
           }
 
           // Apply new symmetric link
@@ -2536,9 +2703,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           row.match = nextId;
           if (nextId) {
             const target = (r[otherSide] || []).find(x => x.id === nextId);
-            if (target) target.match = row.id;
+            if (target) {
+              target.match = row.id;
+              // Update the matched dropdown in the DOM
+              const matchedSelect = root.querySelector(`select[data-action="recon-change-match"][data-tab="${tab}"][data-side="${otherSide}"][data-id="${nextId}"]`);
+              if (matchedSelect) matchedSelect.value = id;
+            }
           }
-          await this.render();
         });
         root.dataset.boundReconMatch = 'true';
       }
@@ -2561,6 +2732,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           link.addEventListener('click', ev => {
             ev.preventDefault();
             const targetTab = ev.currentTarget.dataset.tab;
+
+            // Save active tab
+            this._activeCreateTab = targetTab;
+
             tabLinks.forEach(l => l.classList.remove('active'));
             tabContents.forEach(c => c.classList.remove('active'));
             ev.currentTarget.classList.add('active');
@@ -2569,6 +2744,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
         });
         tabGroup.dataset.boundTabs = 'true';
+      }
+
+      // Restore active tab if we have one
+      if (this._activeCreateTab) {
+        const targetLink = Array.from(tabLinks).find(l => l.dataset.tab === this._activeCreateTab);
+        const targetContent = root.querySelector(`main.ws-recon-content section.tab[data-tab="${this._activeCreateTab}"]`);
+        if (targetLink && targetContent) {
+          tabLinks.forEach(l => l.classList.remove('active'));
+          tabContents.forEach(c => c.classList.remove('active'));
+          targetLink.classList.add('active');
+          targetContent.classList.add('active');
+        }
       }
 
       if (!root.dataset.boundCreateChoices) {

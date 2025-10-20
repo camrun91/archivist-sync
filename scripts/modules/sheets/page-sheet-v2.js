@@ -2,6 +2,7 @@ import { CONFIG } from '../../modules/config.js';
 import { settingsManager } from '../../modules/settings-manager.js';
 import { archivistApi } from '../../services/archivist-api.js';
 import { linkDocs, unlinkDocs, setLocationParent } from '../../modules/links/helpers.js';
+import { Utils } from '../../modules/utils.js';
 
 const V2 = foundry.applications.api;
 
@@ -462,10 +463,13 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                             if (!page) return;
                             const value = Array.isArray(editor.value) ? editor.value[0] : editor.value;
                             const fmt = Number(page?.text?.format ?? 0);
-                            const update = fmt === 2
-                                ? { 'text.markdown': value, 'text.format': 2 }
-                                : { 'text.content': value };
-                            await page.update(update);
+                            if (fmt === 2) {
+                                const md = Utils.toMarkdownIfHtml(String(value || ''));
+                                await page.update({ 'text.markdown': md, 'text.format': 2 });
+                            } else {
+                                const html = String(value || '');
+                                await page.update({ 'text.content': html, 'text.format': 1 });
+                            }
                             // keep editor open by default
                             this.render(false);
                         } catch (e) {
@@ -626,11 +630,13 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             }
             if (infoPage) {
                 const fmt = Number(infoPage?.text?.format ?? 0);
-                const update = fmt === 2
-                    ? { 'text.markdown': html, 'text.format': 2 }
-                    : { 'text.content': html };
                 console.log('[Archivist V2 Sheet] Updating page content');
-                await infoPage.update(update);
+                if (fmt === 2) {
+                    const md = Utils.toMarkdownIfHtml(String(html || ''));
+                    await infoPage.update({ 'text.markdown': md, 'text.format': 2 });
+                } else {
+                    await infoPage.update({ 'text.content': String(html || ''), 'text.format': 1 });
+                }
             }
         } catch (e) {
             console.warn('[Archivist Sync][V2] commit: failed updating page content', e);
@@ -665,30 +671,59 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             console.log('[Archivist V2 Sheet] Remote sync check:', { apiKey: !!apiKey, campaignId: !!campaignId, archivistId: !!archivistId, sheetType });
             if (!apiKey || !campaignId || !archivistId) return;
             const nameNow = entry.name;
+            let result;
             if (sheetType === 'pc' || sheetType === 'npc' || sheetType === 'character') {
                 console.log('[Archivist V2 Sheet] Syncing Character to API');
-                await archivistApi.updateCharacter(apiKey, archivistId, {
+                result = await archivistApi.updateCharacter(apiKey, archivistId, {
                     character_name: nameNow,
                     description: html || undefined
                 });
+                if (!result.success && result.isDescriptionTooLong) {
+                    ui.notifications?.error?.(
+                        `Failed to save ${result.entityName || nameNow}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+                        { permanent: true }
+                    );
+                    return;
+                }
             } else if (sheetType === 'item') {
                 console.log('[Archivist V2 Sheet] Syncing Item to API');
-                await archivistApi.updateItem(apiKey, archivistId, {
+                result = await archivistApi.updateItem(apiKey, archivistId, {
                     name: nameNow,
                     description: html || undefined
                 });
+                if (!result.success && result.isDescriptionTooLong) {
+                    ui.notifications?.error?.(
+                        `Failed to save ${result.entityName || nameNow}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+                        { permanent: true }
+                    );
+                    return;
+                }
             } else if (sheetType === 'location') {
                 console.log('[Archivist V2 Sheet] Syncing Location to API');
-                await archivistApi.updateLocation(apiKey, archivistId, {
+                result = await archivistApi.updateLocation(apiKey, archivistId, {
                     name: nameNow,
                     description: html || undefined
                 });
+                if (!result.success && result.isDescriptionTooLong) {
+                    ui.notifications?.error?.(
+                        `Failed to save ${result.entityName || nameNow}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+                        { permanent: true }
+                    );
+                    return;
+                }
             } else if (sheetType === 'faction') {
                 console.log('[Archivist V2 Sheet] Syncing Faction to API');
-                await archivistApi.updateFaction(apiKey, archivistId, {
+                result = await archivistApi.updateFaction(apiKey, archivistId, {
                     name: nameNow,
                     description: html || undefined
                 });
+                if (!result.success && result.isDescriptionTooLong) {
+                    ui.notifications?.error?.(
+                        `Failed to save ${result.entityName || nameNow}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+                        { permanent: true }
+                    );
+                    return;
+                }
             } else if (sheetType === 'recap' || sheetType === 'session') {
                 console.log('[Archivist V2 Sheet] Syncing Recap/Session to API');
                 const summary = html || '';
@@ -843,8 +878,21 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             if (page?.type === 'text') {
                 const fmt = Number(page?.text?.format ?? 0);
                 const md = page?.text?.markdown;
-                if (fmt === 2 && typeof md === 'string') return String(md);
-                return String(page?.text?.content || md || '');
+                const content = page?.text?.content;
+                console.log(`[Sheet] _getInfoHtml (page):`, {
+                    journalName: this.document?.name,
+                    format: fmt,
+                    markdownLength: md?.length || 0,
+                    contentLength: content?.length || 0,
+                    markdownPreview: (md || '').substring(0, 100),
+                });
+                if (fmt === 2 && typeof md === 'string') {
+                    // Convert Markdown to HTML for display
+                    const html = Utils.markdownToStoredHtml(md);
+                    console.log(`[Sheet] Converted markdown to HTML, length:`, html.length);
+                    return html;
+                }
+                return String(content || md || '');
             }
             const entry = this.document;
             const pages = entry?.pages?.contents || [];
@@ -852,10 +900,25 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
             if (p) {
                 const fmt = Number(p?.text?.format ?? 0);
                 const md = p?.text?.markdown;
-                if (fmt === 2 && typeof md === 'string') return String(md);
-                return String(p?.text?.content || md || '');
+                const content = p?.text?.content;
+                console.log(`[Sheet] _getInfoHtml (fallback):`, {
+                    journalName: entry?.name,
+                    format: fmt,
+                    markdownLength: md?.length || 0,
+                    contentLength: content?.length || 0,
+                    markdownPreview: (md || '').substring(0, 100),
+                });
+                if (fmt === 2 && typeof md === 'string') {
+                    // Convert Markdown to HTML for display
+                    const html = Utils.markdownToStoredHtml(md);
+                    console.log(`[Sheet] Converted markdown to HTML, length:`, html.length);
+                    return html;
+                }
+                return String(content || md || '');
             }
-        } catch (_) { }
+        } catch (e) {
+            console.error('[Sheet] _getInfoHtml error:', e);
+        }
         return '';
     }
 
@@ -937,12 +1000,14 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 let ids = [];
                 try {
                     const { linkIndexer } = await import('../../modules/links/indexer.js');
+                    if (!isCurrent()) return;
                     if (!linkIndexer._built) linkIndexer.buildFromWorld();
                     const myId = (this._getArchivistFlags().archivistId || this.document.id);
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     ids = Array.isArray(out.characters) ? out.characters.slice() : [];
                     ids.sort();
                 } catch (_) { ids = []; }
+                if (!isCurrent()) return;
                 for (const id of ids) {
                     const actor = byActorId(id);
                     const targetDoc = actor || byId(id);
@@ -965,11 +1030,13 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 let allCharIds = [];
                 try {
                     const { linkIndexer } = await import('../../modules/links/indexer.js');
+                    if (!isCurrent()) return;
                     if (!linkIndexer._built) linkIndexer.buildFromWorld();
                     const myId = (this._getArchivistFlags().archivistId || this.document.id);
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     allCharIds = Array.isArray(out.characters) ? out.characters.slice() : [];
                 } catch (_) { allCharIds = []; }
+                if (!isCurrent()) return;
                 allCharIds.sort();
                 const classify = id => {
                     const target = byId(id);
@@ -1010,11 +1077,13 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 let ids = [];
                 try {
                     const { linkIndexer } = await import('../../modules/links/indexer.js');
+                    if (!isCurrent()) return;
                     if (!linkIndexer._built) linkIndexer.buildFromWorld();
                     const myId = (this._getArchivistFlags().archivistId || this.document.id);
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     ids = Array.isArray(out.factions) ? out.factions.slice() : [];
                 } catch (_) { ids = []; }
+                if (!isCurrent()) return;
                 ids.sort();
                 for (const id of ids) {
                     const j = byId(id);
@@ -1037,11 +1106,13 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 let ids = [];
                 try {
                     const { linkIndexer } = await import('../../modules/links/indexer.js');
+                    if (!isCurrent()) return;
                     if (!linkIndexer._built) linkIndexer.buildFromWorld();
                     const myId = (this._getArchivistFlags().archivistId || this.document.id);
                     const out = linkIndexer.outboundByFromId.get(myId) || {};
                     ids = Array.isArray(out.items) ? out.items.slice() : [];
                 } catch (_) { ids = []; }
+                if (!isCurrent()) return;
                 ids.sort();
                 for (const id of ids) {
                     const itm = byItemId(id);

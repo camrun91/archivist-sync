@@ -78,6 +78,16 @@ export const SETTINGS = {
     default: true,
   },
 
+  JOURNAL_DESTINATIONS: {
+    key: 'journalDestinations',
+    name: 'Journal Folder Destinations',
+    hint: 'Folder IDs for organizing Archivist journals by type',
+    scope: 'world',
+    config: false,
+    type: Object,
+    default: { pc: '', npc: '', item: '', location: '', faction: '' },
+  },
+
   CHAT_HISTORY: {
     key: 'chatHistory',
     name: 'ARCHIVIST_SYNC.Settings.ChatHistory.Name',
@@ -96,6 +106,27 @@ export const SETTINGS = {
     config: true,
     type: Boolean,
     default: true,
+  },
+
+  PROJECT_DESCRIPTIONS: {
+    key: 'projectDescriptions',
+    name: 'ARCHIVIST_SYNC.Settings.ProjectDescriptions.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ProjectDescriptions.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+  },
+
+  PROJECTION_LOOP_GUARD_MS: {
+    // deprecated: retained only to avoid runtime errors if referenced
+    key: 'projectionLoopGuardMs',
+    name: 'ARCHIVIST_SYNC.Settings.ProjectionLoopGuardMs.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ProjectionLoopGuardMs.Hint',
+    scope: 'world',
+    config: false,
+    type: Number,
+    default: 0,
   },
 
   // Semantic mapping setting removed

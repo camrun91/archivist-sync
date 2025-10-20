@@ -12,6 +12,7 @@ Foundry VTT v13 module to connect your world to the Archivist service. It provid
 - **Real‑Time Sync (always on)**: GM clients automatically POST/PATCH/DELETE supported entities and links as you create/update/delete them in Foundry.
 - **Safe Markdown Handling**: HTML from Foundry is normalized to Markdown for API writes; Markdown from Archivist is converted to sanitized HTML when writing back to Foundry.
 - **Journal Sheets & Linking**: Custom journal sheets for Characters (PC/NPC), Items, Locations, Factions, and Recaps with drag‑and‑drop linking between sheets. Links are bidirectionally synchronized with Archivist. Location nesting is supported via parent/child and associative links. GM-only Notes tab on every sheet.
+- **Projection (optional)**: System‑agnostic projection of Archivist descriptions into core Actors/Items/Scenes using adapters and heuristics; falls back to a sidecar Journal page.
 
 ## Installation
 
@@ -119,6 +120,7 @@ Available in Game Settings → Module Settings → Archivist Sync:
 
 - **API Key** (world): Your Archivist API key (obfuscated in the UI for security)
 - **Run World Setup Again** (menu): Reset initialization and relaunch the setup wizard
+- **Projection: Sidecar Only** (world): When enabled, never modify core system data fields; store descriptions only in sidecar journals.
 
 ## API Details
 
@@ -198,6 +200,15 @@ npm run lint:fix
 GitHub Actions automatically runs on all pushes and pull requests:
 - **Linting**: Checks code style and catches common errors
 - **Validation**: Ensures module.json is valid and required files exist
+
+### Projection Subsystem (for developers)
+
+- Files:
+  - `scripts/modules/projection/adapter-registry.js`
+  - `scripts/modules/projection/slot-resolver.js`
+  - `scripts/modules/projection/merge.js`
+- Runtime API:
+  - `window.ARCHIVIST_SYNC.projection()` → returns resolver with `pickDescriptionSlot(doc)` and `projectDescription(doc, html)`
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 
