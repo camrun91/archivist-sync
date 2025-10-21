@@ -578,13 +578,20 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           locations: Array.isArray(cf.scenes) ? cf.scenes.length : 0,
         };
 
+        const charactersToArchivistCount = Number(exp.characters || 0);
+        const itemsToArchivistCount = Number(exp.items || 0);
+        const locationsToArchivistCount = Number(exp.locations || 0);
+
         contextData.summaryRows = [
-          { key: 'Characters', fromArchivist: Number(imp.characters || 0), createFoundry: Number(createCounts.characters || 0), toArchivist: Number(exp.characters || 0), linked: Number(lnk.characters || 0) },
-          { key: 'Items', fromArchivist: Number(imp.items || 0), createFoundry: Number(createCounts.items || 0), toArchivist: Number(exp.items || 0), linked: Number(lnk.items || 0) },
-          { key: 'Locations', fromArchivist: Number(imp.locations || 0), createFoundry: Number(createCounts.locations || 0), toArchivist: Number(exp.locations || 0), linked: Number(lnk.locations || 0), noteNoExport: true },
+          { key: 'Characters', fromArchivist: Number(imp.characters || 0), createFoundry: Number(createCounts.characters || 0), toArchivist: charactersToArchivistCount, linked: Number(lnk.characters || 0), highVolumeExport: charactersToArchivistCount > 100 },
+          { key: 'Items', fromArchivist: Number(imp.items || 0), createFoundry: Number(createCounts.items || 0), toArchivist: itemsToArchivistCount, linked: Number(lnk.items || 0), highVolumeExport: itemsToArchivistCount > 100 },
+          { key: 'Locations', fromArchivist: Number(imp.locations || 0), createFoundry: Number(createCounts.locations || 0), toArchivist: locationsToArchivistCount, linked: Number(lnk.locations || 0), noteNoExport: true, highVolumeExport: locationsToArchivistCount > 100 },
           { key: 'Factions', fromArchivist: Number(imp.factions || 0), createFoundry: 0, toArchivist: 0, linked: 0, noteNoExport: true },
           { key: 'Recaps', fromArchivist: Number(imp.recaps || 0), createFoundry: 0, toArchivist: 0, linked: 0, noteNoExport: true },
         ];
+
+        // Set warning flag if any of Characters, Items, or Locations have > 100 exports
+        contextData.showHighVolumeWarning = charactersToArchivistCount > 100 || itemsToArchivistCount > 100 || locationsToArchivistCount > 100;
       }
     } catch (_) { }
 
@@ -1821,14 +1828,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 const html = Utils.markdownToStoredHtml(String(c.description || ''));
                 await SlotResolver.projectDescription(actor, html);
               }
-              const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
-              if (imageUrl) {
-                const update = { img: imageUrl };
-                if (imageUrl.includes('myarchivist.ai')) {
-                  update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
-                }
-                await actor.update(update, { render: false });
-              }
+              // Do NOT overwrite img for existing actors - users may already have artwork
+              // const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
+              // if (imageUrl) {
+              //   const update = { img: imageUrl };
+              //   if (imageUrl.includes('myarchivist.ai')) {
+              //     update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
+              //   }
+              //   await actor.update(update, { render: false });
+              // }
             } catch (_) { /* continue */ }
           }
           // Items
@@ -1841,10 +1849,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 const html = Utils.markdownToStoredHtml(String(it.description || ''));
                 await SlotResolver.projectDescription(item, html);
               }
-              const imageUrl = typeof it.image === 'string' && it.image.trim().length ? it.image.trim() : '';
-              if (imageUrl) {
-                await item.update({ img: imageUrl }, { render: false });
-              }
+              // Do NOT overwrite img for existing items - users may already have artwork
+              // const imageUrl = typeof it.image === 'string' && it.image.trim().length ? it.image.trim() : '';
+              // if (imageUrl) {
+              //   await item.update({ img: imageUrl }, { render: false });
+              // }
             } catch (_) { /* continue */ }
           }
         } catch (_) { /* ignore projection errors */ }
@@ -1882,7 +1891,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { actor = game.actors?.get?.(mappedFoundryId) || null; } catch (_) { actor = null; }
           if (actor) {
             try { await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id); } catch (_) { }
-            // If projection is enabled, apply Archivist description and image to the existing Actor
+            // If projection is enabled, apply Archivist description to the existing Actor
             if (projectionEnabled) {
               try {
                 if (c.description) {
@@ -1891,17 +1900,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                   await SlotResolver.projectDescription(actor, html);
                 }
               } catch (_) { }
-              try {
-                const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
-                if (imageUrl) {
-                  // Update portrait image while preserving prototype token workaround when needed
-                  const update = { img: imageUrl };
-                  if (imageUrl.includes('myarchivist.ai')) {
-                    update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
-                  }
-                  await actor.update(update, { render: false });
-                }
-              } catch (_) { }
+              // Do NOT overwrite img for existing actors - users may already have artwork
+              // try {
+              //   const imageUrl = typeof c.image === 'string' && c.image.trim().length ? c.image.trim() : '';
+              //   if (imageUrl) {
+              //     // Update portrait image while preserving prototype token workaround when needed
+              //     const update = { img: imageUrl };
+              //     if (imageUrl.includes('myarchivist.ai')) {
+              //       update.prototypeToken = { texture: { src: 'icons/svg/mystery-man.svg' } };
+              //     }
+              //     await actor.update(update, { render: false });
+              //   }
+              // } catch (_) { }
             }
           }
         }
@@ -2001,7 +2011,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { item = game.items?.get?.(mappedFoundryId) || null; } catch (_) { item = null; }
           if (item) {
             try { await item.setFlag(CONFIG.MODULE_ID, 'archivistId', i.id); } catch (_) { }
-            // If projection is enabled, apply Archivist description and image to the existing Item
+            // If projection is enabled, apply Archivist description to the existing Item
             if (projectionEnabled) {
               try {
                 if (i.description) {
@@ -2010,12 +2020,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                   await SlotResolver.projectDescription(item, html);
                 }
               } catch (_) { }
-              try {
-                const imageUrl = typeof i.image === 'string' && i.image.trim().length ? i.image.trim() : '';
-                if (imageUrl) {
-                  await item.update({ img: imageUrl }, { render: false });
-                }
-              } catch (_) { }
+              // Do NOT overwrite img for existing items - users may already have artwork
+              // try {
+              //   const imageUrl = typeof i.image === 'string' && i.image.trim().length ? i.image.trim() : '';
+              //   if (imageUrl) {
+              //     await item.update({ img: imageUrl }, { render: false });
+              //   }
+              // } catch (_) { }
             }
           }
         }

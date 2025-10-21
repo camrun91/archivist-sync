@@ -848,6 +848,16 @@
             <div class="step-description">
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.summary.description"}}</p>
             </div>
+            {{#if showHighVolumeWarning}}
+            <div
+                style="background: color-mix(in srgb, var(--setup-warning), transparent 85%); border: 1px solid var(--setup-warning); border-radius: 4px; padding: 12px; margin: 10px 0;">
+                <strong style="color: var(--setup-warning);">⚠️ High Volume Import Warning</strong>
+                <p style="margin: 8px 0 0 0; color: var(--setup-text); font-size: 14px;">It looks like you're importing
+                    over one hundred Characters, Items and/or Locations into Archivist from Foundry. If these documents
+                    are coming from a compendium, we advise against importing generic creatures/items into your
+                    Archivist campaign so your lore can remain focused on relevant narrative elements.</p>
+            </div>
+            {{/if}}
             <div class="world-info-box">
                 <p>{{localize "ARCHIVIST_SYNC.worldSetup.summary.placeholder"}}</p>
                 {{#if summaryRows}}
@@ -873,7 +883,9 @@
                             <td style="text-align:center; padding:6px;">{{this.fromArchivist}}</td>
                             <td style="text-align:center; padding:6px;">{{#if
                                 this.createFoundry}}{{this.createFoundry}}{{else}}0{{/if}}</td>
-                            <td style="text-align:center; padding:6px;">{{#if
+                            <td
+                                style="text-align:center; padding:6px;{{#if this.highVolumeExport}} color: var(--setup-danger); font-weight: 600;{{/if}}">
+                                {{#if
                                 this.noteNoExport}}—{{else}}{{this.toArchivist}}{{/if}}</td>
                             <td style="text-align:center; padding:6px;">{{#if
                                 this.noteNoExport}}—{{else}}{{this.linked}}{{/if}}</td>

@@ -5,6 +5,25 @@ All notable changes to the Archivist Sync module will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2025-10-21
+
+### Added
+- If the counts for documents being imported into Archivist during the initial world setup exceed 100 for any of the categories, we format those values in red and display a conditional warning to users not to import generic compendium items into their Archivist campaigns.
+
+### Changed
+- Moved visibility toggle icon buttons to in-line actions for list items in Journals tab
+- Replaced "Archivist Hub" button in Journals tab with "Sync with Archivist" button
+- We no longer overwrite the `img` property of existing Actors/Items if they are mapped to an Archivist record during initial sync. We'll only set that property if we're creating a new object for the user and we have a non-null Archivist `image` value.
+
+### Removed
+- Archivist Hub Dialog
+- Archivist Hub Scene controls button
+- Archivist Hub buttons in Journal tab and Archivist chat tab
+
+### Fixed
+- Updating descriptions through Archivist sync now used proper html formatting so the html renders correctly in the Info tab
+- Using "Place on Scene" button for Actors only fires once
+
 ## [1.3.2] - 2025-10-21
 
 ### Added
@@ -93,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Template for Future Releases
 
-### [X.Y.Z] - YYYY-MM-DD
+## [X.Y.Z] - YYYY-MM-DD
 
 ### Added
 - New features

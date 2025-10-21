@@ -573,6 +573,15 @@ export class Utils {
     // v10+ API: JournalEntryPage documents under journal.pages
     const pagesCollection = journal.pages;
     const safeContent = String(content ?? '');
+    // Heuristic: detect if provided content is HTML (vs. Markdown/plain)
+    const isProbablyHtml = (() => {
+      const t = safeContent.trim();
+      if (!t) return false;
+      // Common HTML markers or tags
+      if (t.startsWith('<') && t.includes('>')) return true;
+      if (t.includes('</') || t.includes('<br') || t.includes('<p') || t.includes('<h1') || t.includes('&lt;')) return true;
+      return false;
+    })();
 
     console.log(`[Utils] ensureJournalTextPage:`, {
       journalId: journal?.id,
@@ -586,15 +595,29 @@ export class Utils {
         pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
       const textPage = pages.find(p => p.type === 'text');
       if (textPage) {
-        await textPage.update({ text: { content: safeContent, markdown: safeContent, format: 2 } });
+        if (isProbablyHtml) {
+          await textPage.update({ text: { content: safeContent, format: 1 } });
+        } else {
+          await textPage.update({ text: { markdown: safeContent, format: 2 } });
+        }
       } else {
-        await journal.createEmbeddedDocuments('JournalEntryPage', [
-          {
-            name: 'Description',
-            type: 'text',
-            text: { content: safeContent, markdown: safeContent, format: 2 },
-          },
-        ]);
+        if (isProbablyHtml) {
+          await journal.createEmbeddedDocuments('JournalEntryPage', [
+            {
+              name: 'Description',
+              type: 'text',
+              text: { content: safeContent, format: 1 },
+            },
+          ]);
+        } else {
+          await journal.createEmbeddedDocuments('JournalEntryPage', [
+            {
+              name: 'Description',
+              type: 'text',
+              text: { markdown: safeContent, format: 2 },
+            },
+          ]);
+        }
       }
       return;
     }
@@ -945,10 +968,7 @@ export class Utils {
       });
 
       await this.ensureJournalTextPage(journal, html);
-      // Also set Archivist Hub image flag for downstream sheets that consult hub image
-      try {
-        if (imageUrl) await journal.setFlag('archivist-hub', 'image', imageUrl);
-      } catch (_) { }
+      // Hub image flag removed
       await journal.setFlag(CONFIG.MODULE_ID, 'archivist', {
         sheetType: normalizedType,
         archivistId: archivistId || null,

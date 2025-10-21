@@ -78,11 +78,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 const sc = scene?.thumbnail || scene?.img || '';
                 if (sc) image = String(sc).trim();
             }
-            // Fallback: Archivist Hub image flag if journal.img is empty
-            if (!image) {
-                const ccImg = String(entry?.getFlag?.('archivist-hub', 'image') || '').trim();
-                if (ccImg) image = ccImg;
-            }
+            // Hub fallback removed
             // Final fallback: Foundry default icons per sheet type
             if (!image) {
                 if (st === 'pc' || st === 'npc' || st === 'character') image = 'icons/svg/mystery-man.svg';
@@ -175,6 +171,25 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                         });
                         toggleBtn.dataset.bound = 'true';
                         console.log('[Archivist V2 Sheet] Edit toggle button listener bound');
+                    }
+                    const visBtn = root.querySelector('[data-action="toggle-visibility"]');
+                    if (visBtn && !visBtn.dataset.bound) {
+                        visBtn.addEventListener('click', async ev => {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            try {
+                                const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+                                const NON = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
+                                const cur = Number(this.document?.ownership?.default ?? NON);
+                                const next = cur >= OBS ? NON : OBS;
+                                await this.document.update({ ownership: { default: next } });
+                                const i = visBtn.querySelector('i');
+                                if (i) i.className = next >= OBS ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+                            } catch (_) { }
+                        });
+                        visBtn.dataset.bound = 'true';
+                        // Compact icon sizing
+                        try { visBtn.style.width = '16px'; visBtn.style.height = '16px'; } catch (_) { }
                     }
                 } catch (_) { }
             }
@@ -309,61 +324,73 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                 } catch (_) { }
             });
 
-            // Place on scene handler (for PC/NPC sheets)
-            root.addEventListener('click', async ev => {
-                const btn = ev.target?.closest?.('[data-action="place-on-scene"]');
-                if (!btn) return;
-                if (!game.user?.isGM) return;
-                ev.preventDefault();
+            // Place on scene handler (for PC/NPC sheets) - bind once and guard re-entry
+            if (!this._placeOnSceneHandlerBound) {
+                root.addEventListener('click', async ev => {
+                    const btn = ev.target?.closest?.('[data-action="place-on-scene"]');
+                    if (!btn) return;
+                    if (!game.user?.isGM) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
 
-                // Ensure an active scene is available
-                const scene = game.scenes?.active;
-                if (!scene) {
-                    ui.notifications?.warn('No active scene found. Please activate a scene first.');
-                    return;
-                }
+                    // In-flight guard: prevent duplicate placements from double-binding or rapid clicks
+                    if (this._placingOnScene || btn.dataset.placing === 'true') return;
+                    this._placingOnScene = true;
+                    btn.dataset.placing = 'true';
 
-                // Get the linked actor for this character
-                const flags = this._getArchivistFlags();
-                const actorId = (flags.foundryRefs?.actors || [])[0];
-                const actor = actorId ? game.actors?.get?.(actorId) : null;
+                    try {
+                        // Ensure an active scene is available
+                        const scene = game.scenes?.active;
+                        if (!scene) {
+                            ui.notifications?.warn('No active scene found. Please activate a scene first.');
+                            return;
+                        }
 
-                if (!actor) {
-                    ui.notifications?.error('No linked actor found for this character.');
-                    return;
-                }
+                        // Get the linked actor for this character
+                        const flags = this._getArchivistFlags();
+                        const actorId = (flags.foundryRefs?.actors || [])[0];
+                        const actor = actorId ? game.actors?.get?.(actorId) : null;
 
-                try {
-                    // Get token data from the actor
-                    const tokenData = await actor.getTokenDocument();
+                        if (!actor) {
+                            ui.notifications?.error('No linked actor found for this character.');
+                            return;
+                        }
 
-                    // Find a suitable position on the scene (center of current view or scene center)
-                    const viewPos = canvas?.scene?.id === scene.id ? {
-                        x: canvas.stage?.pivot?.x || (scene.width / 2),
-                        y: canvas.stage?.pivot?.y || (scene.height / 2)
-                    } : {
-                        x: scene.width / 2,
-                        y: scene.height / 2
-                    };
+                        // Get token data from the actor
+                        const tokenData = await actor.getTokenDocument();
 
-                    // Create the token on the scene
-                    const [token] = await scene.createEmbeddedDocuments('Token', [{
-                        ...tokenData.toObject(),
-                        x: viewPos.x - (tokenData.width * scene.grid.size / 2),
-                        y: viewPos.y - (tokenData.height * scene.grid.size / 2)
-                    }]);
+                        // Find a suitable position on the scene (center of current view or scene center)
+                        const viewPos = canvas?.scene?.id === scene.id ? {
+                            x: canvas.stage?.pivot?.x || (scene.width / 2),
+                            y: canvas.stage?.pivot?.y || (scene.height / 2)
+                        } : {
+                            x: scene.width / 2,
+                            y: scene.height / 2
+                        };
 
-                    ui.notifications?.info(`${actor.name} has been placed on the scene.`);
+                        // Create the token on the scene
+                        const [token] = await scene.createEmbeddedDocuments('Token', [{
+                            ...tokenData.toObject(),
+                            x: viewPos.x - (tokenData.width * scene.grid.size / 2),
+                            y: viewPos.y - (tokenData.height * scene.grid.size / 2)
+                        }]);
 
-                    // Optionally pan to the token if on the active scene
-                    if (canvas?.scene?.id === scene.id && token) {
-                        canvas.animatePan({ x: token.x, y: token.y, duration: 250 });
+                        ui.notifications?.info(`${actor.name} has been placed on the scene.`);
+
+                        // Optionally pan to the token if on the active scene
+                        if (canvas?.scene?.id === scene.id && token) {
+                            canvas.animatePan({ x: token.x, y: token.y, duration: 250 });
+                        }
+                    } catch (e) {
+                        console.error('[Archivist Sync][PageV2] place-on-scene failed', e);
+                        ui.notifications?.error('Failed to place token on scene.');
+                    } finally {
+                        this._placingOnScene = false;
+                        try { delete btn.dataset.placing; } catch (_) { }
                     }
-                } catch (e) {
-                    console.error('[Archivist Sync][PageV2] place-on-scene failed', e);
-                    ui.notifications?.error('Failed to place token on scene.');
-                }
-            });
+                });
+                this._placeOnSceneHandlerBound = true;
+            }
 
 
             // No dblclick toggle while editing; editor is enabled by default
@@ -812,11 +839,16 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     markdownPreview: (md || '').substring(0, 100),
                 });
                 if (fmt === 2 && typeof md === 'string') {
+                    // If markdown contains raw HTML (legacy/mis-synced), prefer it directly
+                    const mdTrim = (md || '').trim();
+                    const mdLooksHtml = mdTrim.startsWith('<') && mdTrim.includes('>');
+                    if (mdLooksHtml) return mdTrim;
                     // Convert Markdown to HTML for display
                     const html = Utils.markdownToStoredHtml(md);
                     console.log(`[Sheet] Converted markdown to HTML, length:`, html.length);
                     return html;
                 }
+                // fmt === 1 or unknown: treat content as HTML if present
                 return String(content || md || '');
             }
             const entry = this.document;
@@ -834,7 +866,9 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     markdownPreview: (md || '').substring(0, 100),
                 });
                 if (fmt === 2 && typeof md === 'string') {
-                    // Convert Markdown to HTML for display
+                    const mdTrim = (md || '').trim();
+                    const mdLooksHtml = mdTrim.startsWith('<') && mdTrim.includes('>');
+                    if (mdLooksHtml) return mdTrim;
                     const html = Utils.markdownToStoredHtml(md);
                     console.log(`[Sheet] Converted markdown to HTML, length:`, html.length);
                     return html;
@@ -878,10 +912,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(V2.Document
                     if (sc) image = String(sc).trim();
                 }
             }
-            if (!image) {
-                const ccImg = String(entry?.getFlag?.('archivist-hub', 'image') || '').trim();
-                if (ccImg) image = ccImg;
-            }
+            // Hub fallback removed
             if (!image) {
                 if (st === 'pc' || st === 'npc' || st === 'character') return 'icons/svg/mystery-man.svg';
                 if (st === 'item') return 'icons/svg/item-bag.svg';

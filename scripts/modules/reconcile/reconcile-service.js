@@ -49,12 +49,11 @@ export class ReconcileService {
             let j = byArchId.get(id);
             if (!j) {
                 j = await journalManager.create({ name: entity.name || entity.title || sheetType, sheetType, archivistId: id, worldId: campaignId, text: '' });
-                // If Archivist entity has an image, mirror it to the journal and cc13 image flag
+                // If Archivist entity has an image, mirror it to the journal
                 try {
                     const raw = String(entity?.image || '').trim();
                     if (raw) {
                         try { await j.update({ img: raw }, { render: false }); } catch (_) { }
-                        try { await j.setFlag('archivist-hub', 'image', raw); } catch (_) { }
                     }
                 } catch (_) { }
                 if (sheetType === 'location' && entity.parent_id) {
@@ -69,7 +68,6 @@ export class ReconcileService {
                     const raw = String(entity?.image || '').trim();
                     if (raw && String(j.img || '').trim() !== raw) {
                         try { await j.update({ img: raw }, { render: false }); } catch (_) { }
-                        try { await j.setFlag('archivist-hub', 'image', raw); } catch (_) { }
                     }
                 } catch (_) { }
             }

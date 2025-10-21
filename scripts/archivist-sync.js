@@ -14,7 +14,7 @@ import { linkIndexer } from './modules/links/indexer.js';
 import { AskChatWindow } from './dialogs/ask-chat-window.js';
 import AskChatSidebarTab from './sidebar/ask-chat-sidebar-tab.js';
 import { ensureChatSlot } from './sidebar/ask-chat-tab.js';
-import { ArchivistHub } from './modules/toc/toc-window.js';
+import { SyncDialog } from './dialogs/sync-dialog.js';
 import { WorldSetupDialog } from './dialogs/world-setup-dialog.js';
 // import { openV2SheetFor } from './modules/sheets/v2-sheets.js';
 import { LinkHelpers } from './modules/links/helpers.js';
@@ -115,73 +115,7 @@ Hooks.once('setup', function () {
 });
 
 // Register Scene Controls immediately (outside ready) so it's available on reloads
-Hooks.on('getSceneControlButtons', controls => {
-  try {
-    // Guard against settings not yet registered during very early lifecycle
-    let isWorldInitialized = false;
-    try { isWorldInitialized = !!settingsManager.isWorldInitialized?.(); } catch (_) { isWorldInitialized = false; }
-    console.log('[Archivist Sync] getSceneControlButtons hook fired', {
-      controlsType: Array.isArray(controls) ? 'array' : typeof controls,
-      isWorldInitialized,
-      worldId: (function () { try { return settingsManager.getSelectedWorldId?.(); } catch (_) { return null; } })(),
-    });
-
-    const openHub = () => {
-      try {
-        if (window.__ARCHIVIST_HUB__ && window.__ARCHIVIST_HUB__.rendered) {
-          window.__ARCHIVIST_HUB__.close();
-          return;
-        }
-        (window.__ARCHIVIST_HUB__ ||= new ArchivistHub()).render(true);
-      } catch (e) {
-        console.error('[Archivist Sync] Failed to render Archivist Hub', e);
-      }
-    };
-
-    // Object-shaped API (v13+)
-    if (!Array.isArray(controls) && controls && typeof controls === 'object') {
-      const groupName = 'archivist-sync';
-      controls[groupName] = {
-        name: groupName,
-        title: 'Archivist',
-        icon: 'fas fa-book',
-        visible: !!isWorldInitialized,
-        button: true,
-        order: Object.keys(controls).length + 1,
-        onChange: (event, active) => { if (active) canvas.tokens?.activate?.(); },
-        onToolChange: () => { },
-        tools: {
-          'archivist-hub': {
-            name: 'archivist-hub',
-            title: 'Archivist Hub',
-            icon: 'fas fa-book',
-            button: true,
-            order: 10,
-            onChange: () => openHub(),
-          },
-        },
-        activeTool: 'archivist-hub',
-      };
-      console.log('[Archivist Sync] Registered scene controls group');
-      return;
-    }
-
-    // Legacy/array-shaped API
-    const notes = Array.isArray(controls) ? controls.find(c => c.name === 'notes') : null;
-    if (!notes) return;
-    notes.tools.push({
-      name: 'archivist-hub',
-      title: 'Archivist Hub',
-      icon: 'fas fa-book',
-      visible: !!isWorldInitialized,
-      onClick: () => openHub(),
-      button: true,
-    });
-    console.log('[Archivist Sync] Added Archivist Hub tool to Notes group (array API)');
-  } catch (e) {
-    console.error('[Archivist Sync] getSceneControlButtons failed', e);
-  }
-});
+// Scene control buttons no longer used; Hub removed
 
 Hooks.once('ready', async function () {
   console.log('[Archivist Sync] ready: begin');
@@ -332,14 +266,13 @@ Hooks.once('ready', async function () {
     console.warn('[Archivist Sync] Failed to install Real-Time Sync listeners', e);
   }
 
-  // (moved) getSceneControlButtons hook is registered at top-level below
-
-  // Inject a Journal Directory header button to open Archivist Hub
+  // Inject a Journal Directory header button to open Sync Dialog
   Hooks.on('renderJournalDirectory', (app, html) => {
     try {
-      // Only show hub button if world is initialized
+      // Only show sync button if world is initialized and GM
       const isWorldInitialized = settingsManager.isWorldInitialized?.();
       if (!isWorldInitialized) return;
+      if (!game.user?.isGM) return;
 
       const root = html instanceof jQuery ? html[0] : (html?.element || html);
       if (!root) return;
@@ -350,15 +283,15 @@ Hooks.once('ready', async function () {
         root.querySelector('.directory-header') ||
         root.querySelector('.header');
       if (!header) return;
-      if (header.querySelector?.('.archivist-hub-btn')) return;
+      if (header.querySelector?.('.archivist-sync-btn')) return;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'archivist-hub-btn';
-      btn.textContent = 'Archivist Hub';
+      btn.className = 'archivist-sync-btn';
+      btn.textContent = 'Sync with Archivist';
       btn.addEventListener('click', ev => {
         ev.preventDefault();
         try {
-          (window.__ARCHIVIST_HUB__ ||= new ArchivistHub()).render(true);
+          new SyncDialog().render(true);
         } catch (_) { }
       });
       header.appendChild(btn);
@@ -566,22 +499,7 @@ Hooks.once('ready', async function () {
 
   // Remove AppV2 sheet intercepts in favor of registered DocumentSheet V2
 
-  // Force scene controls to initialize and render on ready to ensure our button appears
-  try {
-    // Wait a tick to ensure canvas is ready before initializing controls
-    setTimeout(() => {
-      try {
-        if (ui.controls) {
-          // v13+: render accepts { controls, tool } to rebuild control set
-          ui.controls.render({ controls: ui.controls.control?.name || 'notes', tool: ui.controls.tool?.name || undefined });
-        }
-      } catch (e) {
-        console.warn('[Archivist Sync] Failed to initialize/render scene controls', e);
-      }
-    }, 100);
-  } catch (e) {
-    console.warn('[Archivist Sync] Failed to setup scene controls on ready', e);
-  }
+  // Scene controls no longer modified by this module
 
   // Auto-open World Setup wizard for GMs when not initialized
   try {
@@ -590,34 +508,7 @@ Hooks.once('ready', async function () {
     }
   } catch (_) { }
 
-  // Restore Archivist Hub on canvas ready if tool is active and hub was open
-  Hooks.on('canvasReady', () => {
-    try {
-      // Force scene controls to initialize and re-render to ensure button appears after canvas draws
-      if (ui.controls) {
-        ui.controls.render({ controls: ui.controls.control?.name || 'notes', tool: ui.controls.tool?.name || undefined });
-      }
-
-      const isWorldInitialized = settingsManager.isWorldInitialized();
-      if (!isWorldInitialized) return;
-
-      // Check if our scene control group is active (v13+ API)
-      const activeControl = ui.controls?.control?.name;
-      const activeTool = ui.controls?.tool?.name;
-
-      // Object-shaped API check (v13)
-      if (activeControl === 'archivist-sync' || activeTool === 'archivist-hub') {
-        // Re-render Hub if it was previously rendered or if the tool is active
-        if (window.__ARCHIVIST_HUB__ && window.__ARCHIVIST_HUB__.rendered) {
-          window.__ARCHIVIST_HUB__.render(false);
-        } else if (activeTool === 'archivist-hub' || activeControl === 'archivist-sync') {
-          (window.__ARCHIVIST_HUB__ ||= new ArchivistHub()).render(true);
-        }
-      }
-    } catch (e) {
-      console.warn('[Archivist Sync] canvasReady Archivist Hub restore failed', e);
-    }
-  });
+  // No Hub restoration on canvasReady; feature removed
 });
 
 /**
@@ -1302,4 +1193,54 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
   } catch (e) {
     console.warn('[Archivist Sync] getJournalDirectoryHeaderButtons failed', e);
   }
+});
+
+// Inject inline visibility toggle buttons (GM-only) into Journal Directory rows
+Hooks.on('renderJournalDirectory', (app, html) => {
+  try {
+    if (!game.user?.isGM) return;
+    const root = html instanceof jQuery ? html[0] : (html?.element || html);
+    if (!root) return;
+    const list = root.querySelector('ol.directory-list') || root.querySelector('.directory-list') || root;
+    const items = list.querySelectorAll('li[data-document-id], li.directory-item, li.document, li.journal-entry');
+    const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+    const NON = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
+    items.forEach(li => {
+      try {
+        const id = li.getAttribute('data-document-id') || li.getAttribute('data-entry-id');
+        if (!id) return;
+        if (li.querySelector('.archivist-eye')) return;
+        const j = game.journal?.get?.(id);
+        if (!j) return;
+        // Only render for Archivist custom sheets (identified by our flags)
+        let isCustom = false;
+        try {
+          const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+          isCustom = !!(f.archivistId || f.sheetType);
+        } catch (_) { isCustom = false; }
+        if (!isCustom) return;
+        const cur = Number(j?.ownership?.default ?? NON);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'archivist-eye';
+        const icon = document.createElement('i');
+        icon.className = cur >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+        btn.title = cur >= OBS ? 'Hide from Players' : 'Show to Players';
+        btn.appendChild(icon);
+        btn.addEventListener('click', async ev => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          try {
+            const now = Number(j?.ownership?.default ?? NON);
+            const next = now >= OBS ? NON : OBS;
+            await j.update({ ownership: { default: next } });
+            icon.className = next >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+            btn.title = next >= OBS ? 'Hide from Players' : 'Show to Players';
+          } catch (_) { }
+        });
+        // Append to the end of the row
+        li.appendChild(btn);
+      } catch (_) { }
+    });
+  } catch (_) { }
 });

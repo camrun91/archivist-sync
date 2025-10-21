@@ -73,7 +73,7 @@ export const SETTINGS = {
     name: 'ARCHIVIST_SYNC.Settings.RealtimeSync.Name',
     hint: 'ARCHIVIST_SYNC.Settings.RealtimeSync.Hint',
     scope: 'world',
-    config: false,
+    config: true,
     type: Boolean,
     default: true,
   },

@@ -188,6 +188,30 @@
   flex-shrink: 0;
 }
 
+/* Compact inline eye toggle in Journal Directory */
+.directory-list>li:has(.archivist-eye) {
+  position: relative;
+}
+
+.archivist-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  min-width: 10px;
+  height: 18px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.archivist-eye i {
+  font-size: 10px;
+  line-height: 18px;
+}
+
 .archivist-row {
   padding: 8px;
   border-bottom: 1px solid var(--color-border, #444);
@@ -310,62 +334,7 @@
   margin: 2px 0;
 }
 
-/* Archivist Hub */
-.archivist-hub {
-  height: 100%;
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-.archivist-hub-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px;
-  border-bottom: 1px solid var(--color-border, #444);
-}
-
-.archivist-hub-header nav.tabs {
-  display: flex;
-  gap: 10px;
-}
-
-.archivist-hub-create {
-  padding: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.archivist-hub-create button {
-  width: 100%;
-}
-
-.archivist-hub-content {
-  padding: 8px;
-  overflow: auto;
-}
-
-.archivist-hub-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.archivist-hub-list li {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
-  padding: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.archivist-hub-list li .archivist-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  object-fit: cover;
-}
+/* Hub styles removed */
 
 /**
  * Archivist Sync Module Styles
