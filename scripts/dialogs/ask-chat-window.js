@@ -1,7 +1,7 @@
 import { CONFIG, SETTINGS } from '../modules/config.js';
 import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
-import { ArchivistHub } from '../modules/toc/toc-window.js';
+// Hub removed
 
 /**
  * Standalone Archivist Chat window (per-user)
@@ -138,7 +138,7 @@ export class AskChatWindow {
     const form = root?.querySelector?.('.ask-form');
     const input = root?.querySelector?.('.ask-input');
     const clearBtn = root?.querySelector?.('.chat-clear-btn');
-    const hubBtn = root?.querySelector?.('.archivist-hub-btn');
+    // Hub removed
     const handleCopyClick = async e => {
       const btn = e.target?.closest?.('.copy-btn');
       if (!btn) return;
@@ -205,14 +205,7 @@ export class AskChatWindow {
       this.render(false);
     });
 
-    hubBtn?.addEventListener('click', ev => {
-      ev.preventDefault();
-      try {
-        (window.__ARCHIVIST_HUB__ ||= new ArchivistHub()).render(true);
-      } catch (e) {
-        console.error('[Archivist Sync] Failed to open Archivist Hub', e);
-      }
-    });
+    // No hub button handler
   }
 
   async render(_force) {

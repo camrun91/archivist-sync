@@ -222,8 +222,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         try { await ui?.actors?.render?.({ force: true }); } catch (_) { }
         try { await ui?.items?.render?.({ force: true }); } catch (_) { }
         try { await ui?.scenes?.render?.({ force: true }); } catch (_) { }
-        // Refresh Archivist Hub if it's open
-        try { if (window.__ARCHIVIST_HUB__?.rendered) window.__ARCHIVIST_HUB__.render(false); } catch (_) { }
+        // Hub removed
     }
 
     /**
@@ -483,8 +482,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             const nextFlags = { ...(f || {}) };
             nextFlags.image = imageUrl;
             await j.setFlag(CONFIG.MODULE_ID, 'archivist', nextFlags);
-            // Also store on hub flag for sheet previews
-            try { await j.setFlag('archivist-hub', 'image', imageUrl); } catch (_) { }
+            // Hub image flag removed
         }
         if (changes.links) {
             const buckets = {

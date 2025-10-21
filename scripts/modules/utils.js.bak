@@ -905,10 +905,7 @@ export class Utils {
       });
 
       await this.ensureJournalTextPage(journal, html);
-      // Also set Archivist Hub image flag for downstream sheets that consult hub image
-      try {
-        if (imageUrl) await journal.setFlag('archivist-hub', 'image', imageUrl);
-      } catch (_) { }
+      // Hub image flag removed
       await journal.setFlag(CONFIG.MODULE_ID, 'archivist', {
         sheetType: normalizedType,
         archivistId: archivistId || null,
