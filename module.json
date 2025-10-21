@@ -1,7 +1,7 @@
 {
   "id": "archivist-sync",
   "title": "Archivist Sync",
-  "description": "A simple Foundry VTT module for fetching world data from an API endpoint using an API key.",
+  "description": "A simple Foundry VTT module for fetching world data from an API endpoint using an Archivist API key.",
   "authors": [
     {
       "name": "Cameron Llewellyn",
