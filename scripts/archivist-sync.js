@@ -134,6 +134,46 @@ Hooks.once('ready', async function () {
     await Utils.ensureArchivistFolders();
   } catch (_) { }
 
+  // Normalize Recaps ordering on ready in case they were imported previously
+  try {
+    const normalizeRecapsOrdering = async () => {
+      try {
+        const folder = (game.folders?.contents || []).find(f =>
+          f?.type === 'JournalEntry' && String(f?.name || '').toLowerCase() === 'recaps');
+        if (!folder) return;
+        if (folder.sorting !== 'm') await folder.update({ sorting: 'm' });
+        const entries = (game.journal?.contents || [])
+          .filter(j => (j.folder?.id || null) === folder.id)
+          .filter(j => {
+            try {
+              const a = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+              return String(a.sheetType || '') === 'recap';
+            } catch (_) { return false; }
+          });
+        const withDates = entries.map(j => ({
+          j,
+          dateMs: (() => {
+            const iso = String(j.getFlag(CONFIG.MODULE_ID, 'sessionDate') || '').trim();
+            const t = iso ? new Date(iso).getTime() : NaN;
+            return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+          })()
+        }));
+        withDates.sort((a, b) => a.dateMs - b.dateMs);
+        let i = 0;
+        for (const { j } of withDates) {
+          const desired = i * 1000;
+          i += 1;
+          if (j.sort !== desired) await j.update({ sort: desired }, { render: false });
+        }
+        try { ui.journal?.render?.(true); } catch (_) { }
+      } catch (e) {
+        console.warn('[Archivist Sync][Recaps] Ready normalization failed:', e);
+      }
+    };
+    // Run shortly after ready so the directory exists
+    setTimeout(() => normalizeRecapsOrdering(), 250);
+  } catch (_) { }
+
   // Ensure world initialization flag exists (but don't auto-initialize)
   try {
     const flagCreated = await settingsManager.ensureWorldInitializationFlag();
