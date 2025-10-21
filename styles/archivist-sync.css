@@ -1,4 +1,3 @@
-/* CC-style sheet layout */
 .archivist-sheet {
   display: grid;
   grid-template-columns: 180px 1fr;
@@ -96,7 +95,7 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  border-bottom: 1px solid var(--cc-border);
+  border-bottom: 1px solid var(--as-border);
   margin-bottom: 8px;
   margin-top: 8px;
 }
@@ -115,7 +114,7 @@
 
 .archivist-nav .item.active {
   background: rgba(255, 255, 255, 0.08);
-  border-left: 3px solid var(--cc-accent);
+  border-left: 3px solid var(--as-accent);
 }
 
 .archivist-content {

@@ -97,7 +97,7 @@ The GM client automatically mirrors CRUD events and link changes to Archivist:
 The module provides custom journal sheets to organize and link your campaign data:
 
 - **Character**: PC/NPC overview sheet with linked Actor support (drop onto active Scene), character info, and relation tabs (PCs, NPCs, Factions, Items, Locations)
-- **Item**: Item summary sheet with linked Item support (send to Player) and relation tabs
+- **Item**: Item summary sheet with linked Item support and relation tabs
 - **Location**: Supports structural nesting (parent_id), ancestor/descendant trees, associative Location↔Location links, and linked Scene support (toggle active Scene)
 - **Faction**: Faction summary sheet with relation tabs
 - **Recap**: Session summary page bound to an existing Game Session (edits apply through real-time sync - create/delete are local to Foundry and will not create/delete Game Sessions in Archivist)

@@ -19,12 +19,12 @@
 
             .world-setup-dialog .window-content {
                 padding: 0;
-                background: var(--cc-main-bg);
+                background: var(--as-main-bg);
             }
 
             .setup-header {
-                background: var(--cc-accent80);
-                color: var(--cc-main-text);
+                background: var(--as-accent80);
+                color: var(--as-main-text);
                 padding: 20px;
                 text-align: center;
             }
@@ -42,7 +42,7 @@
             }
 
             .progress-container {
-                background: color-mix(in srgb, var(--cc-border), transparent 70%);
+                background: color-mix(in srgb, var(--as-border), transparent 70%);
                 height: 4px;
                 margin-top: 15px;
                 border-radius: 2px;
@@ -50,7 +50,7 @@
             }
 
             .progress-fill {
-                background: var(--cc-accent);
+                background: var(--as-accent);
                 height: 100%;
                 transition: width 0.3s ease;
                 border-radius: 2px;
@@ -128,12 +128,12 @@
             .step-title {
                 font-size: 18px;
                 font-weight: 600;
-                color: var(--cc-main-text);
+                color: var(--as-main-text);
                 margin: 0 0 10px 0;
             }
 
             .step-description {
-                color: var(--cc-text-muted);
+                color: var(--as-text-muted);
                 line-height: 1.5;
                 margin-bottom: 20px;
             }
@@ -146,13 +146,13 @@
 
             .setup-form-group label {
                 font-weight: 600;
-                color: var(--cc-main-text);
+                color: var(--as-main-text);
             }
 
             .setup-form-group select,
             .setup-form-group input {
                 padding: 10px;
-                border: 1px solid var(--cc-border);
+                border: 1px solid var(--as-border);
                 border-radius: 4px;
                 font-size: 14px;
             }
@@ -162,8 +162,8 @@
                 justify-content: space-between;
                 align-items: center;
                 padding: 16px;
-                border-top: 1px solid var(--cc-border);
-                background: var(--cc-sidebar-bg);
+                border-top: 1px solid var(--as-border);
+                background: var(--as-sidebar-bg);
             }
 
             .setup-btn {
@@ -181,35 +181,35 @@
             }
 
             .setup-btn.primary {
-                background: var(--cc-accent);
+                background: var(--as-accent);
                 color: white;
             }
 
             .setup-btn.primary:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--cc-accent), black 15%);
+                background: color-mix(in srgb, var(--as-accent), black 15%);
             }
 
             .setup-btn.secondary {
-                background: var(--cc-border-light);
-                color: var(--cc-main-text);
+                background: var(--as-border-light);
+                color: var(--as-main-text);
             }
 
             .setup-btn.secondary:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--cc-border), var(--cc-main-bg) 60%);
+                background: color-mix(in srgb, var(--as-border), var(--as-main-bg) 60%);
             }
 
             .setup-btn.success {
-                background: var(--cc-success);
+                background: var(--as-success);
                 color: white;
             }
 
             .setup-btn.success:hover:not(:disabled) {
-                background: color-mix(in srgb, var(--cc-success), black 15%);
+                background: color-mix(in srgb, var(--as-success), black 15%);
             }
 
             .world-info-box {
-                background: var(--cc-ui);
-                border: 1px solid var(--cc-border);
+                background: var(--as-ui);
+                border: 1px solid var(--as-border);
                 border-radius: 8px;
                 padding: 15px;
                 margin: 10px 0;
@@ -217,7 +217,7 @@
 
             .world-info-box h4 {
                 margin: 0 0 10px 0;
-                color: var(--cc-main-text);
+                color: var(--as-main-text);
             }
 
             .world-info-box p {
@@ -237,8 +237,8 @@
             }
 
             .status-indicator.success {
-                background: color-mix(in srgb, var(--cc-success), transparent 90%);
-                color: var(--cc-success);
+                background: color-mix(in srgb, var(--as-success), transparent 90%);
+                color: var(--as-success);
             }
 
             .status-indicator.warning {
@@ -250,8 +250,8 @@
                 display: inline-block;
                 width: 16px;
                 height: 16px;
-                border: 2px solid var(--cc-border);
-                border-top: 2px solid var(--cc-accent);
+                border: 2px solid var(--as-border);
+                border-top: 2px solid var(--as-accent);
                 border-radius: 50%;
                 animation: spin 1s linear infinite;
             }
@@ -319,15 +319,15 @@
             .world-setup-dialog .ws-progress-log {
                 max-height: 200px;
                 overflow: auto;
-                background: var(--cc-ui) !important;
-                color: var(--cc-main-text) !important;
-                border: 1px solid var(--cc-border) !important;
+                background: var(--as-ui) !important;
+                color: var(--as-main-text) !important;
+                border: 1px solid var(--as-border) !important;
                 padding: 8px;
                 border-radius: 6px;
             }
 
             .world-setup-dialog .ws-progress-log * {
-                color: var(--cc-main-text) !important;
+                color: var(--as-main-text) !important;
                 background: transparent !important;
             }
 
@@ -346,7 +346,7 @@
                 display: flex;
                 flex-direction: row;
                 gap: 8px;
-                border-bottom: 1px solid var(--cc-border);
+                border-bottom: 1px solid var(--as-border);
                 margin-bottom: 10px;
             }
 
@@ -355,20 +355,20 @@
                 border-radius: 4px 4px 0 0;
                 cursor: pointer;
                 background: transparent;
-                color: var(--cc-text-muted);
+                color: var(--as-text-muted);
                 text-decoration: none;
                 transition: background 0.2s ease;
             }
 
             .world-setup-dialog nav.ws-recon-nav .item:hover {
                 background: rgba(255, 255, 255, 0.06);
-                color: var(--cc-main-text);
+                color: var(--as-main-text);
             }
 
             .world-setup-dialog nav.ws-recon-nav .item.active {
-                background: var(--cc-ui);
-                color: var(--cc-main-text);
-                border: 1px solid var(--cc-border);
+                background: var(--as-ui);
+                color: var(--as-main-text);
+                border: 1px solid var(--as-border);
                 border-bottom-color: transparent;
             }
 
@@ -432,7 +432,7 @@
                 <div class="world-info-box" style="margin-top: 16px;">
                     <h4><i class="fas fa-info-circle"></i> {{localize "ARCHIVIST_SYNC.worldSetup.step1.helpTitle"}}</h4>
                     <p style="margin: 8px 0;">{{localize "ARCHIVIST_SYNC.worldSetup.step1.helpText"}}</p>
-                    <p style="margin: 8px 0; color: var(--cc-text-muted); font-size: 13px;">{{localize
+                    <p style="margin: 8px 0; color: var(--as-text-muted); font-size: 13px;">{{localize
                         "ARCHIVIST_SYNC.worldSetup.step1.helpNote"}}</p>
                     <div style="text-align:center; margin-top: 12px;">
                         <button type="button" data-action="openDocumentation" class="setup-btn secondary">
@@ -482,7 +482,7 @@
                 {{else}}
                 {{#unless setupData.hasAnyCandidates}}
                 <div
-                    style="padding:8px; border:1px solid var(--cc-border); border-radius:6px; color: var(--setup-text); background: var(--setup-panel);">
+                    style="padding:8px; border:1px solid var(--as-border); border-radius:6px; color: var(--setup-text); background: var(--setup-panel);">
                     No Foundry or Archivist candidates detected. You can proceed to the next step.
                 </div>
                 {{/unless}}
@@ -532,7 +532,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--as-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
                                     No Archivist characters found
                                 </div>
                                 {{/if}}
@@ -571,7 +571,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--as-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
                                     No Foundry actors found
                                 </div>
                                 {{/if}}
@@ -613,7 +613,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--as-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
                                     No Archivist items found
                                 </div>
                                 {{/if}}
@@ -649,7 +649,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--as-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
                                     No Foundry items found
                                 </div>
                                 {{/if}}
@@ -691,7 +691,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--as-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
                                     No Archivist locations found
                                 </div>
                                 {{/if}}
@@ -727,7 +727,7 @@
                                 </ul>
                                 {{else}}
                                 <div
-                                    style="padding:12px; text-align:center; color:var(--cc-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
+                                    style="padding:12px; text-align:center; color:var(--as-text-muted); font-style:italic; background:var(--setup-panel); border:1px solid var(--setup-border); border-radius:4px;">
                                     No Foundry scenes found
                                 </div>
                                 {{/if}}
@@ -775,7 +775,7 @@
                             {{/each}}
                         </ul>
                         {{else}}
-                        <div style="padding:20px; text-align:center; color:var(--cc-text-muted); font-style:italic;">
+                        <div style="padding:20px; text-align:center; color:var(--as-text-muted); font-style:italic;">
                             No unmatched Archivist characters to create
                         </div>
                         {{/if}}
@@ -800,7 +800,7 @@
                             {{/each}}
                         </ul>
                         {{else}}
-                        <div style="padding:20px; text-align:center; color:var(--cc-text-muted); font-style:italic;">
+                        <div style="padding:20px; text-align:center; color:var(--as-text-muted); font-style:italic;">
                             No unmatched Archivist items to create
                         </div>
                         {{/if}}
@@ -825,7 +825,7 @@
                             {{/each}}
                         </ul>
                         {{else}}
-                        <div style="padding:20px; text-align:center; color:var(--cc-text-muted); font-style:italic;">
+                        <div style="padding:20px; text-align:center; color:var(--as-text-muted); font-style:italic;">
                             No unmatched Archivist locations to create
                         </div>
                         {{/if}}
@@ -854,15 +854,15 @@
                 <table style="width:100%; border-collapse: collapse; margin: 8px 0;">
                     <thead>
                         <tr>
-                            <th style="text-align:left; padding:6px; border-bottom:1px solid var(--cc-border);">Type
+                            <th style="text-align:left; padding:6px; border-bottom:1px solid var(--as-border);">Type
                             </th>
-                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Import
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--as-border);">Import
                                 from Archivist</th>
-                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Create
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--as-border);">Create
                                 in Foundry</th>
-                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Export
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--as-border);">Export
                                 to Archivist</th>
-                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--cc-border);">Linked
+                            <th style="text-align:center; padding:6px; border-bottom:1px solid var(--as-border);">Linked
                             </th>
                         </tr>
                     </thead>
