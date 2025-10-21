@@ -108,6 +108,16 @@ export const SETTINGS = {
     default: true,
   },
 
+  CHAT_VISIBILITY: {
+    key: 'chatVisibility',
+    name: 'ARCHIVIST_SYNC.Settings.ChatVisibility.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ChatVisibility.Hint',
+    scope: 'world',
+    config: true,
+    type: String,
+    default: 'all', // 'all' | 'gm' | 'none'
+  },
+
   PROJECT_DESCRIPTIONS: {
     key: 'projectDescriptions',
     name: 'ARCHIVIST_SYNC.Settings.ProjectDescriptions.Name',

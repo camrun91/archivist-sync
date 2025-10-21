@@ -26,6 +26,7 @@ export class SettingsManager {
     this._registerHideByOwnership();
     this._registerRealtimeSync();
     this._registerChatHistory();
+    this._registerChatVisibility();
     this._registerUpdateApiKeyMenu();
     this._registerRunSetupAgainMenu();
     this._registerDocumentationMenu();
@@ -415,12 +416,17 @@ export class SettingsManager {
    * @returns {boolean} True if chat should be available
    */
   isArchivistChatAvailable() {
+    // Respect the Chat Visibility policy first
+    try {
+      const visibility = String(this.getSetting(SETTINGS.CHAT_VISIBILITY.key) || 'all');
+      if (visibility === 'none') return false;
+      if (visibility === 'gm' && !game.user?.isGM) return false;
+    } catch (_) { /* setting may not exist yet during early init */ }
+
     // Condition 1: API key configured and world selected
     const hasValidWorldSelection = this.isApiConfigured() && this.isWorldSelected();
-
     // Condition 2: World has been initialized with Archivist
     const isInitialized = this.isWorldInitialized();
-
     return hasValidWorldSelection && isInitialized;
   }
 
@@ -536,6 +542,24 @@ export class SettingsManager {
       config: enabled.config,
       type: enabled.type,
       default: enabled.default,
+    });
+  }
+
+  _registerChatVisibility() {
+    const setting = SETTINGS.CHAT_VISIBILITY;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      choices: {
+        all: game.i18n.localize('ARCHIVIST_SYNC.Settings.ChatVisibility.Options.All'),
+        gm: game.i18n.localize('ARCHIVIST_SYNC.Settings.ChatVisibility.Options.GMOnly'),
+        none: game.i18n.localize('ARCHIVIST_SYNC.Settings.ChatVisibility.Options.None'),
+      },
+      default: setting.default,
+      onChange: () => this._onChatAvailabilityChange(),
     });
   }
 

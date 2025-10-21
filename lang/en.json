@@ -25,6 +25,15 @@
         "Name": "Keep Chat History",
         "Hint": "When enabled, your chat session is saved and restored per-user and per-campaign. Disable to start fresh each time."
       },
+      "ChatVisibility": {
+        "Name": "Chat Visibility",
+        "Hint": "Who should see the Archivist Chat sidebar tab?",
+        "Options": {
+          "All": "All",
+          "GMOnly": "GM Only",
+          "None": "None"
+        }
+      },
       "MappingOverride": {
         "Name": "Mapping Override (JSON)",
         "Hint": "Optional JSON rules to customize importer field mapping"
