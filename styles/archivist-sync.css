@@ -1,3 +1,4 @@
+/* Archivist Sync - style sheet layout */
 .archivist-sheet {
   display: grid;
   grid-template-columns: 180px 1fr;

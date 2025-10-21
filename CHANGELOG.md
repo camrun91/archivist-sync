@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.2] - 2025-10-21
 
 ### Added
-- New "Chat Visibility" setting where users can toggle the chat tab to have everyone, only the GM, or no one see the Archivist Chat tab.
+- New "Chat Visibility" setting allows GMs to control who can see the Archivist Chat sidebar tab (All users, GM only, or None)
 
 ### [1.3.1] - 2025-10-20
 
