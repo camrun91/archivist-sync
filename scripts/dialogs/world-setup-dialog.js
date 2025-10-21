@@ -2356,7 +2356,21 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       );
 
       // Create individual Recap journals, one per session, inside Recaps folder
-      const recapFolderId = this.setupData.destinations?.recap || (await Utils.ensureJournalFolder('Recaps'));
+      // Use 'm' (manual) sorting mode so entries are ordered by their sort field in ascending order
+      const recapFolderId = this.setupData.destinations?.recap || (await Utils.ensureJournalFolder('Recaps', { sorting: 'm' }));
+
+      // Ensure the recap folder has correct sorting, even if manually selected
+      if (recapFolderId) {
+        const recapFolder = game.folders?.get(recapFolderId);
+        if (recapFolder && recapFolder.sorting !== 'm') {
+          try {
+            await recapFolder.update({ sorting: 'm' });
+            const updated = game.folders?.get(recapFolderId);
+          } catch (e) {
+            console.warn('[Archivist Sync] Failed to update Recaps folder sorting:', e);
+          }
+        }
+      }
       for (const s of sessions) {
         const title = s.title || 'Session';
         const html = String(s.summary || '');
@@ -2376,6 +2390,32 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try { await journal.setFlag(CONFIG.MODULE_ID, 'sessionDate', String(s.session_date)); } catch (_) { }
         }
       }
+
+      // After creation/update, enforce chronological ordering for ALL recaps in the folder
+      try {
+        const entries = (game.journal?.contents || [])
+          .filter(j => (j.folder?.id || null) === (recapFolderId || null))
+          .filter(j => String((j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}).sheetType || '') === 'recap');
+        const withDates = entries.map(j => ({
+          j,
+          dateMs: (() => {
+            const iso = String(j.getFlag(CONFIG.MODULE_ID, 'sessionDate') || '').trim();
+            const t = iso ? new Date(iso).getTime() : NaN;
+            return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; // undated go to end
+          })()
+        }));
+
+        withDates.sort((a, b) => a.dateMs - b.dateMs);
+        let index = 0;
+        for (const { j } of withDates) {
+          const desired = index * 1000; // normalize to small ascending integers
+          index += 1;
+          if (j.sort !== desired) {
+            try { await j.update({ sort: desired }, { render: false }); } catch (_) { /* ignore */ }
+          }
+        }
+        const recapFolder = game.folders?.get(recapFolderId || '');
+      } catch (_) { /* ignore ordering failures */ }
     } catch (e) {
       console.warn('Recaps sync skipped/failed:', e);
     }

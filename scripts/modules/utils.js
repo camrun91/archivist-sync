@@ -834,11 +834,23 @@ export class Utils {
   /**
    * Ensure a folder exists for JournalEntries by name; returns folder id or null
    * @param {string} name
+   * @param {object} options - Optional folder configuration
+   * @param {string} options.sorting - Folder sorting mode: "m" (manual by sort field), "a" (alphabetical)
    */
-  static async ensureJournalFolder(name) {
+  static async ensureJournalFolder(name, options = {}) {
     const existing = this._findFolderByNameInsensitive(name);
-    if (existing) return existing.id;
-    const created = await Folder.create({ name, type: 'JournalEntry' });
+    if (existing) {
+      // Update sorting if specified and different
+      if (options.sorting && existing.sorting !== options.sorting) {
+        await existing.update({ sorting: options.sorting });
+      }
+      return existing.id;
+    }
+    const folderData = { name, type: 'JournalEntry' };
+    if (options.sorting) {
+      folderData.sorting = options.sorting;
+    }
+    const created = await Folder.create(folderData);
     return created?.id || null;
   }
 
