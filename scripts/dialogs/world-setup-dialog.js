@@ -2632,11 +2632,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       // Restore active tab if we have one
       if (this._activeReconTab) {
-        const targetLink = Array.from(tabLinks).find(l => l.dataset.tab === this._activeReconTab);
+        const links = tabGroup ? Array.from(tabGroup.querySelectorAll('a.item[data-tab]')) : [];
+        const contents = Array.from(root.querySelectorAll('section.tab[data-tab]'));
+        const targetLink = links.find(l => l.dataset.tab === this._activeReconTab);
         const targetContent = root.querySelector(`section.tab[data-tab="${this._activeReconTab}"]`);
         if (targetLink && targetContent) {
-          tabLinks.forEach(l => l.classList.remove('active'));
-          tabContents.forEach(c => c.classList.remove('active'));
+          links.forEach(l => l.classList.remove('active'));
+          contents.forEach(c => c.classList.remove('active'));
           targetLink.classList.add('active');
           targetContent.classList.add('active');
         }
@@ -2799,11 +2801,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       // Restore active tab if we have one
       if (this._activeCreateTab) {
-        const targetLink = Array.from(tabLinks).find(l => l.dataset.tab === this._activeCreateTab);
+        const links = tabGroup ? Array.from(tabGroup.querySelectorAll('a.item[data-tab]')) : [];
+        const contents = Array.from(root.querySelectorAll('main.ws-recon-content section.tab[data-tab]'));
+        const targetLink = links.find(l => l.dataset.tab === this._activeCreateTab);
         const targetContent = root.querySelector(`main.ws-recon-content section.tab[data-tab="${this._activeCreateTab}"]`);
         if (targetLink && targetContent) {
-          tabLinks.forEach(l => l.classList.remove('active'));
-          tabContents.forEach(c => c.classList.remove('active'));
+          links.forEach(l => l.classList.remove('active'));
+          contents.forEach(c => c.classList.remove('active'));
           targetLink.classList.add('active');
           targetContent.classList.add('active');
         }
