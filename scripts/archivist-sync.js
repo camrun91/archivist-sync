@@ -512,9 +512,13 @@ Hooks.once('ready', async function () {
       const doc = await fromUuid(uuid).catch(() => null);
       if (!doc) return false;
 
+      if (doc.documentName === 'Actor') {
+        // Allow Foundry's default actor drop handling to proceed untouched
+        return false;
+      }
+
       let actor = null;
-      if (doc.documentName === 'Actor') actor = doc;
-      if (!actor && doc.documentName === 'JournalEntry') {
+      if (doc.documentName === 'JournalEntry') {
         const flags = doc.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
         const actorIds = Array.isArray(flags?.foundryRefs?.actors) ? flags.foundryRefs.actors : [];
         if (actorIds.length) actor = game.actors.get(actorIds[0]) || null;
