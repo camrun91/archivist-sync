@@ -33,17 +33,10 @@
     "scripts/dialogs/ask-chat-window.js",
     "scripts/dialogs/sync-dialog.js"
   ],
-  "styles": [
-    "styles/archivist-sync.css",
-    "styles/sync-dialog.css"
-  ],
+  "styles": ["styles/archivist-sync.css", "styles/sync-dialog.css"],
   "flags": {
     "hotReload": {
-      "paths": [
-        "dist",
-        "templates",
-        "lang"
-      ]
+      "paths": ["dist", "templates", "lang"]
     }
   },
   "languages": [
@@ -57,7 +50,7 @@
   "manifest": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.json",
   "download": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.zip",
   "license": "MIT",
-  "readme": "README.md",
+  "readme": "https://github.com/camrun91/archivist-sync/blob/main/README.md",
   "bugs": "https://github.com/camrun91/archivist-sync/issues",
-  "changelog": "CHANGELOG.md"
+  "changelog": "https://github.com/camrun91/archivist-sync/blob/main/CHANGELOG.md"
 }
