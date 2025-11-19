@@ -1,11 +1,16 @@
 import { AskChatWindow } from '../dialogs/ask-chat-window.js';
 
-export class AskChatSidebarTab extends foundry.applications.sidebar.AbstractSidebarTab {
+export class AskChatSidebarTab extends foundry.applications.sidebar
+  .AbstractSidebarTab {
   static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
     id: 'archivist-chat',
-    title: game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ?? 'Archivist Chat',
+    title:
+      game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ??
+      'Archivist Chat',
     icon: 'fa-solid fa-sparkles',
-    tooltip: game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ?? 'Archivist Chat',
+    tooltip:
+      game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ??
+      'Archivist Chat',
     group: 'primary',
     contentTemplate: 'modules/archivist-sync/templates/ask-chat-window.hbs',
     popOut: false,
