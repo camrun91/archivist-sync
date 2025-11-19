@@ -33,10 +33,17 @@
     "scripts/dialogs/ask-chat-window.js",
     "scripts/dialogs/sync-dialog.js"
   ],
-  "styles": ["styles/archivist-sync.css", "styles/sync-dialog.css"],
+  "styles": [
+    "styles/archivist-sync.css",
+    "styles/sync-dialog.css"
+  ],
   "flags": {
     "hotReload": {
-      "paths": ["dist", "templates", "lang"]
+      "paths": [
+        "dist",
+        "templates",
+        "lang"
+      ]
     }
   },
   "languages": [
