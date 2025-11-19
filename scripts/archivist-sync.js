@@ -160,1021 +160,12 @@ Hooks.once("setup", function () {
 // Scene control buttons no longer used; Hub removed
 
 Hooks.once("ready", async function () {
-  console.log("[Archivist Sync] ready: begin");
-  console.log(
-    "[Archivist Sync] ready - sidebar exists:",
-    !!document.getElementById("sidebar")
-  );
-  const sidebarCheck = document.getElementById("sidebar");
-  const tabsNavCheck = sidebarCheck?.querySelector?.("#sidebar-tabs, nav.tabs");
-  console.log("[Archivist Sync] ready - tabsNav exists:", !!tabsNavCheck);
   try {
     if (!document.getElementById("sidebar")) {
-      console.log(
-        "[Archivist Sync] ready - sidebar not found, attempting to render"
-      );
       await ui.sidebar?.render?.();
     }
   } catch (e) {
     console.error("[Archivist Sync] ready - error rendering sidebar:", e);
-  }
-
-  // INTERCEPT sidebar.collapse() to see who's calling it
-  const originalSidebarCollapse = ui.sidebar?.collapse;
-  if (
-    originalSidebarCollapse &&
-    typeof originalSidebarCollapse === "function"
-  ) {
-    ui.sidebar.collapse = function () {
-      const stack = new Error().stack;
-      // Check if this might be related to a dice roll click
-      const hasDiceRollInStack =
-        stack.includes("dice") ||
-        stack.includes("roll") ||
-        stack.includes("chat");
-      if (hasDiceRollInStack) {
-        console.warn("[Archivist Sync] ===== sidebar.collapse() CALLED! =====");
-        console.warn("[Archivist Sync] Stack trace:", stack);
-        console.warn(
-          "[Archivist Sync] This might be collapsing the dice roll card!"
-        );
-      }
-      return originalSidebarCollapse.call(this);
-    };
-  }
-
-  // CRITICAL FIX: Ensure CoC7 dice roll cards stay expanded after clicking
-  // CoC7's handler uses preventDefault() correctly - we should not intercept it
-  // Instead, we monitor for any attempts to hide .card-buttons and immediately restore them
-
-  // Monitor for class changes on dice roll cards that might indicate collapse
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (
-        mutation.type === "attributes" &&
-        mutation.attributeName === "class"
-      ) {
-        const target = mutation.target;
-        const isDiceRoll = target?.closest?.(
-          ".chat-card, .roll-card, .card-buttons, .dice-roll, .dice-result, .dice-formula, .roll-result"
-        );
-        if (isDiceRoll) {
-          const oldClass = mutation.oldValue || "";
-          const newClass = target.className || "";
-          // Check if a collapse-related class was added
-          if (
-            newClass.includes("collapsed") ||
-            newClass.includes("folded") ||
-            (oldClass.includes("expanded") && !newClass.includes("expanded"))
-          ) {
-            console.warn(
-              "[Archivist Sync] ===== DICE ROLL CARD CLASS CHANGED (might be collapsing) ====="
-            );
-            console.warn("[Archivist Sync] Old class:", oldClass);
-            console.warn("[Archivist Sync] New class:", newClass);
-            console.warn("[Archivist Sync] Stack trace:", new Error().stack);
-          }
-        }
-      }
-
-      // Also watch for style changes on card-buttons that might hide them
-      if (
-        mutation.type === "attributes" &&
-        mutation.attributeName === "style"
-      ) {
-        const target = mutation.target;
-        if (target.classList?.contains("card-buttons")) {
-          const display = window.getComputedStyle(target).display;
-          if (display === "none") {
-            console.warn(
-              "[Archivist Sync] ===== CARD BUTTONS DISPLAY SET TO NONE - PREVENTING! ====="
-            );
-            // Prevent the buttons from being hidden
-            target.style.display = "";
-            target.style.visibility = "";
-            target.style.opacity = "";
-          }
-        }
-      }
-    });
-  });
-
-  // Observe all dice roll cards in the chat log
-  const observeChatLog = () => {
-    const chatLog = document.querySelector(".chat-log, #chat .chat-log");
-    if (chatLog) {
-      observer.observe(chatLog, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeOldValue: true,
-        attributeFilter: ["class", "style"], // Watch both class and style changes
-      });
-      console.log(
-        "[Archivist Sync] Started observing chat log for dice roll card changes"
-      );
-    }
-  };
-
-  // Start observing when ready
-  observeChatLog();
-
-  // Also observe if chat log is added later
-  const chatLogObserver = new MutationObserver(() => {
-    const chatLog = document.querySelector(".chat-log, #chat .chat-log");
-    if (chatLog && !chatLog.dataset.archivistObserved) {
-      chatLog.dataset.archivistObserved = "true";
-      observeChatLog();
-    }
-  });
-
-  chatLogObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
-
-  // CRITICAL FIX: Monitor what's actually changing when dice roll cards collapse
-  // CoC7's handler toggles .dice-tooltip visibility, but we need to see what else is changing
-  // Monitor the entire card, dice-tooltip, and card-buttons to understand the collapse
-  // Track when we're making changes to prevent infinite loops
-  const ourChanges = new WeakSet();
-
-  // Track recent clicks on dice-roll elements to know if we're expanding
-  const recentDiceRollClicks = new WeakMap();
-
-  // Track recent collapse clicks to prevent slideDown after intentional collapse
-  const recentCollapseClicks = new WeakMap();
-
-  // Track processed click events to prevent double-handling
-  const processedClicks = new WeakSet();
-
-  // Intercept jQuery's slideUp to prevent collapsing tooltips that should be expanded
-  const installSlideUpInterceptor = () => {
-    if (
-      window.jQuery &&
-      window.jQuery.fn &&
-      !window.jQuery.fn.slideUp._archivistIntercepted
-    ) {
-      const originalSlideUp = window.jQuery.fn.slideUp;
-
-      window.jQuery.fn.slideUp = function (...args) {
-        // Check each element in the jQuery set
-        let shouldPrevent = false;
-        let preventedCount = 0;
-        const preventedElements = [];
-
-        this.each((index, element) => {
-          if (
-            element &&
-            element.classList &&
-            element.classList.contains("dice-tooltip")
-          ) {
-            const message = element.closest?.(".message");
-            const messageId = message?.dataset?.messageId;
-
-            if (messageId) {
-              const msg = game.messages.get(messageId);
-              const hasExpanded = element.classList.contains("expanded");
-              const display = window.getComputedStyle(element).display;
-              const height = element.offsetHeight;
-              const isVisible = display !== "none" && height > 10;
-
-              console.warn(
-                `[Archivist Sync] ===== slideUp CALLED on tooltip! =====`,
-                `messageId: ${messageId}, hasExpanded: ${hasExpanded}, display: ${display}, height: ${height}px, isVisible: ${isVisible}, _rollExpanded: ${msg?._rollExpanded}`
-              );
-
-              // Check if this was recently clicked to expand
-              const clickTime = msg ? recentDiceRollClicks.get(msg) : null;
-              const wasRecentlyClicked = clickTime !== undefined;
-              const timeSinceClick = wasRecentlyClicked
-                ? Date.now() - clickTime
-                : Infinity;
-
-              // Only prevent slideUp if:
-              // 1. Tooltip was recently clicked to expand (within 400ms), AND
-              // 2. Tooltip is currently visible (has expanded class OR is actually visible)
-              // We check visibility, not just the class, because CoC7 may have removed the class incorrectly
-              // This prevents accidental collapse right after expanding, but allows intentional collapse
-              const shouldPreventSlideUp =
-                wasRecentlyClicked &&
-                timeSinceClick < 400 &&
-                (hasExpanded || isVisible); // Check class OR visibility
-
-              if (shouldPreventSlideUp) {
-                shouldPrevent = true;
-                preventedCount++;
-                preventedElements.push({
-                  messageId,
-                  hasExpanded,
-                  _rollExpanded: msg?._rollExpanded,
-                  wasRecentlyClicked,
-                  timeSinceClick,
-                });
-
-                console.warn(
-                  `[Archivist Sync] ===== PREVENTED slideUp on expanded tooltip! =====`,
-                  `messageId: ${messageId}, hasExpanded: ${hasExpanded}, _rollExpanded: ${msg?._rollExpanded}, wasRecentlyClicked: ${wasRecentlyClicked}, timeSinceClick: ${timeSinceClick}ms`
-                );
-
-                // Stop any ongoing animation by stopping the queue and clearing inline styles
-                const $el = window.jQuery(element);
-                $el.stop(true, true); // Stop all animations and jump to end
-
-                // Ensure it stays visible and expanded
-                element.classList.add("expanded");
-                if (msg) msg._rollExpanded = true;
-
-                // Force it to be visible
-                element.style.display = "";
-                element.style.height = "";
-                element.style.overflow = "";
-              } else {
-                // Allow normal slideUp - user is intentionally collapsing or enough time has passed
-                // Only log if it was recently clicked but we're still allowing it (for debugging)
-                if (wasRecentlyClicked && timeSinceClick < 400) {
-                  console.log(
-                    `[Archivist Sync] Allowing slideUp (protection expired or user collapsing) - messageId: ${messageId}, _rollExpanded: ${msg?._rollExpanded}, timeSinceClick: ${timeSinceClick}ms`
-                  );
-                }
-              }
-            }
-          }
-        });
-
-        // If we prevented the slideUp, return the jQuery object without calling original
-        if (shouldPrevent) {
-          console.warn(
-            `[Archivist Sync] Prevented slideUp on ${preventedCount} tooltip(s):`,
-            preventedElements.map((e) => e.messageId).join(", ")
-          );
-          return this;
-        }
-
-        // For non-tooltip elements or tooltips that should collapse, call original
-        return originalSlideUp.apply(this, args);
-      };
-
-      // Mark as intercepted so we don't install multiple times
-      window.jQuery.fn.slideUp._archivistIntercepted = true;
-      console.log("[Archivist Sync] jQuery slideUp interceptor installed");
-    }
-  };
-
-  // Intercept jQuery's slideDown to prevent re-expansion after intentional collapse
-  const installSlideDownInterceptor = () => {
-    if (
-      window.jQuery &&
-      window.jQuery.fn &&
-      !window.jQuery.fn.slideDown._archivistIntercepted
-    ) {
-      const originalSlideDown = window.jQuery.fn.slideDown;
-
-      window.jQuery.fn.slideDown = function (...args) {
-        // Check each element in the jQuery set
-        let shouldPrevent = false;
-        let preventedCount = 0;
-        const preventedElements = [];
-
-        this.each((index, element) => {
-          if (
-            element &&
-            element.classList &&
-            element.classList.contains("dice-tooltip")
-          ) {
-            const message = element.closest?.(".message");
-            const messageId = message?.dataset?.messageId;
-
-            if (messageId) {
-              const msg = game.messages.get(messageId);
-
-              // Check if user just collapsed (tracked collapse click)
-              const collapseTime = msg ? recentCollapseClicks.get(msg) : null;
-              const wasRecentlyCollapsed = collapseTime !== undefined;
-              const timeSinceCollapse = wasRecentlyCollapsed
-                ? Date.now() - collapseTime
-                : Infinity;
-
-              // Check if user recently clicked to expand (might be expanding)
-              const expandTime = msg ? recentDiceRollClicks.get(msg) : null;
-              const wasRecentlyClickedToExpand = expandTime !== undefined;
-              const timeSinceExpand = wasRecentlyClickedToExpand
-                ? Date.now() - expandTime
-                : Infinity;
-
-              // Check if tooltip is currently collapsed (height < 10px)
-              const height = element.offsetHeight;
-              const display = window.getComputedStyle(element).display;
-              const isCollapsed = display === "none" || height < 10;
-
-              console.warn(
-                `[Archivist Sync] ===== slideDown CALLED on tooltip! =====`,
-                `messageId: ${messageId}, isCollapsed: ${isCollapsed}, height: ${height}px, display: ${display}`,
-                `wasRecentlyCollapsed: ${wasRecentlyCollapsed}, timeSinceCollapse: ${timeSinceCollapse}ms`,
-                `wasRecentlyClickedToExpand: ${wasRecentlyClickedToExpand}, timeSinceExpand: ${timeSinceExpand}ms`
-              );
-
-              // Prevent slideDown if:
-              // 1. User recently collapsed (within 400ms), AND
-              // 2. User did NOT recently click to expand (no expand protection window active)
-              //
-              // Note: We don't check if tooltip is currently collapsed because CoC7 calls
-              // slideDown immediately after slideUp starts, before the collapse animation completes.
-              // So we prevent based solely on the recent collapse click, not visual state.
-              const shouldPreventSlideDown =
-                wasRecentlyCollapsed &&
-                timeSinceCollapse < 400 &&
-                !wasRecentlyClickedToExpand;
-
-              if (shouldPreventSlideDown) {
-                shouldPrevent = true;
-                preventedCount++;
-                preventedElements.push({
-                  messageId,
-                  isCollapsed,
-                  wasRecentlyCollapsed,
-                  timeSinceCollapse,
-                  wasRecentlyClickedToExpand,
-                  timeSinceExpand,
-                });
-
-                console.warn(
-                  `[Archivist Sync] ===== PREVENTED slideDown after collapse! =====`,
-                  `messageId: ${messageId}, isCollapsed: ${isCollapsed}, wasRecentlyClickedToExpand: ${wasRecentlyClickedToExpand}, height: ${height}px`
-                );
-
-                // Don't call original - just return the jQuery object
-                return;
-              }
-            }
-          }
-        });
-
-        // If we prevented the slideDown, return the jQuery object without calling original
-        if (shouldPrevent) {
-          console.warn(
-            `[Archivist Sync] Prevented slideDown on ${preventedCount} tooltip(s):`,
-            preventedElements.map((e) => e.messageId).join(", ")
-          );
-          return this;
-        }
-
-        // For non-tooltip elements or tooltips that should expand, call original
-        return originalSlideDown.apply(this, args);
-      };
-
-      // Mark as intercepted so we don't install multiple times
-      window.jQuery.fn.slideDown._archivistIntercepted = true;
-      console.log("[Archivist Sync] jQuery slideDown interceptor installed");
-    }
-  };
-
-  // Try to install immediately if jQuery is already loaded
-  if (window.jQuery) {
-    installSlideUpInterceptor();
-    installSlideDownInterceptor();
-  } else {
-    // Also try on ready hook in case jQuery loads later
-    Hooks.once("ready", () => {
-      installSlideUpInterceptor();
-      installSlideDownInterceptor();
-    });
-  }
-
-  const cardObserver = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      const target = mutation.target;
-      const isDiceRollCard = target.closest?.(
-        ".chat-card.roll-card, .roll-card"
-      );
-
-      if (!isDiceRollCard) return;
-
-      // Skip if this is a change we made ourselves
-      if (ourChanges.has(target)) {
-        ourChanges.delete(target);
-        return;
-      }
-
-      // Skip if element is marked as protected by our module (unless it's being removed)
-      if (
-        target.dataset?.archivistProtected === "true" &&
-        mutation.type === "attributes"
-      ) {
-        // Only skip if we're not trying to protect it again
-        const attrName = mutation.attributeName;
-        if (attrName === "class" && target.classList.contains("expanded")) {
-          // If expanded class is present and we're protecting it, allow the change to be logged but don't interfere
-          console.log(
-            `[Archivist Sync] Protected element change detected: ${target.tagName}.${target.className || ""} (${attrName})`
-          );
-        }
-      }
-
-      // Log all changes to understand what's happening
-      if (mutation.type === "attributes") {
-        const attrName = mutation.attributeName;
-        const oldValue = mutation.oldValue;
-        const newValue =
-          attrName === "style"
-            ? target.style.cssText
-            : attrName === "class"
-              ? target.className
-              : target.getAttribute(attrName);
-
-        // Only log if it's a significant change
-        if (attrName === "style" && oldValue !== newValue) {
-          const display = window.getComputedStyle(target).display;
-          const height = window.getComputedStyle(target).height;
-          console.warn(
-            `[Archivist Sync] STYLE CHANGE on ${target.tagName}.${target.className || ""}:`,
-            `display=${display}, height=${height}`,
-            `oldValue=${oldValue?.substring(0, 50)}`,
-            `newValue=${newValue?.substring(0, 50)}`
-          );
-        } else if (attrName === "class" && oldValue !== newValue) {
-          console.warn(
-            `[Archivist Sync] CLASS CHANGE on ${target.tagName}.${target.className || ""}:`,
-            `oldValue=${oldValue}`,
-            `newValue=${newValue}`
-          );
-        }
-
-        // If dice-tooltip's expanded class is being removed, prevent it if tooltip is currently visible
-        if (
-          target.classList?.contains("dice-tooltip") &&
-          attrName === "class"
-        ) {
-          const oldValue = mutation.oldValue || "";
-          const newValue = target.className || "";
-          // Check if expanded class was removed
-          if (oldValue.includes("expanded") && !newValue.includes("expanded")) {
-            const height = window.getComputedStyle(target).height;
-            const display = window.getComputedStyle(target).display;
-            const offsetHeight = target.offsetHeight;
-
-            const message = target.closest?.(".message");
-            const messageId = message?.dataset?.messageId;
-            const msg = messageId ? game.messages.get(messageId) : null;
-            const wasRecentlyClicked = msg && recentDiceRollClicks.has(msg);
-            const timeSinceClick = wasRecentlyClicked
-              ? Date.now() - recentDiceRollClicks.get(msg)
-              : Infinity;
-
-            console.warn(
-              `[Archivist Sync] ===== EXPANDED CLASS REMOVED! =====`,
-              `display=${display}, height=${height}, offsetHeight=${offsetHeight}`,
-              `oldValue="${oldValue}", newValue="${newValue}"`,
-              `messageId=${messageId || "unknown"}, wasRecentlyClicked=${wasRecentlyClicked}, timeSinceClick=${timeSinceClick}ms`,
-              `message._rollExpanded=${msg?._rollExpanded}`
-            );
-
-            // Prevent removal if:
-            // 1. User recently clicked to expand (within last 300ms) AND tooltip is currently visible, OR
-            // 2. User recently clicked to expand (within last 300ms) AND message flag says it should be expanded
-            // If user is collapsing (no recent click), allow the class removal even if flag/height suggest expanded
-            const shouldPrevent =
-              (wasRecentlyClicked &&
-                timeSinceClick < 300 &&
-                display !== "none" &&
-                (parseFloat(height) > 50 || offsetHeight > 50)) ||
-              (wasRecentlyClicked &&
-                timeSinceClick < 300 &&
-                msg?._rollExpanded === true);
-
-            if (shouldPrevent) {
-              // Mark this as our change to prevent infinite loops
-              ourChanges.add(target);
-
-              // Mark element as protected by our module
-              target.dataset.archivistProtected = "true";
-
-              // Temporarily disconnect observer to prevent our change from triggering it
-              cardObserver.disconnect();
-
-              target.classList.add("expanded");
-
-              // Also ensure the message flag is set to expanded
-              const message = target.closest?.(".message");
-              const messageId = message?.dataset?.messageId;
-              if (messageId) {
-                const msg = game.messages.get(messageId);
-                if (msg) {
-                  msg._rollExpanded = true;
-                  // Mark message as protected too
-                  if (message) message.dataset.archivistProtected = "true";
-                  console.warn(
-                    `[Archivist Sync] ✓ PREVENTED expanded class removal - tooltip is visible (messageId: ${messageId}, height: ${offsetHeight}px)`
-                  );
-                }
-              }
-
-              // Reconnect observer after a brief delay
-              setTimeout(() => {
-                const actualCard = target.closest?.(
-                  ".chat-card.roll-card, .roll-card"
-                );
-                if (actualCard) {
-                  cardObserver.observe(actualCard, {
-                    attributes: true,
-                    attributeFilter: ["style", "class"],
-                    attributeOldValue: true,
-                    subtree: true,
-                  });
-                }
-              }, 10);
-            } else {
-              console.warn(
-                `[Archivist Sync] Allowing expanded class removal - tooltip is not visible (height: ${offsetHeight}px), wasRecentlyClicked=${wasRecentlyClicked}, timeSinceClick=${timeSinceClick}ms, message._rollExpanded=${msg?._rollExpanded}`
-              );
-            }
-          }
-        }
-
-        // If dice-tooltip is being hidden via style, prevent it if it should be expanded
-        if (
-          target.classList?.contains("dice-tooltip") &&
-          attrName === "style"
-        ) {
-          const display = window.getComputedStyle(target).display;
-          if (display === "none") {
-            // Check if tooltip has expanded class or if message is marked as expanded
-            const hasExpanded = target.classList.contains("expanded");
-            const message = target.closest?.(".message");
-            const messageId = message?.dataset?.messageId;
-            const msg = messageId ? game.messages.get(messageId) : null;
-
-            // Check if user is intentionally collapsing (no recent click to expand)
-            const clickTime = msg ? recentDiceRollClicks.get(msg) : null;
-            const wasRecentlyClickedToExpand = clickTime !== undefined;
-            const timeSinceClick = wasRecentlyClickedToExpand
-              ? Date.now() - clickTime
-              : Infinity;
-
-            // Only prevent hiding if:
-            // 1. User recently clicked to expand (within 400ms), AND
-            // 2. Message flag says it should be expanded OR it has the expanded class
-            // If user is collapsing (no recent click), allow the hide
-            let shouldBeExpanded = false;
-            let reason = "";
-
-            if (wasRecentlyClickedToExpand && timeSinceClick < 400) {
-              // User clicked to expand recently - check if it should be expanded
-              shouldBeExpanded = hasExpanded || msg?._rollExpanded === true;
-              reason = shouldBeExpanded
-                ? hasExpanded
-                  ? "has expanded class and was recently clicked to expand"
-                  : "message._rollExpanded is true and was recently clicked to expand"
-                : "was recently clicked but flag/class indicate collapse";
-            } else {
-              // No recent click or click was for collapse - allow hiding
-              shouldBeExpanded = false;
-              reason = wasRecentlyClickedToExpand
-                ? "click was for collapse (protection window expired or cleared)"
-                : "no recent click to expand - allowing collapse";
-            }
-
-            console.warn(
-              `[Archivist Sync] ===== DICE-TOOLTIP BEING HIDDEN! =====`,
-              `display=${display}, hasExpanded=${hasExpanded}, shouldBeExpanded=${shouldBeExpanded}`,
-              `reason=${reason}, messageId=${messageId || "unknown"}, wasRecentlyClicked=${wasRecentlyClickedToExpand}, timeSinceClick=${timeSinceClick}ms`
-            );
-
-            if (shouldBeExpanded) {
-              // Mark this as our change to prevent infinite loops
-              ourChanges.add(target);
-
-              // Mark element as protected by our module
-              target.dataset.archivistProtected = "true";
-
-              // Temporarily disconnect observer to prevent our change from triggering it
-              cardObserver.disconnect();
-
-              // Re-show the tooltip and ensure expanded class is present
-              target.style.display = "";
-              target.classList.add("expanded");
-
-              const message = target.closest?.(".message");
-              if (messageId) {
-                const msg = game.messages.get(messageId);
-                if (msg) {
-                  msg._rollExpanded = true;
-                  // Mark message as protected too
-                  if (message) message.dataset.archivistProtected = "true";
-                }
-              }
-
-              console.warn(
-                `[Archivist Sync] ✓ PREVENTED dice-tooltip from being hidden - should be expanded (messageId: ${
-                  messageId || "unknown"
-                }, reason: ${reason})`
-              );
-
-              // Reconnect observer after a brief delay
-              setTimeout(() => {
-                const actualCard = target.closest?.(
-                  ".chat-card.roll-card, .roll-card"
-                );
-                if (actualCard) {
-                  cardObserver.observe(actualCard, {
-                    attributes: true,
-                    attributeFilter: ["style", "class"],
-                    attributeOldValue: true,
-                    subtree: true,
-                  });
-                }
-              }, 10);
-            } else {
-              console.warn(
-                `[Archivist Sync] Allowing dice-tooltip to be hidden - not expanded (reason: ${reason})`
-              );
-            }
-          }
-        }
-
-        // If card-buttons are being hidden, restore them
-        if (
-          target.classList?.contains("card-buttons") &&
-          attrName === "style"
-        ) {
-          const display = window.getComputedStyle(target).display;
-          if (display === "none") {
-            target.style.display = "";
-            console.warn(
-              `[Archivist Sync] Re-showed card-buttons that were hidden`
-            );
-          }
-        }
-      }
-    });
-  });
-
-  // Helper to check and log the state of a dice roll card
-  const checkCardState = (cardElement, label) => {
-    const cardButtons = cardElement.querySelector?.(".card-buttons");
-    const diceTooltips = cardElement.querySelectorAll?.(".dice-tooltip");
-    const cardDisplay = window.getComputedStyle(cardElement).display;
-    const cardHeight = cardElement.offsetHeight;
-
-    console.log(`[Archivist Sync] Card state at ${label}:`, {
-      cardDisplay,
-      cardHeight,
-      cardClasses: cardElement.className,
-      hasCardButtons: !!cardButtons,
-      cardButtonsDisplay: cardButtons
-        ? window.getComputedStyle(cardButtons).display
-        : "N/A",
-      diceTooltipCount: diceTooltips?.length || 0,
-      diceTooltipDisplays: diceTooltips
-        ? Array.from(diceTooltips).map(
-            (t) => window.getComputedStyle(t).display
-          )
-        : [],
-    });
-
-    // Fix any hidden elements
-    let fixed = false;
-    if (cardButtons) {
-      const buttonsDisplay = window.getComputedStyle(cardButtons).display;
-      if (buttonsDisplay === "none") {
-        cardButtons.style.display = "";
-        fixed = true;
-      }
-    }
-
-    if (diceTooltips) {
-      diceTooltips.forEach((tip) => {
-        const tipDisplay = window.getComputedStyle(tip).display;
-        if (tipDisplay === "none" && !tip.classList.contains("expanded")) {
-          // Only fix if it should be expanded (has expanded class or message flag says so)
-          const message = cardElement.closest?.(".message");
-          const messageId = message?.dataset?.messageId;
-          if (messageId) {
-            const msg = game.messages.get(messageId);
-            if (msg?._rollExpanded) {
-              tip.style.display = "";
-              fixed = true;
-            }
-          }
-        }
-      });
-    }
-
-    return fixed;
-  };
-
-  // Click handler in CAPTURE phase to track clicks BEFORE CoC7's handler runs
-  // This ensures our tracking is set before slideUp is called
-  document.addEventListener(
-    "click",
-    (ev) => {
-      const target = ev.target;
-      const diceRoll = target.closest?.(".dice-roll");
-
-      // Check if this is a click on a .dice-roll element itself
-      if (diceRoll) {
-        const message = diceRoll.closest?.(".message");
-        const messageId = message?.dataset?.messageId;
-
-        if (messageId) {
-          const msg = game.messages.get(messageId);
-          if (msg) {
-            // Check ACTUAL visual state (DOM) to determine if we're expanding or collapsing
-            // Don't rely on _rollExpanded flag alone, as it may not be updated yet
-            const tooltip = diceRoll.querySelector(".dice-tooltip");
-            const isVisuallyExpanded =
-              tooltip &&
-              (tooltip.classList.contains("expanded") ||
-                window.getComputedStyle(tooltip).display !== "none" ||
-                tooltip.offsetHeight > 10);
-
-            // Also check flag for additional context
-            const wasExpandedBefore = msg._rollExpanded === true;
-
-            // We're collapsing if tooltip is visually expanded OR flag says expanded
-            // We're expanding if tooltip is NOT visually expanded AND flag says not expanded
-            const isCollapsing = isVisuallyExpanded || wasExpandedBefore;
-            const isExpanding = !isVisuallyExpanded && !wasExpandedBefore;
-
-            if (isCollapsing) {
-              // User is collapsing - clear any existing expand protection and set collapse tracking
-              // This prevents false expand tracking from causing re-expansion
-              if (recentDiceRollClicks.has(msg)) {
-                recentDiceRollClicks.delete(msg);
-              }
-              // Track collapse click to prevent slideDown from re-expanding
-              recentCollapseClicks.set(msg, Date.now());
-
-              // Clear collapse protection after 400ms (protection window)
-              setTimeout(() => {
-                if (recentCollapseClicks.has(msg)) {
-                  recentCollapseClicks.delete(msg);
-                  console.log(
-                    `[Archivist Sync] Cleared collapse protection window for messageId: ${messageId}`
-                  );
-                }
-              }, 400);
-
-              console.warn(
-                `[Archivist Sync] ===== DICE-ROLL CLICKED (CAPTURE - COLLAPSE)! =====`,
-                `messageId: ${messageId}, isVisuallyExpanded: ${isVisuallyExpanded}, wasExpanded: ${wasExpandedBefore}, cleared expand protection, set collapse tracking`
-              );
-            } else if (isExpanding) {
-              // Mark this click for slideUp protection IMMEDIATELY (only if expanding)
-              // This must happen in capture phase so it's available when slideUp is called
-
-              // Clear any collapse tracking (user is expanding, not collapsing)
-              if (recentCollapseClicks.has(msg)) {
-                recentCollapseClicks.delete(msg);
-              }
-
-              recentDiceRollClicks.set(msg, Date.now());
-              console.warn(
-                `[Archivist Sync] ===== DICE-ROLL CLICKED (CAPTURE - EXPAND)! =====`,
-                `messageId: ${messageId}, isVisuallyExpanded: ${isVisuallyExpanded}, wasExpanded: ${wasExpandedBefore}`
-              );
-            }
-          }
-        }
-      }
-    },
-    true // Capture phase - run BEFORE CoC7's handler
-  );
-
-  // Click handler in BUBBLE phase to fix state AFTER CoC7's handler runs
-  document.addEventListener(
-    "click",
-    (ev) => {
-      // Prevent double-handling of the same event
-      if (processedClicks.has(ev)) {
-        return;
-      }
-
-      const target = ev.target;
-      const diceRoll = target.closest?.(".dice-roll");
-
-      // Check if this is a click on a .dice-roll element itself
-      if (diceRoll) {
-        // Mark this event as processed to prevent double-handling
-        processedClicks.add(ev);
-
-        const message = diceRoll.closest?.(".message");
-        const messageId = message?.dataset?.messageId;
-
-        if (messageId) {
-          const msg = game.messages.get(messageId);
-
-          // Get the state BEFORE CoC7's handler toggles it (for tracking)
-          const wasExpandedBefore = msg?._rollExpanded === true;
-          const shouldExpand = !wasExpandedBefore;
-
-          console.warn(
-            `[Archivist Sync] ===== DICE-ROLL CLICKED (BUBBLE)! =====`,
-            `messageId: ${messageId}, wasExpanded: ${wasExpandedBefore}, shouldExpand: ${shouldExpand}`
-          );
-
-          // Mark this click for slideUp protection (only if expanding)
-          // Note: This should already be set in capture phase, but set it here too as backup
-          if (shouldExpand) {
-            // Clear any collapse tracking (user is expanding, not collapsing)
-            if (recentCollapseClicks.has(msg)) {
-              recentCollapseClicks.delete(msg);
-            }
-
-            recentDiceRollClicks.set(msg, Date.now());
-
-            // Clear the protection after 400ms (protection window)
-            setTimeout(() => {
-              if (recentDiceRollClicks.has(msg)) {
-                recentDiceRollClicks.delete(msg);
-                console.log(
-                  `[Archivist Sync] Cleared protection window for messageId: ${messageId}`
-                );
-              }
-            }, 400);
-
-            // Wait for CoC7's handler to complete, then check if it collapsed incorrectly
-            // Use a delay to ensure CoC7's handler has finished
-            setTimeout(() => {
-              const msgAfter = game.messages.get(messageId);
-              if (msgAfter && shouldExpand) {
-                const isExpanded = msgAfter._rollExpanded === true;
-                const tooltips = diceRoll.querySelectorAll(".dice-tooltip");
-
-                console.warn(
-                  `[Archivist Sync] After CoC7 handler (100ms) - messageId: ${messageId}, _rollExpanded: ${isExpanded}, tooltipCount: ${tooltips.length}`
-                );
-
-                // Only fix if CoC7's handler collapsed it when it should be expanded
-                // This happens if CoC7's handler ran twice or there was a race condition
-                if (!isExpanded && shouldExpand) {
-                  // Check if tooltip is actually collapsed (not just the flag)
-                  let tooltipIsCollapsed = false;
-                  tooltips.forEach((tip) => {
-                    const display = window.getComputedStyle(tip).display;
-                    if (
-                      display === "none" ||
-                      !tip.classList.contains("expanded")
-                    ) {
-                      tooltipIsCollapsed = true;
-                    }
-                  });
-
-                  // Only fix if tooltip is actually collapsed
-                  if (tooltipIsCollapsed) {
-                    msgAfter._rollExpanded = true;
-                    console.warn(
-                      `[Archivist Sync] ✓ FIXED: CoC7 collapsed when it should expand - Set _rollExpanded=true for messageId: ${messageId}`
-                    );
-
-                    // Ensure all tooltips have the expanded class and are visible
-                    tooltips.forEach((tip) => {
-                      if (!tip.classList.contains("expanded")) {
-                        ourChanges.add(tip);
-                        tip.classList.add("expanded");
-                        tip.dataset.archivistProtected = "true";
-                      }
-
-                      const display = window.getComputedStyle(tip).display;
-                      if (display === "none") {
-                        ourChanges.add(tip);
-                        tip.style.display = "";
-                        tip.dataset.archivistProtected = "true";
-                      }
-                    });
-                  }
-                }
-              }
-            }, 100);
-          } else {
-            // User is collapsing - clear any existing expand protection and set collapse tracking
-            if (recentDiceRollClicks.has(msg)) {
-              recentDiceRollClicks.delete(msg);
-              console.log(
-                `[Archivist Sync] Cleared expand protection - user collapsing messageId: ${messageId}`
-              );
-            }
-
-            // Track collapse click to prevent slideDown from re-expanding (backup, should already be set in capture)
-            if (!recentCollapseClicks.has(msg)) {
-              recentCollapseClicks.set(msg, Date.now());
-
-              // Clear collapse protection after 400ms (protection window)
-              setTimeout(() => {
-                if (recentCollapseClicks.has(msg)) {
-                  recentCollapseClicks.delete(msg);
-                  console.log(
-                    `[Archivist Sync] Cleared collapse protection window for messageId: ${messageId}`
-                  );
-                }
-              }, 400);
-            }
-
-            // Don't interfere with collapse - let CoC7 handle it normally
-          }
-
-          // Clean up processed click after a delay to prevent memory buildup
-          setTimeout(() => {
-            processedClicks.delete(ev);
-          }, 1000);
-        }
-      }
-
-      const diceRollCard = target.closest?.(
-        ".chat-card, .roll-card, .dice-roll, .dice-result, .dice-formula, .roll-result"
-      );
-
-      if (diceRollCard) {
-        const actualCard =
-          diceRollCard.classList?.contains("chat-card") ||
-          diceRollCard.classList?.contains("roll-card")
-            ? diceRollCard
-            : diceRollCard.closest?.(".chat-card, .roll-card");
-
-        if (actualCard) {
-          // Start observing this card
-          cardObserver.observe(actualCard, {
-            attributes: true,
-            attributeFilter: ["style", "class"],
-            attributeOldValue: true,
-            subtree: true,
-          });
-
-          // Check state at multiple intervals to see what's changing
-          checkCardState(actualCard, "immediately after click");
-
-          setTimeout(() => {
-            checkCardState(actualCard, "50ms after click");
-          }, 50);
-
-          setTimeout(() => {
-            checkCardState(
-              actualCard,
-              "250ms after click (after CoC7 animation)"
-            );
-          }, 250);
-
-          setTimeout(() => {
-            checkCardState(actualCard, "500ms after click");
-          }, 500);
-        }
-      }
-    }
-    // Bubble phase - run AFTER CoC7's handler so we can see what CoC7 did
-  );
-
-  // Observe all dice roll cards when they're added to the chat
-  const observeDiceRollCards = () => {
-    document
-      .querySelectorAll(".chat-card.roll-card, .roll-card")
-      .forEach((card) => {
-        cardObserver.observe(card, {
-          attributes: true,
-          attributeFilter: ["style", "class"],
-          attributeOldValue: true,
-          subtree: true,
-        });
-      });
-  };
-
-  // Start observing when the DOM is ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", observeDiceRollCards);
-  } else {
-    observeDiceRollCards();
-  }
-
-  // Also observe new cards as they're added to the chat
-  const chatObserver = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      mutation.addedNodes.forEach((node) => {
-        if (node.nodeType === 1) {
-          // Element node
-          const card =
-            node.classList?.contains("roll-card") ||
-            node.classList?.contains("chat-card")
-              ? node
-              : node.querySelector?.(".chat-card.roll-card, .roll-card");
-
-          if (card) {
-            cardObserver.observe(card, {
-              attributes: true,
-              attributeFilter: ["style", "class"],
-              attributeOldValue: true,
-              subtree: true,
-            });
-          }
-        }
-      });
-    });
-  });
-
-  const chatSection = document.querySelector("#chat");
-  if (chatSection) {
-    chatObserver.observe(chatSection, {
-      childList: true,
-      subtree: true,
-    });
   }
 
   Utils.log("Module initialized");
@@ -1256,24 +247,12 @@ Hooks.once("ready", async function () {
 
   // Conditionally set up Archivist chat based on availability
   updateArchivistChatAvailability();
-  try {
-    console.log("[Archivist Sync] after availability update", {
-      activeTab: ui.sidebar?.activeTab,
-      hasSidebar: !!ui.sidebar,
-    });
-  } catch (_) {}
 
   // Delegated renderer: when the archivist tab button is clicked, render chat into panel
   try {
-    console.log("[Archivist Sync] installing delegated renderer - START");
     const sidebar = document.getElementById("sidebar");
-    console.log("[Archivist Sync] sidebar element:", sidebar);
     const tabsNav = sidebar?.querySelector?.("#sidebar-tabs, nav.tabs");
-    console.log("[Archivist Sync] tabsNav element:", tabsNav);
     if (!tabsNav) {
-      console.warn(
-        "[Archivist Sync] Sidebar tabs nav not found, skipping click handler"
-      );
       return;
     }
 
@@ -1284,10 +263,6 @@ Hooks.once("ready", async function () {
         ".chat-card, .roll-card, .card-buttons, .dice-roll, .dice-result, .dice-formula, .roll-result, .dice-tooltip"
       );
       if (isInDiceRoll) {
-        console.log(
-          "[Archivist Sync] onClick - ignoring click on dice roll card, not touching event"
-        );
-        // Don't touch the event object at all - just return immediately
         return; // Don't interfere with dice roll interactions
       }
 
@@ -1300,43 +275,20 @@ Hooks.once("ready", async function () {
         // Only proceed if we're clicking on a tab button, not on chat content
         const isTabButton = ev.target?.closest?.('button[data-action="tab"]');
         if (!isTabButton) {
-          console.log(
-            "[Archivist Sync] onClick - click is in chat content but not on tab button, ignoring"
-          );
           return;
         }
       }
 
-      console.log(
-        "[Archivist Sync] onClick FIRED - target:",
-        ev.target,
-        "currentTarget:",
-        ev.currentTarget
-      );
-      console.log(
-        "[Archivist Sync] onClick - target tagName:",
-        ev.target?.tagName,
-        "className:",
-        ev.target?.className
-      );
       // Only handle clicks on tab buttons - since we're listening to the nav container,
       // we only need to check if it's a tab button
       const btn = ev.target.closest?.(
         'button[data-action="tab"][data-tab="archivist-chat"]'
       );
-      console.log("[Archivist Sync] onClick - closest button result:", btn);
       if (!btn) {
-        console.log(
-          "[Archivist Sync] onClick - no matching button, returning early"
-        );
         return;
       }
-      console.log(
-        "[Archivist Sync] onClick - MATCHED archivist-chat button, proceeding"
-      );
 
       setTimeout(async () => {
-        console.log("[Archivist Sync] onClick timeout", btn);
         try {
           const sidebar = document.getElementById("sidebar");
           const panel = sidebar?.querySelector?.("#archivist-chat.tab");
@@ -1368,26 +320,16 @@ Hooks.once("ready", async function () {
         }
       }, 0);
     };
-    console.log("[Archivist Sync] About to attach onClick listener to tabsNav");
     tabsNav.addEventListener("click", onClick);
-    console.log(
-      "[Archivist Sync] Successfully attached onClick listener to tabsNav"
-    );
   } catch (e) {
     console.error("[Archivist Sync] Failed to install delegated renderer", e);
   }
 
   // Delegated cleanup: when any other tab is clicked, clear our forced overrides
   try {
-    console.log("[Archivist Sync] installing cleanup handler - START");
     const sidebar = document.getElementById("sidebar");
-    console.log("[Archivist Sync] cleanup - sidebar element:", sidebar);
     const tabsNav = sidebar?.querySelector?.("#sidebar-tabs, nav.tabs");
-    console.log("[Archivist Sync] cleanup - tabsNav element:", tabsNav);
     if (!tabsNav) {
-      console.warn(
-        "[Archivist Sync] Sidebar tabs nav not found, skipping cleanup handler"
-      );
       return;
     }
 
@@ -1398,10 +340,6 @@ Hooks.once("ready", async function () {
         ".chat-card, .roll-card, .card-buttons, .dice-roll, .dice-result, .dice-formula, .roll-result, .dice-tooltip"
       );
       if (isInDiceRoll) {
-        console.log(
-          "[Archivist Sync] onOtherTabClick - ignoring click on dice roll card, not touching event"
-        );
-        // Don't touch the event object at all - just return immediately
         return; // Don't interfere with dice roll interactions
       }
 
@@ -1414,49 +352,20 @@ Hooks.once("ready", async function () {
         // Only proceed if we're clicking on a tab button, not on chat content
         const isTabButton = ev.target?.closest?.('button[data-action="tab"]');
         if (!isTabButton) {
-          console.log(
-            "[Archivist Sync] onOtherTabClick - click is in chat content but not on tab button, ignoring"
-          );
           return;
         }
       }
 
-      console.log(
-        "[Archivist Sync] onOtherTabClick FIRED - target:",
-        ev.target,
-        "currentTarget:",
-        ev.currentTarget
-      );
-      console.log(
-        "[Archivist Sync] onOtherTabClick - target tagName:",
-        ev.target?.tagName,
-        "className:",
-        ev.target?.className
-      );
       // Only handle clicks on tab buttons - check if it's a tab button that's NOT archivist-chat
       const other = ev.target.closest?.('button[data-action="tab"][data-tab]');
-      console.log(
-        "[Archivist Sync] onOtherTabClick - closest button result:",
-        other
-      );
       if (!other) {
-        console.log(
-          "[Archivist Sync] onOtherTabClick - no matching button, returning early"
-        );
         return;
       }
 
       const tabId = other.dataset?.tab;
-      console.log("[Archivist Sync] onOtherTabClick - tabId:", tabId);
       if (tabId === "archivist-chat") {
-        console.log(
-          "[Archivist Sync] onOtherTabClick - is archivist-chat, returning (handled by other handler)"
-        );
         return; // our renderer handles the archivist tab
       }
-      console.log(
-        "[Archivist Sync] onOtherTabClick - MATCHED other tab button, proceeding"
-      );
 
       setTimeout(() => {
         try {
@@ -1477,10 +386,6 @@ Hooks.once("ready", async function () {
             '[data-action="tab"][data-tab="archivist-chat"]'
           );
           if (myBtn) {
-            console.log(
-              "[Archivist Sync] clearing overrides for archivist-chat",
-              myBtn
-            );
             myBtn.classList?.remove?.("active");
             myBtn.setAttribute("aria-pressed", "false");
             myBtn.setAttribute("aria-selected", "false");
@@ -1490,13 +395,7 @@ Hooks.once("ready", async function () {
         }
       }, 0);
     };
-    console.log(
-      "[Archivist Sync] About to attach onOtherTabClick listener to tabsNav"
-    );
     tabsNav.addEventListener("click", onOtherTabClick);
-    console.log(
-      "[Archivist Sync] Successfully attached onOtherTabClick listener to tabsNav"
-    );
   } catch (e) {
     console.error("[Archivist Sync] Failed to install delegated cleanup", e);
   }
@@ -1836,16 +735,7 @@ Hooks.once("ready", async function () {
  * Shows or hides the sidebar tab and updates UI accordingly
  */
 function updateArchivistChatAvailability() {
-  console.warn(
-    "[Archivist Sync] ===== updateArchivistChatAvailability() CALLED ===== "
-  );
-  console.warn("[Archivist Sync] Stack trace:", new Error().stack);
   const isAvailable = settingsManager.isArchivistChatAvailable();
-  try {
-    console.log("[Archivist Sync] updateArchivistChatAvailability()", {
-      isAvailable,
-    });
-  } catch (_) {}
 
   if (isAvailable) {
     // Ensure visibility of the nav button and panel if already rendered
@@ -1917,17 +807,8 @@ function updateArchivistChatAvailability() {
           btn.appendChild(i);
           btn.addEventListener("click", async (ev) => {
             ev.preventDefault();
-            try {
-              console.log("[Archivist Sync] Sidebar button click");
-            } catch (_) {}
             const isActive = ui.sidebar?.activeTab === "archivist-chat";
             const isExpanded = ui.sidebar?._expanded;
-            try {
-              console.log("[Archivist Sync] click state", {
-                isActive,
-                isExpanded,
-              });
-            } catch (_) {}
             if (isActive && isExpanded) {
               try {
                 ui.sidebar?.collapse?.();
@@ -1959,7 +840,6 @@ function updateArchivistChatAvailability() {
               }
               if (panel) {
                 try {
-                  console.log("[Archivist Sync] rendering fallback chat");
                   if (!window.__ARCHIVIST_SIDEBAR_CHAT__) {
                     window.__ARCHIVIST_SIDEBAR_CHAT__ = new AskChatWindow({
                       popOut: false,
@@ -1987,18 +867,9 @@ function updateArchivistChatAvailability() {
         }
       }
     }
-    // Re-render to reflect visibility changes
-    try {
-      console.warn(
-        "[Archivist Sync] ===== CALLING sidebar.render({ force: true }) ===== "
-      );
-      console.warn(
-        "[Archivist Sync] This will re-render the sidebar and may collapse dice roll cards!"
-      );
-      ui.sidebar?.render?.({ force: true });
-    } catch (e) {
-      console.warn("[Archivist Sync] Sidebar render failed", e);
-    }
+    // DON'T re-render sidebar - this causes CoC7's click handlers to fire twice!
+    // Instead, we've manually updated the DOM above which is sufficient
+    // The sidebar will naturally update on its next render cycle
   } else {
     // Hide/remove sidebar tab if conditions are not met
     try {
@@ -2013,18 +884,9 @@ function updateArchivistChatAvailability() {
           tabPanel.classList.remove("active");
         }
       }
-      // Force sidebar re-render to hide the tab (Application V2 signature)
-      try {
-        console.warn(
-          "[Archivist Sync] ===== CALLING sidebar.render({ force: true }) to hide tab ===== "
-        );
-        console.warn(
-          "[Archivist Sync] This will re-render the sidebar and may collapse dice roll cards!"
-        );
-        ui.sidebar?.render?.({ force: true });
-      } catch (e) {
-        console.warn("[Archivist Sync] Sidebar render failed", e);
-      }
+      // DON'T re-render sidebar - this causes CoC7's click handlers to fire twice!
+      // Instead, we've manually hidden the tab above which is sufficient
+      // The sidebar will naturally update on its next render cycle
     } catch (e) {
       console.warn("[Archivist Sync] Failed to hide chat tab:", e);
     }
