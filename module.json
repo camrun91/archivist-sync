@@ -8,7 +8,7 @@
       "email": "cameron.b.llewellyn@gmail.com"
     }
   ],
-  "version": "1.3.5",
+  "version": "1.3.6",
   "compatibility": {
     "minimum": "13.341",
     "verified": "13.346"
@@ -33,17 +33,10 @@
     "scripts/dialogs/ask-chat-window.js",
     "scripts/dialogs/sync-dialog.js"
   ],
-  "styles": [
-    "styles/archivist-sync.css",
-    "styles/sync-dialog.css"
-  ],
+  "styles": ["styles/archivist-sync.css", "styles/sync-dialog.css"],
   "flags": {
     "hotReload": {
-      "paths": [
-        "dist",
-        "templates",
-        "lang"
-      ]
+      "paths": ["dist", "templates", "lang"]
     }
   },
   "languages": [
