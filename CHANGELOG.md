@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Realtime sync hooks now ignore core Foundry documents and third-party imports unless they carry Archivist flags, preventing conflicts with modules like PopOut and stopping unintended API POSTs for unrelated items/journals.
 
+### Changed
+- World Setup and manual Sync dialogs now start with no rows selected so GMs must explicitly opt in to each import/diff, preventing accidental bulk operations.
+
 ## [1.3.6] - 2025-11-19
 
 ### Fixed

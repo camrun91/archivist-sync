@@ -3201,13 +3201,13 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
         if (constraint && !constraint(L, R)) continue;
         if (normName(getLeftName(L)) === normName(getRightName(R))) { hit = R; break; }
       }
-      if (hit) { usedRight.add(hit.id); leftOut.push({ ...L, match: hit.id, selected: true }); }
-      else { leftOut.push({ ...L, match: null, selected: true }); }
+      if (hit) { usedRight.add(hit.id); leftOut.push({ ...L, match: hit.id, selected: false }); }
+      else { leftOut.push({ ...L, match: null, selected: false }); }
     }
     // Right side mirror
     const rightOut = right.map(R => {
       const L = leftOut.find(x => x.match === R.id) || null;
-      return { ...R, match: L ? L.id : null, selected: true };
+      return { ...R, match: L ? L.id : null, selected: false };
     });
     return { leftOut, rightOut };
   };
@@ -3230,7 +3230,7 @@ WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
   const { leftOut: aLocsOut, rightOut: fScenesOut } = matchByName(aLocs, fScenes, x => x.name, x => x.name);
 
   // Factions — Foundry side empty by default
-  const aFactionsOut = aFactions.map(f => ({ ...f, match: null, selected: true }));
+  const aFactionsOut = aFactions.map(f => ({ ...f, match: null, selected: false }));
   const fFactionsOut = [];
 
   const result = {
