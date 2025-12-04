@@ -988,6 +988,11 @@ function installRealtimeSyncListeners() {
     };
   };
 
+  // Helpers to scope realtime side-effects to Archivist-managed documents
+  const getPageMeta = (page) => Utils.getPageArchivistMeta(page) || {};
+  const getPageMetaType = (page) =>
+    String(getPageMeta(page)?.type || '').toLowerCase();
+
   // Create
   Hooks.on('createActor', async (doc) => {
     try {
@@ -1001,25 +1006,6 @@ function installRealtimeSyncListeners() {
       return;
     } catch (e) {
       console.warn('[RTS] createActor failed', e);
-    }
-  });
-  Hooks.on('createItem', async (doc) => {
-    try {
-      if (
-        !settingsManager.isRealtimeSyncEnabled?.() ||
-        settingsManager.isRealtimeSyncSuppressed?.()
-      )
-        return;
-      const id = doc.getFlag(CONFIG.MODULE_ID, 'archivistId');
-      if (id) return;
-      const payload = toItemPayload(doc);
-      const res = await archivistApi.createItem(apiKey, payload);
-      if (res?.success && res?.data?.id) {
-        await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', res.data.id);
-        await doc.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
-      }
-    } catch (e) {
-      console.warn('[RTS] createItem failed', e);
     }
   });
 
@@ -1110,63 +1096,6 @@ function installRealtimeSyncListeners() {
     }
   });
 
-  // JournalEntryPage create (Factions / Locations containers only)
-  const isFactionPage = (p) => p?.parent?.name === 'Factions';
-  const isLocationPage = (p) => p?.parent?.name === 'Locations';
-  const isRecapPage = (p) => p?.parent?.name === 'Recaps';
-
-  Hooks.on('createJournalEntryPage', async (page) => {
-    try {
-      if (
-        !settingsManager.isRealtimeSyncEnabled?.() ||
-        settingsManager.isRealtimeSyncSuppressed?.()
-      )
-        return;
-      if (isRecapPage(page)) return; // Recaps are read-only for creation
-      const metaId = page.getFlag(CONFIG.MODULE_ID, 'archivistId');
-      if (metaId) return;
-      if (isFactionPage(page)) {
-        const res = await archivistApi.createFaction(
-          apiKey,
-          toFactionPayload(page)
-        );
-        if (res?.success && res?.data?.id) {
-          await Utils.setPageArchivistMeta(
-            page,
-            res.data.id,
-            'faction',
-            worldId
-          );
-        } else if (!res?.success && res?.isDescriptionTooLong) {
-          ui.notifications?.error?.(
-            `Failed to create ${res.entityName || page?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
-            { permanent: true }
-          );
-        }
-      } else if (isLocationPage(page)) {
-        const res = await archivistApi.createLocation(
-          apiKey,
-          toLocationPayload(page)
-        );
-        if (res?.success && res?.data?.id) {
-          await Utils.setPageArchivistMeta(
-            page,
-            res.data.id,
-            'location',
-            worldId
-          );
-        } else if (!res?.success && res?.isDescriptionTooLong) {
-          ui.notifications?.error?.(
-            `Failed to create ${res.entityName || page?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
-            { permanent: true }
-          );
-        }
-      }
-    } catch (e) {
-      console.warn('[RTS] createJournalEntryPage failed', e);
-    }
-  });
-
   // Update
   Hooks.on('updateActor', async (doc, changes) => {
     try {
@@ -1219,11 +1148,10 @@ function installRealtimeSyncListeners() {
         const mod = changes?.flags?.[CONFIG.MODULE_ID];
         if (mod && Object.prototype.hasOwnProperty.call(mod, 'op')) return;
       } catch (_) {}
-      const meta = Utils.getPageArchivistMeta(page);
-      if (!meta?.id) return;
+      const meta = getPageMeta(page);
+      const metaType = getPageMetaType(page);
       let res;
-      // Faction pages: update Faction
-      if (isFactionPage(page)) {
+      if (meta?.id && metaType === 'faction') {
         res = await archivistApi.updateFaction(
           apiKey,
           meta.id,
@@ -1235,8 +1163,9 @@ function installRealtimeSyncListeners() {
             { permanent: true }
           );
         }
-        // Location pages: update Location
-      } else if (isLocationPage(page)) {
+        return;
+      }
+      if (meta?.id && metaType === 'location') {
         res = await archivistApi.updateLocation(
           apiKey,
           meta.id,
@@ -1248,68 +1177,46 @@ function installRealtimeSyncListeners() {
             { permanent: true }
           );
         }
-        // Recap pages: update Session title/summary only
-      } else if (isRecapPage(page)) {
-        // Recaps: update session summary/title only; do not create/delete
+        return;
+      }
+      if (meta?.id && metaType === 'recap') {
         const title = page.name;
         const html = Utils.extractPageHtml(page);
         await archivistApi.updateSession(apiKey, meta.id, {
           title,
           summary: Utils.toMarkdownIfHtml?.(html) || html,
         });
-      } else {
-        // If the parent journal is flagged as character (pc/npc) or item, update those entities
-        const parent = page?.parent;
-        const flags = parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
-        const html = Utils.extractPageHtml(page);
-        const isCharacter =
-          flags?.sheetType === 'pc' ||
-          flags?.sheetType === 'npc' ||
-          flags?.sheetType === 'character';
-        if (isCharacter && flags.archivistId) {
-          res = await archivistApi.updateCharacter(apiKey, flags.archivistId, {
-            description: Utils.toMarkdownIfHtml?.(html) || html,
-          });
-          if (!res?.success && res?.isDescriptionTooLong) {
-            ui.notifications?.error?.(
-              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
-              { permanent: true }
-            );
-          }
-        }
-        if (flags?.sheetType === 'item' && flags.archivistId) {
-          res = await archivistApi.updateItem(apiKey, flags.archivistId, {
-            description: Utils.toMarkdownIfHtml?.(html) || html,
-          });
-          if (!res?.success && res?.isDescriptionTooLong) {
-            ui.notifications?.error?.(
-              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
-              { permanent: true }
-            );
-          }
-        }
-        if (flags?.sheetType === 'location' && flags.archivistId) {
-          res = await archivistApi.updateLocation(apiKey, flags.archivistId, {
-            description: Utils.toMarkdownIfHtml?.(html) || html,
-          });
-          if (!res?.success && res?.isDescriptionTooLong) {
-            ui.notifications?.error?.(
-              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
-              { permanent: true }
-            );
-          }
-        }
-        if (flags?.sheetType === 'faction' && flags.archivistId) {
-          res = await archivistApi.updateFaction(apiKey, flags.archivistId, {
-            description: Utils.toMarkdownIfHtml?.(html) || html,
-          });
-          if (!res?.success && res?.isDescriptionTooLong) {
-            ui.notifications?.error?.(
-              `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
-              { permanent: true }
-            );
-          }
-        }
+        return;
+      }
+
+      const parent = page?.parent;
+      const flags = parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+      const sheetType = String(flags?.sheetType || '').toLowerCase();
+      if (!sheetType || !flags.archivistId) return;
+      const html = Utils.extractPageHtml(page);
+      const payload = { description: Utils.toMarkdownIfHtml?.(html) || html };
+
+      if (sheetType === 'pc' || sheetType === 'npc' || sheetType === 'character') {
+        res = await archivistApi.updateCharacter(apiKey, flags.archivistId, payload);
+      } else if (sheetType === 'item') {
+        res = await archivistApi.updateItem(apiKey, flags.archivistId, payload);
+      } else if (sheetType === 'location') {
+        res = await archivistApi.updateLocation(apiKey, flags.archivistId, payload);
+      } else if (sheetType === 'faction') {
+        res = await archivistApi.updateFaction(apiKey, flags.archivistId, payload);
+      } else if (sheetType === 'recap') {
+        await archivistApi.updateSession(apiKey, flags.archivistId, {
+          title: parent?.name || page.name,
+          summary: payload.description,
+        });
+        return;
+      }
+
+      if (res && !res?.success && res?.isDescriptionTooLong) {
+        ui.notifications?.error?.(
+          `Failed to sync ${res.entityName || parent?.name}: Description exceeds the maximum length of 10,000 characters. Please shorten the description and try again.`,
+          { permanent: true }
+        );
       }
     } catch (e) {
       console.warn('[RTS] updateJournalEntryPage failed', e);
@@ -1387,24 +1294,14 @@ function installRealtimeSyncListeners() {
         settingsManager.isRealtimeSyncSuppressed?.()
       )
         return;
-      const meta = Utils.getPageArchivistMeta(page);
+      const meta = getPageMeta(page);
+      const metaType = getPageMetaType(page);
       if (!meta?.id) return;
-      if (isRecapPage(page)) return; // Recaps are read-only for delete
-      if (isFactionPage(page) && archivistApi.deleteFaction) {
+      if (metaType === 'recap') return; // Recaps still managed elsewhere
+      if (metaType === 'faction' && archivistApi.deleteFaction) {
         await archivistApi.deleteFaction(apiKey, meta.id);
-      }
-      if (isLocationPage(page) && archivistApi.deleteLocation) {
+      } else if (metaType === 'location' && archivistApi.deleteLocation) {
         await archivistApi.deleteLocation(apiKey, meta.id);
-      }
-      // Character sheets: delete Character in Archivist when custom Character sheet root is deleted
-      const parent = page?.parent;
-      const flags = parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
-      const isCharacter =
-        flags?.sheetType === 'pc' ||
-        flags?.sheetType === 'npc' ||
-        flags?.sheetType === 'character';
-      if (isCharacter && flags.archivistId && archivistApi.deleteCharacter) {
-        await archivistApi.deleteCharacter(apiKey, flags.archivistId);
       }
     } catch (e) {
       console.warn('[RTS] preDeleteJournalEntryPage failed', e);
