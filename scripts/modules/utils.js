@@ -20,9 +20,12 @@ export class Utils {
   static pickFirstProperty(obj, paths = []) {
     const get = (o, path) => {
       try {
-        if (foundry?.utils?.getProperty) return foundry.utils.getProperty(o, path);
-      } catch (_) { }
-      return String(path).split('.').reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
+        if (foundry?.utils?.getProperty)
+          return foundry.utils.getProperty(o, path);
+      } catch (_) {}
+      return String(path)
+        .split('.')
+        .reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
     };
     for (const p of paths) {
       const v = get(obj, p);
@@ -41,12 +44,32 @@ export class Utils {
     const isPC = String(actor?.type || '').toLowerCase() === 'character';
     const isNPC = String(actor?.type || '').toLowerCase() === 'npc';
 
-    if (sysId === 'dnd5e') return ['system.details.biography.value', 'system.details.biography.public', 'system.description.value'];
+    if (sysId === 'dnd5e')
+      return [
+        'system.details.biography.value',
+        'system.details.biography.public',
+        'system.description.value',
+      ];
 
     if (sysId === 'pf2e') {
-      if (isPC) return ['system.details.biography.backstory', 'system.details.publicNotes', 'system.description.value'];
-      if (isNPC) return ['system.details.publicNotes', 'system.details.notes.description', 'system.description.value'];
-      return ['system.details.biography.backstory', 'system.details.publicNotes', 'system.details.notes.description', 'system.description.value'];
+      if (isPC)
+        return [
+          'system.details.biography.backstory',
+          'system.details.publicNotes',
+          'system.description.value',
+        ];
+      if (isNPC)
+        return [
+          'system.details.publicNotes',
+          'system.details.notes.description',
+          'system.description.value',
+        ];
+      return [
+        'system.details.biography.backstory',
+        'system.details.publicNotes',
+        'system.details.notes.description',
+        'system.description.value',
+      ];
     }
 
     // Generic fallbacks
@@ -92,31 +115,42 @@ export class Utils {
     const actorType = String(actor?.type || '').toLowerCase();
     const paths = this.getActorDescriptionReadPaths(actor);
     try {
-      console.log('[Utils.readActorDescription] Discovering actor description', {
-        system: sysId,
-        actorId: actor?.id,
-        actorName: actor?.name,
-        actorType,
-        paths
-      });
-    } catch (_) { }
+      console.log(
+        '[Utils.readActorDescription] Discovering actor description',
+        {
+          system: sysId,
+          actorId: actor?.id,
+          actorName: actor?.name,
+          actorType,
+          paths,
+        }
+      );
+    } catch (_) {}
     const get = (o, p) => {
-      try { if (foundry?.utils?.getProperty) return foundry.utils.getProperty(o, p); } catch (_) { }
-      return String(p).split('.').reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
+      try {
+        if (foundry?.utils?.getProperty) return foundry.utils.getProperty(o, p);
+      } catch (_) {}
+      return String(p)
+        .split('.')
+        .reduce((acc, k) => (acc && k in acc ? acc[k] : undefined), o);
     };
     let selectedPath = null;
     let raw = '';
     for (const p of paths) {
       const v = get(actor, p);
-      if (typeof v === 'string' && v.trim()) { selectedPath = p; raw = v; break; }
+      if (typeof v === 'string' && v.trim()) {
+        selectedPath = p;
+        raw = v;
+        break;
+      }
     }
     try {
       console.log('[Utils.readActorDescription] Selected path', {
         selectedPath: selectedPath || 'none',
         length: String(raw || '').length,
-        preview: String(raw || '').slice(0, 120)
+        preview: String(raw || '').slice(0, 120),
       });
-    } catch (_) { }
+    } catch (_) {}
     return this.toMarkdownIfHtml(raw);
   }
 
@@ -129,14 +163,17 @@ export class Utils {
   static async projectActorDescription(actor, markdown) {
     const destPath = this.getActorDescriptionWritePath(actor);
     try {
-      console.log('[Utils.projectActorDescription] Projecting actor description', {
-        system: this.getSystemId(),
-        actorId: actor?.id,
-        actorName: actor?.name,
-        destPath,
-        markdownLength: String(markdown ?? '').length
-      });
-    } catch (_) { }
+      console.log(
+        '[Utils.projectActorDescription] Projecting actor description',
+        {
+          system: this.getSystemId(),
+          actorId: actor?.id,
+          actorName: actor?.name,
+          destPath,
+          markdownLength: String(markdown ?? '').length,
+        }
+      );
+    } catch (_) {}
     const html = this.markdownToStoredHtml(String(markdown ?? ''));
     await actor.update({ [destPath]: html });
     return destPath;
@@ -150,48 +187,85 @@ export class Utils {
    */
   static getDefaultItemType() {
     try {
-      if (this.__defaultItemType && typeof this.__defaultItemType === 'string') {
-        console.log('[Utils.getDefaultItemType] Using cached default type:', this.__defaultItemType);
+      if (
+        this.__defaultItemType &&
+        typeof this.__defaultItemType === 'string'
+      ) {
+        console.log(
+          '[Utils.getDefaultItemType] Using cached default type:',
+          this.__defaultItemType
+        );
         return this.__defaultItemType;
       }
-      console.log('[Utils.getDefaultItemType] Discovering system Item types...');
+      console.log(
+        '[Utils.getDefaultItemType] Discovering system Item types...'
+      );
       const types = (() => {
         try {
           const meta = CONFIG?.Item?.documentClass?.metadata?.types;
-          console.log('[Utils.getDefaultItemType] CONFIG.Item.documentClass.metadata.types:', meta);
-          if (Array.isArray(meta) && meta.length) return meta.map(t => String(t).toLowerCase());
+          console.log(
+            '[Utils.getDefaultItemType] CONFIG.Item.documentClass.metadata.types:',
+            meta
+          );
+          if (Array.isArray(meta) && meta.length)
+            return meta.map((t) => String(t).toLowerCase());
         } catch (e) {
-          console.warn('[Utils.getDefaultItemType] Failed to read CONFIG metadata:', e);
+          console.warn(
+            '[Utils.getDefaultItemType] Failed to read CONFIG metadata:',
+            e
+          );
         }
         try {
           const model = game?.system?.model?.Item;
           const keys = model ? Object.keys(model) : [];
-          console.log('[Utils.getDefaultItemType] game.system.model.Item keys:', keys);
-          if (keys.length) return keys.map(t => String(t).toLowerCase());
+          console.log(
+            '[Utils.getDefaultItemType] game.system.model.Item keys:',
+            keys
+          );
+          if (keys.length) return keys.map((t) => String(t).toLowerCase());
         } catch (e) {
-          console.warn('[Utils.getDefaultItemType] Failed to read system.model.Item:', e);
+          console.warn(
+            '[Utils.getDefaultItemType] Failed to read system.model.Item:',
+            e
+          );
         }
         try {
           const docTypes = game?.system?.documentTypes?.Item;
-          console.log('[Utils.getDefaultItemType] game.system.documentTypes.Item:', docTypes);
-          if (Array.isArray(docTypes) && docTypes.length) return docTypes.map(t => String(t).toLowerCase());
+          console.log(
+            '[Utils.getDefaultItemType] game.system.documentTypes.Item:',
+            docTypes
+          );
+          if (Array.isArray(docTypes) && docTypes.length)
+            return docTypes.map((t) => String(t).toLowerCase());
           if (docTypes && typeof docTypes === 'object') {
             const keys = Object.keys(docTypes);
-            if (keys.length) return keys.map(t => String(t).toLowerCase());
+            if (keys.length) return keys.map((t) => String(t).toLowerCase());
           }
         } catch (e) {
-          console.warn('[Utils.getDefaultItemType] Failed to read system.documentTypes.Item:', e);
+          console.warn(
+            '[Utils.getDefaultItemType] Failed to read system.documentTypes.Item:',
+            e
+          );
         }
-        console.warn('[Utils.getDefaultItemType] No system types found, returning empty array');
+        console.warn(
+          '[Utils.getDefaultItemType] No system types found, returning empty array'
+        );
         return [];
       })();
       console.log('[Utils.getDefaultItemType] Resolved types array:', types);
       const picked = types[0] || 'loot';
-      console.log('[Utils.getDefaultItemType] Picked default type:', picked, '(will fallback to "loot" if types empty)');
+      console.log(
+        '[Utils.getDefaultItemType] Picked default type:',
+        picked,
+        '(will fallback to "loot" if types empty)'
+      );
       this.__defaultItemType = picked;
       return picked;
     } catch (e) {
-      console.error('[Utils.getDefaultItemType] Outer catch, returning "loot":', e);
+      console.error(
+        '[Utils.getDefaultItemType] Outer catch, returning "loot":',
+        e
+      );
       return 'loot';
     }
   }
@@ -203,38 +277,58 @@ export class Utils {
    */
   static resolveItemType(source) {
     try {
-      console.log('[Utils.resolveItemType] Called with source:', { type: source?.type, item_type: source?.item_type, category: source?.category });
+      console.log('[Utils.resolveItemType] Called with source:', {
+        type: source?.type,
+        item_type: source?.item_type,
+        category: source?.category,
+      });
       const types = (() => {
         try {
           const meta = CONFIG?.Item?.documentClass?.metadata?.types;
-          console.log('[Utils.resolveItemType] CONFIG.Item.documentClass.metadata.types:', meta);
-          if (Array.isArray(meta) && meta.length) return meta.map(t => String(t).toLowerCase());
-        } catch (_) { }
+          console.log(
+            '[Utils.resolveItemType] CONFIG.Item.documentClass.metadata.types:',
+            meta
+          );
+          if (Array.isArray(meta) && meta.length)
+            return meta.map((t) => String(t).toLowerCase());
+        } catch (_) {}
         try {
           const model = game?.system?.model?.Item;
           const keys = model ? Object.keys(model) : [];
-          console.log('[Utils.resolveItemType] game.system.model.Item keys:', keys);
-          if (keys.length) return keys.map(t => String(t).toLowerCase());
-        } catch (_) { }
+          console.log(
+            '[Utils.resolveItemType] game.system.model.Item keys:',
+            keys
+          );
+          if (keys.length) return keys.map((t) => String(t).toLowerCase());
+        } catch (_) {}
         try {
           const docTypes = game?.system?.documentTypes?.Item;
-          console.log('[Utils.resolveItemType] game.system.documentTypes.Item:', docTypes);
-          if (Array.isArray(docTypes) && docTypes.length) return docTypes.map(t => String(t).toLowerCase());
+          console.log(
+            '[Utils.resolveItemType] game.system.documentTypes.Item:',
+            docTypes
+          );
+          if (Array.isArray(docTypes) && docTypes.length)
+            return docTypes.map((t) => String(t).toLowerCase());
           if (docTypes && typeof docTypes === 'object') {
             const keys = Object.keys(docTypes);
-            if (keys.length) return keys.map(t => String(t).toLowerCase());
+            if (keys.length) return keys.map((t) => String(t).toLowerCase());
           }
-        } catch (_) { }
+        } catch (_) {}
         return [];
       })();
       console.log('[Utils.resolveItemType] Available system types:', types);
       const typeSet = new Set(types);
-      const raw = String(source?.type ?? source?.item_type ?? source?.category ?? '')
+      const raw = String(
+        source?.type ?? source?.item_type ?? source?.category ?? ''
+      )
         .trim()
         .toLowerCase();
       console.log('[Utils.resolveItemType] Raw type from source:', raw);
       if (raw && typeSet.has(raw)) {
-        console.log('[Utils.resolveItemType] Raw type is valid, returning:', raw);
+        console.log(
+          '[Utils.resolveItemType] Raw type is valid, returning:',
+          raw
+        );
         return raw;
       }
 
@@ -249,8 +343,8 @@ export class Utils {
 
       // Common normalizations and aliases across systems
       // Prefer system-specific types when available (e.g., PF2e uses 'treasure' instead of 'loot')
-      const alias = (
-        pick([
+      const alias = pick(
+        [
           // Loot-like
           raw.match(/loot|treasure|generic/) ? 'treasure' : null,
           // Equipment/armor/weapons
@@ -264,7 +358,7 @@ export class Utils {
           raw.match(/feat|ability/) ? 'feat' : null,
           raw.match(/tool/) ? 'tool' : null,
           raw.match(/spell/) ? 'spell' : null,
-        ].filter(Boolean))
+        ].filter(Boolean)
       );
       if (alias) {
         console.log('[Utils.resolveItemType] Found alias match:', alias);
@@ -272,16 +366,25 @@ export class Utils {
       }
 
       // As a final attempt, map generic buckets to something safe
-      console.log('[Utils.resolveItemType] No alias match, trying generic fallbacks...');
+      console.log(
+        '[Utils.resolveItemType] No alias match, trying generic fallbacks...'
+      );
       const generic = pick(['equipment', 'treasure', 'weapon', 'consumable']);
       if (generic) {
         console.log('[Utils.resolveItemType] Found generic fallback:', generic);
         return generic;
       }
 
-      console.log('[Utils.resolveItemType] No generic fallback, getting default type...');
+      console.log(
+        '[Utils.resolveItemType] No generic fallback, getting default type...'
+      );
       const deflt = this.getDefaultItemType();
-      console.log('[Utils.resolveItemType] Default type:', deflt, 'typeSet size:', typeSet.size);
+      console.log(
+        '[Utils.resolveItemType] Default type:',
+        deflt,
+        'typeSet size:',
+        typeSet.size
+      );
       if (!typeSet.size || typeSet.has(deflt)) {
         console.log('[Utils.resolveItemType] Returning default:', deflt);
         return deflt;
@@ -362,7 +465,11 @@ export class Utils {
     try {
       let rawHtml = '';
       if (window?.MarkdownIt) {
-        const mdIt = new window.MarkdownIt({ html: false, linkify: true, breaks: true });
+        const mdIt = new window.MarkdownIt({
+          html: false,
+          linkify: true,
+          breaks: true,
+        });
         rawHtml = mdIt.render(md);
       } else {
         // Minimal fallback: paragraphs + bold/italic with HTML escaping for security
@@ -372,9 +479,12 @@ export class Utils {
             /\*\*(.*?)\*\*/g,
             (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`
           )
-          .replace(/_(.*?)_/g, (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`)
+          .replace(
+            /_(.*?)_/g,
+            (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`
+          )
           .split(/\n{2,}/)
-          .map(p => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
+          .map((p) => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
           .join('');
       }
       return foundry?.utils?.TextEditor?.cleanHTML
@@ -402,7 +512,9 @@ export class Utils {
    * @returns {Array} Array of character and NPC actors
    */
   static getCharacterActors() {
-    return game.actors.contents.filter(actor => actor.type === 'character' || actor.type === 'npc');
+    return game.actors.contents.filter(
+      (actor) => actor.type === 'character' || actor.type === 'npc'
+    );
   }
 
   /**
@@ -411,9 +523,12 @@ export class Utils {
    */
   static getFactionJournals() {
     const entries = game.journal?.contents || [];
-    const factionFolder = this._findFolderByNameInsensitive('Archivist - Factions');
-    return entries.filter(j => {
-      const flagged = j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'faction';
+    const factionFolder = this._findFolderByNameInsensitive(
+      'Archivist - Factions'
+    );
+    return entries.filter((j) => {
+      const flagged =
+        j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'faction';
       const inFolder = factionFolder && j.folder?.id === factionFolder.id;
       return flagged || inFolder;
     });
@@ -425,9 +540,12 @@ export class Utils {
    */
   static getLocationJournals() {
     const entries = game.journal?.contents || [];
-    const locationFolder = this._findFolderByNameInsensitive('Archivist - Locations');
-    return entries.filter(j => {
-      const flagged = j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'location';
+    const locationFolder = this._findFolderByNameInsensitive(
+      'Archivist - Locations'
+    );
+    return entries.filter((j) => {
+      const flagged =
+        j.getFlag(CONFIG.MODULE_ID, 'archivistType') === 'location';
       const inFolder = locationFolder && j.folder?.id === locationFolder.id;
       return flagged || inFolder;
     });
@@ -441,7 +559,9 @@ export class Utils {
   static _findFolderByNameInsensitive(name) {
     const folders = game.folders?.contents || [];
     return folders.find(
-      f => f.type === 'JournalEntry' && f.name.toLowerCase() === String(name).toLowerCase()
+      (f) =>
+        f.type === 'JournalEntry' &&
+        f.name.toLowerCase() === String(name).toLowerCase()
     );
   }
 
@@ -451,7 +571,7 @@ export class Utils {
    * @returns {Array} Array of transformed character data
    */
   static transformActorsForSync(actors) {
-    return actors.map(actor => {
+    return actors.map((actor) => {
       const desc = this.readActorDescription(actor);
       return {
         foundryId: actor.id,
@@ -482,7 +602,7 @@ export class Utils {
         actorType: actor?.type,
         descriptionLength: String(description || '').length,
       });
-    } catch (_) { }
+    } catch (_) {}
     return {
       character_name: actor.name,
       player_name: actor?.system?.details?.player || '',
@@ -538,7 +658,7 @@ export class Utils {
    */
   static _extractJournalText(journal) {
     const pages = journal.pages?.contents || journal.pages || [];
-    const textPage = pages.find(p => p.type === 'text');
+    const textPage = pages.find((p) => p.type === 'text');
     // Foundry v10+ stores text in page.text.content
     return textPage?.text?.content || journal.content || '';
   }
@@ -579,7 +699,14 @@ export class Utils {
       if (!t) return false;
       // Common HTML markers or tags
       if (t.startsWith('<') && t.includes('>')) return true;
-      if (t.includes('</') || t.includes('<br') || t.includes('<p') || t.includes('<h1') || t.includes('&lt;')) return true;
+      if (
+        t.includes('</') ||
+        t.includes('<br') ||
+        t.includes('<p') ||
+        t.includes('<h1') ||
+        t.includes('&lt;')
+      )
+        return true;
       return false;
     })();
 
@@ -592,8 +719,9 @@ export class Utils {
 
     if (pagesCollection) {
       const pages =
-        pagesCollection.contents ?? (Array.isArray(pagesCollection) ? pagesCollection : []);
-      const textPage = pages.find(p => p.type === 'text');
+        pagesCollection.contents ??
+        (Array.isArray(pagesCollection) ? pagesCollection : []);
+      const textPage = pages.find((p) => p.type === 'text');
       if (textPage) {
         if (isProbablyHtml) {
           await textPage.update({ text: { content: safeContent, format: 1 } });
@@ -635,7 +763,10 @@ export class Utils {
     try {
       const url = String(imageUrl || '').trim();
       if (!url) return;
-      console.debug('[Archivist Sync] ensureJournalLeadImage()', { journalId: journal?.id, url });
+      console.debug('[Archivist Sync] ensureJournalLeadImage()', {
+        journalId: journal?.id,
+        url,
+      });
       // Set the journal thumbnail so it shows in lists
       try {
         await journal.update({ img: url });
@@ -656,7 +787,8 @@ export class Utils {
 
   static async setActorArchivistId(actor, id, worldId) {
     await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
-    if (worldId) await actor.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+    if (worldId)
+      await actor.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
     return true;
   }
 
@@ -671,7 +803,8 @@ export class Utils {
   static async setJournalArchivistMeta(journal, id, type, worldId) {
     await journal.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
     if (type) await journal.setFlag(CONFIG.MODULE_ID, 'archivistType', type);
-    if (worldId) await journal.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+    if (worldId)
+      await journal.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
   }
 
   /**
@@ -697,7 +830,8 @@ export class Utils {
     if (!page) return;
     if (id) await page.setFlag(CONFIG.MODULE_ID, 'archivistId', id);
     if (type) await page.setFlag(CONFIG.MODULE_ID, 'archivistType', type);
-    if (worldId) await page.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
+    if (worldId)
+      await page.setFlag(CONFIG.MODULE_ID, 'archivistWorldId', worldId);
   }
 
   /**
@@ -707,9 +841,12 @@ export class Utils {
    */
   static async ensureRootJournalContainer(name) {
     const journals = game.journal?.contents || [];
-    let j = journals.find(x => x.name === name && !x.folder);
+    let j = journals.find((x) => x.name === name && !x.folder);
     if (j) return j;
-    j = await JournalEntry.create({ name, folder: null, pages: [] }, { render: false });
+    j = await JournalEntry.create(
+      { name, folder: null, pages: [] },
+      { render: false }
+    );
     return j;
   }
 
@@ -719,14 +856,19 @@ export class Utils {
    * @param {JournalEntry} container
    * @param {object} opts { name, html, imageUrl, flags }
    */
-  static async upsertContainerTextPage(container, { name, html, imageUrl, flags } = {}) {
+  static async upsertContainerTextPage(
+    container,
+    { name, html, imageUrl, flags } = {}
+  ) {
     const pages = container.pages?.contents || [];
     // Prefer matching by Archivist ID if provided via flags
     let page = null;
     if (flags?.archivistId) {
-      page = pages.find(p => this.getPageArchivistMeta(p).id === flags.archivistId);
+      page = pages.find(
+        (p) => this.getPageArchivistMeta(p).id === flags.archivistId
+      );
     }
-    if (!page) page = pages.find(p => p.name === name && p.type === 'text');
+    if (!page) page = pages.find((p) => p.name === name && p.type === 'text');
     const baseMd = String(html || '');
     if (page) {
       await page.update({
@@ -735,9 +877,16 @@ export class Utils {
         text: { content: baseMd, markdown: baseMd, format: 2 },
       });
     } else {
-      const created = await container.createEmbeddedDocuments('JournalEntryPage', [
-        { name, type: 'text', text: { content: baseMd, markdown: baseMd, format: 2 } },
-      ]);
+      const created = await container.createEmbeddedDocuments(
+        'JournalEntryPage',
+        [
+          {
+            name,
+            type: 'text',
+            text: { content: baseMd, markdown: baseMd, format: 2 },
+          },
+        ]
+      );
       page = created?.[0] || null;
     }
     if (page && flags) {
@@ -760,8 +909,9 @@ export class Utils {
   static async sortContainerPages(container, comparator) {
     const pages = (container.pages?.contents || []).slice().sort(comparator);
     let sort = 0;
-    const updates = pages.map(p => ({ _id: p.id, sort: (sort += 100) }));
-    if (updates.length) await container.updateEmbeddedDocuments('JournalEntryPage', updates);
+    const updates = pages.map((p) => ({ _id: p.id, sort: (sort += 100) }));
+    if (updates.length)
+      await container.updateEmbeddedDocuments('JournalEntryPage', updates);
   }
 
   /**
@@ -865,7 +1015,10 @@ export class Utils {
         faction: 'Archivist - Factions',
       };
 
-      console.log('[Archivist Sync] Ensuring organized folders:', Object.values(folders));
+      console.log(
+        '[Archivist Sync] Ensuring organized folders:',
+        Object.values(folders)
+      );
       for (const name of Object.values(folders)) {
         await this.ensureJournalFolder(name);
       }
@@ -896,7 +1049,9 @@ export class Utils {
       }
 
       const folders = game.folders?.contents || [];
-      const found = folders.find(f => f.type === 'JournalEntry' && f.name === name) || null;
+      const found =
+        folders.find((f) => f.type === 'JournalEntry' && f.name === name) ||
+        null;
 
       console.log('[Archivist Sync] Folder lookup result:', {
         searchingFor: name,
@@ -927,7 +1082,16 @@ export class Utils {
   }
 
   /** Create a custom sheet JournalEntry for an imported Archivist entity */
-  static async createCustomJournalForImport({ name, html = '', imageUrl, sheetType, archivistId, worldId, folderId, sort }) {
+  static async createCustomJournalForImport({
+    name,
+    html = '',
+    imageUrl,
+    sheetType,
+    archivistId,
+    worldId,
+    folderId,
+    sort,
+  }) {
     try {
       console.log(`[Archivist Sync] createCustomJournalForImport called:`, {
         name,
@@ -986,15 +1150,24 @@ export class Utils {
         archivistId: archivistId || null,
         archivistWorldId: worldId || null,
         image: imageUrl || null,
-        archivistRefs: { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] },
+        archivistRefs: {
+          characters: [],
+          items: [],
+          entries: [],
+          factions: [],
+          locationsAssociative: [],
+        },
         foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
       });
 
-      console.log(`[Archivist Sync] Journal finalized with flags, final location:`, {
-        journalId: journal.id,
-        folderId: journal.folder?.id || 'root',
-        folderName: journal.folder?.name || 'root',
-      });
+      console.log(
+        `[Archivist Sync] Journal finalized with flags, final location:`,
+        {
+          journalId: journal.id,
+          folderId: journal.folder?.id || 'root',
+          folderName: journal.folder?.name || 'root',
+        }
+      );
 
       return journal;
     } catch (e) {
@@ -1004,8 +1177,18 @@ export class Utils {
   }
 
   /** Create a new Archivist journal with flags and initial text page */
-  static async createArchivistJournal({ name, sheetType, archivistId, worldId, folderName, text = '', sort }) {
-    const folder = folderName ? await this.ensureJournalFolder(folderName) : null;
+  static async createArchivistJournal({
+    name,
+    sheetType,
+    archivistId,
+    worldId,
+    folderName,
+    text = '',
+    sort,
+  }) {
+    const folder = folderName
+      ? await this.ensureJournalFolder(folderName)
+      : null;
     // Map Archivist sheet types to our registered V2 sheet classes
     const sheetClassMap = {
       pc: 'archivist-sync.PCPageSheetV2',
@@ -1022,7 +1205,13 @@ export class Utils {
       sheetType: normalizedType,
       archivistId: archivistId || null,
       archivistWorldId: worldId || null,
-      archivistRefs: { characters: [], items: [], entries: [], factions: [], locationsAssociative: [] },
+      archivistRefs: {
+        characters: [],
+        items: [],
+        entries: [],
+        factions: [],
+        locationsAssociative: [],
+      },
       foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
     };
     const createData = {
@@ -1032,7 +1221,7 @@ export class Utils {
       flags: {
         core: { sheetClass, sheet: sheetClass },
         [CONFIG.MODULE_ID]: { archivist: initialArchivistFlags },
-      }
+      },
     };
     const journal = await JournalEntry.create(createData, { render: false });
     await this.ensureJournalTextPage(journal, text);
@@ -1040,12 +1229,48 @@ export class Utils {
     return journal;
   }
 
-  static createPcJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'pc', folderName: 'Archivist - PCs' }); }
-  static createNpcJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'npc', folderName: 'Archivist - NPCs' }); }
-  static createItemJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'item', folderName: 'Archivist - Items' }); }
-  static createLocationJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'location', folderName: 'Archivist - Locations' }); }
-  static createFactionJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'faction', folderName: 'Archivist - Factions' }); }
-  static createRecapJournal(opts) { return this.createArchivistJournal({ ...opts, sheetType: 'recap', folderName: 'Recaps' }); }
+  static createPcJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'pc',
+      folderName: 'Archivist - PCs',
+    });
+  }
+  static createNpcJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'npc',
+      folderName: 'Archivist - NPCs',
+    });
+  }
+  static createItemJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'item',
+      folderName: 'Archivist - Items',
+    });
+  }
+  static createLocationJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'location',
+      folderName: 'Archivist - Locations',
+    });
+  }
+  static createFactionJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'faction',
+      folderName: 'Archivist - Factions',
+    });
+  }
+  static createRecapJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'recap',
+      folderName: 'Recaps',
+    });
+  }
 
   /**
    * Deep clone an object

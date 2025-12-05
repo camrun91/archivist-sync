@@ -47,7 +47,7 @@ export class SettingsManager {
       type: setting.type,
       default: setting.default,
       secret: true,
-      onChange: value => {
+      onChange: (value) => {
         console.log(`${this.moduleTitle} | API Key updated`);
         this._onChatAvailabilityChange();
       },
@@ -85,7 +85,7 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       default: setting.default,
-      onChange: value => {
+      onChange: (value) => {
         console.log(`${this.moduleTitle} | Selected world ID: ${value}`);
         this._onChatAvailabilityChange();
       },
@@ -105,7 +105,7 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       default: setting.default,
-      onChange: value => {
+      onChange: (value) => {
         console.log(`${this.moduleTitle} | Selected world: ${value}`);
         this._onChatAvailabilityChange();
       },
@@ -125,8 +125,11 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       default: setting.default,
-      onChange: value => {
-        console.log(`${this.moduleTitle} | Journal destinations updated:`, value);
+      onChange: (value) => {
+        console.log(
+          `${this.moduleTitle} | Journal destinations updated:`,
+          value
+        );
       },
     });
   }
@@ -142,15 +145,24 @@ export class SettingsManager {
       hint: game.i18n.localize(MENU_CONFIG.UPDATE_API_KEY.hint),
       icon: MENU_CONFIG.UPDATE_API_KEY.icon,
       type: class extends foundry.applications.api.ApplicationV2 {
-        static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
-          id: 'archivist-update-api-key',
-          window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Title') },
-        });
+        static DEFAULT_OPTIONS = foundry.utils.mergeObject(
+          foundry.utils.deepClone(super.DEFAULT_OPTIONS),
+          {
+            id: 'archivist-update-api-key',
+            window: {
+              title: game.i18n.localize(
+                'ARCHIVIST_SYNC.Menu.UpdateApiKey.Title'
+              ),
+            },
+          }
+        );
         async render(force = false, options = {}) {
           const result = await foundry.applications.api.DialogV2.prompt({
             window: {
-              title: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Title'),
-              minimizable: false
+              title: game.i18n.localize(
+                'ARCHIVIST_SYNC.Menu.UpdateApiKey.Title'
+              ),
+              minimizable: false,
             },
             position: { width: 480 },
             content: `
@@ -166,30 +178,42 @@ export class SettingsManager {
               </div>
             `,
             ok: {
-              label: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Update'),
+              label: game.i18n.localize(
+                'ARCHIVIST_SYNC.Menu.UpdateApiKey.Update'
+              ),
               icon: 'fas fa-check',
               callback: (event, button) => {
                 const form = button.form;
                 return new FormData(form).get('apiKey');
-              }
+              },
             },
             cancel: {
-              label: game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Cancel'),
-              icon: 'fas fa-times'
+              label: game.i18n.localize(
+                'ARCHIVIST_SYNC.Menu.UpdateApiKey.Cancel'
+              ),
+              icon: 'fas fa-times',
             },
-            rejectClose: false
+            rejectClose: false,
           });
 
           if (result) {
             const newApiKey = String(result).trim();
             if (!newApiKey) {
-              ui.notifications.error(game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Empty'));
+              ui.notifications.error(
+                game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Empty')
+              );
             } else {
               try {
-                const { settingsManager } = await import('./settings-manager.js');
-                const MODULE_ID = settingsManager.moduleId || (await import('./config.js')).CONFIG.MODULE_ID;
+                const { settingsManager } = await import(
+                  './settings-manager.js'
+                );
+                const MODULE_ID =
+                  settingsManager.moduleId ||
+                  (await import('./config.js')).CONFIG.MODULE_ID;
                 await game.settings.set(MODULE_ID, 'apiKey', newApiKey);
-                ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Success'));
+                ui.notifications.info(
+                  game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Success')
+                );
               } catch (e) {
                 console.error('[Archivist Sync] Failed to update API key', e);
                 ui.notifications.error('Failed to update API key');
@@ -214,16 +238,30 @@ export class SettingsManager {
       hint: game.i18n.localize(MENU_CONFIG.DOCUMENTATION.hint),
       icon: MENU_CONFIG.DOCUMENTATION.icon,
       type: class extends foundry.applications.api.ApplicationV2 {
-        static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
-          id: 'archivist-documentation-menu',
-          window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.Documentation.Title') },
-        });
+        static DEFAULT_OPTIONS = foundry.utils.mergeObject(
+          foundry.utils.deepClone(super.DEFAULT_OPTIONS),
+          {
+            id: 'archivist-documentation-menu',
+            window: {
+              title: game.i18n.localize(
+                'ARCHIVIST_SYNC.Menu.Documentation.Title'
+              ),
+            },
+          }
+        );
         async render(force = false, options = {}) {
           try {
-            const { DocumentationWindow } = await import('../dialogs/documentation-window.js');
-            (window.__ARCHIVIST_DOCS__ ||= new DocumentationWindow()).render(true);
+            const { DocumentationWindow } = await import(
+              '../dialogs/documentation-window.js'
+            );
+            (window.__ARCHIVIST_DOCS__ ||= new DocumentationWindow()).render(
+              true
+            );
           } catch (e) {
-            console.error('[Archivist Sync] Failed to open documentation window', e);
+            console.error(
+              '[Archivist Sync] Failed to open documentation window',
+              e
+            );
             ui.notifications?.error?.('Failed to open documentation window');
           }
           return this;
@@ -244,33 +282,52 @@ export class SettingsManager {
       hint: game.i18n.localize(MENU_CONFIG.RUN_SETUP_AGAIN.hint),
       icon: MENU_CONFIG.RUN_SETUP_AGAIN.icon,
       type: class extends foundry.applications.api.ApplicationV2 {
-        static DEFAULT_OPTIONS = foundry.utils.mergeObject(super.DEFAULT_OPTIONS, {
-          id: 'archivist-run-setup',
-          window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') },
-        });
+        static DEFAULT_OPTIONS = foundry.utils.mergeObject(
+          foundry.utils.deepClone(super.DEFAULT_OPTIONS),
+          {
+            id: 'archivist-run-setup',
+            window: {
+              title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title'),
+            },
+          }
+        );
         async render(force = false, options = {}) {
           const confirmed = await foundry.applications.api.DialogV2.confirm({
-            window: { title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title') },
+            window: {
+              title: game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Title'),
+            },
             content: `<p>${game.i18n.localize('ARCHIVIST_SYNC.Menu.RunSetup.Confirm')}</p>`,
           });
           if (confirmed) {
             try {
               const { settingsManager } = await import('./settings-manager.js');
-              const MODULE_ID = settingsManager.moduleId || (await import('./config.js')).CONFIG.MODULE_ID;
+              const MODULE_ID =
+                settingsManager.moduleId ||
+                (await import('./config.js')).CONFIG.MODULE_ID;
 
-              console.warn('[Archivist Sync] ⚠️  RE-INITIALIZATION STARTED: Real-time sync will be DISABLED to prevent data loss');
+              console.warn(
+                '[Archivist Sync] ⚠️  RE-INITIALIZATION STARTED: Real-time sync will be DISABLED to prevent data loss'
+              );
               ui.notifications?.info?.('Resetting Archivist setup...');
 
               // CRITICAL: Suppress realtime sync to prevent cascading deletions to Archivist backend
-              try { settingsManager.suppressRealtimeSync?.(); } catch (_) { }
+              try {
+                settingsManager.suppressRealtimeSync?.();
+              } catch (_) {}
 
               // Verify suppression is active
               if (!settingsManager.isRealtimeSyncSuppressed?.()) {
-                console.error('[Archivist Sync] ❌ CRITICAL: Realtime sync suppression FAILED!');
-                ui.notifications?.error?.('Critical error: Unable to disable sync. Aborting to prevent data loss.');
+                console.error(
+                  '[Archivist Sync] ❌ CRITICAL: Realtime sync suppression FAILED!'
+                );
+                ui.notifications?.error?.(
+                  'Critical error: Unable to disable sync. Aborting to prevent data loss.'
+                );
                 return this;
               }
-              console.log('[Archivist Sync] ✓ Real-time sync successfully suppressed');
+              console.log(
+                '[Archivist Sync] ✓ Real-time sync successfully suppressed'
+              );
 
               // 1) Delete Archivist custom sheets (JournalEntries) flagged with our sheetType
               try {
@@ -279,52 +336,94 @@ export class SettingsManager {
                 for (const j of journals) {
                   const flags = j.getFlag(MODULE_ID, 'archivist') || {};
                   const st = String(flags.sheetType || '').toLowerCase();
-                  if (st === 'pc' || st === 'npc' || st === 'character' || st === 'item' || st === 'location' || st === 'faction' || st === 'recap') {
+                  if (
+                    st === 'pc' ||
+                    st === 'npc' ||
+                    st === 'character' ||
+                    st === 'item' ||
+                    st === 'location' ||
+                    st === 'faction' ||
+                    st === 'recap'
+                  ) {
                     toDelete.push(j);
                   }
                 }
                 if (toDelete.length) {
-                  await Promise.allSettled(toDelete.map(j => j.delete({ render: false })));
+                  await Promise.allSettled(
+                    toDelete.map((j) => j.delete({ render: false }))
+                  );
                 }
               } catch (e) {
-                console.warn('[Archivist Sync] Cleanup: failed deleting custom sheets', e);
+                console.warn(
+                  '[Archivist Sync] Cleanup: failed deleting custom sheets',
+                  e
+                );
               }
 
               // 2) Remove Archivist flags from core Actors, Items, Scenes (but do not delete the docs)
               try {
                 const actors = game.actors?.contents || [];
-                await Promise.allSettled(actors.map(a => a?.unsetFlag?.(MODULE_ID, 'archivistId')));
+                await Promise.allSettled(
+                  actors.map((a) => a?.unsetFlag?.(MODULE_ID, 'archivistId'))
+                );
               } catch (e) {
-                console.warn('[Archivist Sync] Cleanup: actors unsetFlag failed', e);
+                console.warn(
+                  '[Archivist Sync] Cleanup: actors unsetFlag failed',
+                  e
+                );
               }
               try {
                 const items = game.items?.contents || [];
-                await Promise.allSettled(items.map(i => i?.unsetFlag?.(MODULE_ID, 'archivistId')));
+                await Promise.allSettled(
+                  items.map((i) => i?.unsetFlag?.(MODULE_ID, 'archivistId'))
+                );
               } catch (e) {
-                console.warn('[Archivist Sync] Cleanup: items unsetFlag failed', e);
+                console.warn(
+                  '[Archivist Sync] Cleanup: items unsetFlag failed',
+                  e
+                );
               }
               try {
                 const scenes = game.scenes?.contents || [];
-                await Promise.allSettled(scenes.map(s => s?.unsetFlag?.(MODULE_ID, 'archivistId')));
+                await Promise.allSettled(
+                  scenes.map((s) => s?.unsetFlag?.(MODULE_ID, 'archivistId'))
+                );
               } catch (e) {
-                console.warn('[Archivist Sync] Cleanup: scenes unsetFlag failed', e);
+                console.warn(
+                  '[Archivist Sync] Cleanup: scenes unsetFlag failed',
+                  e
+                );
               }
 
               // 3) Mark world uninitialized
               await settingsManager.setWorldInitialized(false);
-              ui.notifications?.info?.(game.i18n.localize('ARCHIVIST_SYNC.messages.worldInitializedReset'));
-              console.log('[Archivist Sync] Re-initialization complete. Reloading...');
+              ui.notifications?.info?.(
+                game.i18n.localize(
+                  'ARCHIVIST_SYNC.messages.worldInitializedReset'
+                )
+              );
+              console.log(
+                '[Archivist Sync] Re-initialization complete. Reloading...'
+              );
               // Reload to trigger setup flow again (suppression will be cleared on reload)
               window.location.reload();
             } catch (e) {
-              console.error('[Archivist Sync] ❌ Failed to reset world initialization', e);
-              ui.notifications?.error?.(game.i18n.localize('ARCHIVIST_SYNC.errors.resetFailed') || 'Reset failed');
+              console.error(
+                '[Archivist Sync] ❌ Failed to reset world initialization',
+                e
+              );
+              ui.notifications?.error?.(
+                game.i18n.localize('ARCHIVIST_SYNC.errors.resetFailed') ||
+                  'Reset failed'
+              );
             } finally {
               // Resume realtime sync if we didn't reload (error case)
               try {
                 settingsManager.resumeRealtimeSync?.();
-                console.log('[Archivist Sync] Real-time sync resumed after error');
-              } catch (_) { }
+                console.log(
+                  '[Archivist Sync] Real-time sync resumed after error'
+                );
+              } catch (_) {}
             }
           }
           return this;
@@ -418,13 +517,18 @@ export class SettingsManager {
   isArchivistChatAvailable() {
     // Respect the Chat Visibility policy first
     try {
-      const visibility = String(this.getSetting(SETTINGS.CHAT_VISIBILITY.key) || 'all');
+      const visibility = String(
+        this.getSetting(SETTINGS.CHAT_VISIBILITY.key) || 'all'
+      );
       if (visibility === 'none') return false;
       if (visibility === 'gm' && !game.user?.isGM) return false;
-    } catch (_) { /* setting may not exist yet during early init */ }
+    } catch (_) {
+      /* setting may not exist yet during early init */
+    }
 
     // Condition 1: API key configured and world selected
-    const hasValidWorldSelection = this.isApiConfigured() && this.isWorldSelected();
+    const hasValidWorldSelection =
+      this.isApiConfigured() && this.isWorldSelected();
     // Condition 2: World has been initialized with Archivist
     const isInitialized = this.isWorldInitialized();
     return hasValidWorldSelection && isInitialized;
@@ -479,7 +583,9 @@ export class SettingsManager {
     // Perform any additional setup completion tasks here
     // For example: set default import config, create initial folders, etc.
 
-    ui.notifications.info(game.i18n.localize('ARCHIVIST_SYNC.messages.worldInitialized'));
+    ui.notifications.info(
+      game.i18n.localize('ARCHIVIST_SYNC.messages.worldInitialized')
+    );
   }
 
   /**
@@ -499,7 +605,15 @@ export class SettingsManager {
    * @returns {{ pc: string, npc: string, item: string, location: string, faction: string }}
    */
   getJournalDestinations() {
-    return this.getSetting(SETTINGS.JOURNAL_DESTINATIONS.key) || { pc: '', npc: '', item: '', location: '', faction: '' };
+    return (
+      this.getSetting(SETTINGS.JOURNAL_DESTINATIONS.key) || {
+        pc: '',
+        npc: '',
+        item: '',
+        location: '',
+        faction: '',
+      }
+    );
   }
 
   /**
@@ -554,9 +668,15 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       choices: {
-        all: game.i18n.localize('ARCHIVIST_SYNC.Settings.ChatVisibility.Options.All'),
-        gm: game.i18n.localize('ARCHIVIST_SYNC.Settings.ChatVisibility.Options.GMOnly'),
-        none: game.i18n.localize('ARCHIVIST_SYNC.Settings.ChatVisibility.Options.None'),
+        all: game.i18n.localize(
+          'ARCHIVIST_SYNC.Settings.ChatVisibility.Options.All'
+        ),
+        gm: game.i18n.localize(
+          'ARCHIVIST_SYNC.Settings.ChatVisibility.Options.GMOnly'
+        ),
+        none: game.i18n.localize(
+          'ARCHIVIST_SYNC.Settings.ChatVisibility.Options.None'
+        ),
       },
       default: setting.default,
       onChange: () => this._onChatAvailabilityChange(),
@@ -570,7 +690,10 @@ export class SettingsManager {
   _onChatAvailabilityChange() {
     // Defer to next tick to ensure all settings have been updated
     setTimeout(() => {
-      if (typeof window !== 'undefined' && window.ARCHIVIST_SYNC?.updateChatAvailability) {
+      if (
+        typeof window !== 'undefined' &&
+        window.ARCHIVIST_SYNC?.updateChatAvailability
+      ) {
         window.ARCHIVIST_SYNC.updateChatAvailability();
       }
     }, 0);
@@ -589,7 +712,7 @@ export class SettingsManager {
       config: setting.config,
       type: setting.type,
       default: setting.default,
-      onChange: value => {
+      onChange: (value) => {
         console.log(`${this.moduleTitle} | World initialized: ${value}`);
         this._onChatAvailabilityChange();
       },
@@ -669,14 +792,18 @@ export class SettingsManager {
    * Use for bulk operations like initial world setup to prevent unintended API writes.
    */
   suppressRealtimeSync() {
-    this._realtimeSuppressed = Math.max(0, Number(this._realtimeSuppressed || 0)) + 1;
+    this._realtimeSuppressed =
+      Math.max(0, Number(this._realtimeSuppressed || 0)) + 1;
   }
 
   /**
    * Resume realtime sync hooks after suppression.
    */
   resumeRealtimeSync() {
-    this._realtimeSuppressed = Math.max(0, Number(this._realtimeSuppressed || 0) - 1);
+    this._realtimeSuppressed = Math.max(
+      0,
+      Number(this._realtimeSuppressed || 0) - 1
+    );
   }
 
   /**

@@ -8,8 +8,8 @@ const WRAP_END = '</section>';
  * @param {string} html
  */
 export function toArchivistBlock(html) {
-    const safe = String(html ?? '');
-    return `${WRAP_START}${safe}${WRAP_END}`;
+  const safe = String(html ?? '');
+  return `${WRAP_START}${safe}${WRAP_END}`;
 }
 
 /**
@@ -18,12 +18,13 @@ export function toArchivistBlock(html) {
  * @param {string} archivistHtml
  */
 export function mergeArchivistSection(existingHtml, archivistHtml) {
-    const current = String(existingHtml ?? '');
-    const block = toArchivistBlock(archivistHtml);
-    const re = /<section[^>]*data-archivist=["']true["'][^>]*>[\s\S]*?<\/section>/i;
-    if (!current) return block;
-    if (re.test(current)) return current.replace(re, block);
-    return `${current}\n<hr/>\n${block}`;
+  const current = String(existingHtml ?? '');
+  const block = toArchivistBlock(archivistHtml);
+  const re =
+    /<section[^>]*data-archivist=["']true["'][^>]*>[\s\S]*?<\/section>/i;
+  if (!current) return block;
+  if (re.test(current)) return current.replace(re, block);
+  return `${current}\n<hr/>\n${block}`;
 }
 
 /**
@@ -31,16 +32,14 @@ export function mergeArchivistSection(existingHtml, archivistHtml) {
  * @param {string} html
  */
 export function stripHtml(html) {
-    try {
-        const s = String(html ?? '');
-        const te = foundry?.utils?.TextEditor;
-        if (te?.stripHTML) return te.stripHTML(s);
-        const tmp = document.createElement('div');
-        tmp.innerHTML = s;
-        return (tmp.textContent || '').trim();
-    } catch (_) {
-        return String(html || '');
-    }
+  try {
+    const s = String(html ?? '');
+    const te = foundry?.utils?.TextEditor;
+    if (te?.stripHTML) return te.stripHTML(s);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = s;
+    return (tmp.textContent || '').trim();
+  } catch (_) {
+    return String(html || '');
+  }
 }
-
-
