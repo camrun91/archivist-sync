@@ -18,9 +18,13 @@ export class AskChatWindow {
 
   _loadHistory() {
     try {
-      const enabled = !!game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY_ENABLED.key);
+      const enabled = !!game.settings.get(
+        CONFIG.MODULE_ID,
+        SETTINGS.CHAT_HISTORY_ENABLED.key
+      );
       if (!enabled) return [];
-      const raw = game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key) || '{}';
+      const raw =
+        game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key) || '{}';
       const byUser = JSON.parse(raw);
       const key = this._historyKey();
       return Array.isArray(byUser[key]) ? byUser[key] : [];
@@ -31,13 +35,21 @@ export class AskChatWindow {
 
   _saveHistory() {
     try {
-      const enabled = !!game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY_ENABLED.key);
+      const enabled = !!game.settings.get(
+        CONFIG.MODULE_ID,
+        SETTINGS.CHAT_HISTORY_ENABLED.key
+      );
       if (!enabled) return;
-      const raw = game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key) || '{}';
+      const raw =
+        game.settings.get(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key) || '{}';
       const byUser = JSON.parse(raw || '{}');
       const key = this._historyKey();
       byUser[key] = this._messages.slice(-40); // keep more locally, trim on send
-      game.settings.set(CONFIG.MODULE_ID, SETTINGS.CHAT_HISTORY.key, JSON.stringify(byUser));
+      game.settings.set(
+        CONFIG.MODULE_ID,
+        SETTINGS.CHAT_HISTORY.key,
+        JSON.stringify(byUser)
+      );
     } catch (e) {
       console.warn('[Archivist Sync] Failed saving chat history', e);
     }
@@ -55,7 +67,7 @@ export class AskChatWindow {
         messages: this._messages?.length ?? 0,
         isStreaming: this._isStreaming,
       });
-    } catch (_) { }
+    } catch (_) {}
     // Markdown → HTML → Foundry enrichHTML for assistant messages
     const enriched = [];
     for (const m of this._messages) {
@@ -81,7 +93,8 @@ export class AskChatWindow {
    */
   async _enrichMarkdown(markdown) {
     const TextEditorImpl =
-      foundry?.applications?.ux?.TextEditor?.implementation || globalThis.TextEditor;
+      foundry?.applications?.ux?.TextEditor?.implementation ||
+      globalThis.TextEditor;
     // Initialize parser once if available
     if (!this._md && globalThis.markdownit) {
       try {
@@ -90,7 +103,7 @@ export class AskChatWindow {
         this._md = null;
       }
     }
-    const mdToHtml = src => {
+    const mdToHtml = (src) => {
       const s = String(src ?? '');
       if (this._md) return this._md.render(s);
       if (globalThis.marked?.parse) return globalThis.marked.parse(s);
@@ -98,9 +111,13 @@ export class AskChatWindow {
       let out = s
         .replace(
           /```([\s\S]*?)```/g,
-          (m, code) => `<pre><code>${foundry.utils.escapeHTML(code)}</code></pre>`
+          (m, code) =>
+            `<pre><code>${foundry.utils.escapeHTML(code)}</code></pre>`
         ) // fenced code
-        .replace(/`([^`]+)`/g, (m, code) => `<code>${foundry.utils.escapeHTML(code)}</code>`) // inline code
+        .replace(
+          /`([^`]+)`/g,
+          (m, code) => `<code>${foundry.utils.escapeHTML(code)}</code>`
+        ) // inline code
         // Images: allow optional whitespace/newline between ] and (
         .replace(/!\[([^\]]*)\]\s*\(([^)]+)\)/gm, (m, alt, inside) => {
           let url = inside.trim();
@@ -122,8 +139,8 @@ export class AskChatWindow {
       out = out.replace(/(?:^|\n)([-*+]\s.+(?:\n[-*+]\s.+)*)/g, (m, list) => {
         const items = list
           .split(/\n/)
-          .map(l => l.replace(/^[-*+]\s+/, ''))
-          .map(li => `<li>${li}</li>`)
+          .map((l) => l.replace(/^[-*+]\s+/, ''))
+          .map((li) => `<li>${li}</li>`)
           .join('');
         return `\n<ul>${items}</ul>`;
       });
@@ -139,7 +156,7 @@ export class AskChatWindow {
     const input = root?.querySelector?.('.ask-input');
     const clearBtn = root?.querySelector?.('.chat-clear-btn');
     // Hub removed
-    const handleCopyClick = async e => {
+    const handleCopyClick = async (e) => {
       const btn = e.target?.closest?.('.copy-btn');
       if (!btn) return;
       e.preventDefault();
@@ -149,7 +166,9 @@ export class AskChatWindow {
         const text = bubble?.innerText || bubble?.textContent || '';
         if (text) {
           await navigator.clipboard?.writeText?.(text);
-          ui.notifications?.info?.(game.i18n.localize('ARCHIVIST_SYNC.chat.copied') || 'Copied');
+          ui.notifications?.info?.(
+            game.i18n.localize('ARCHIVIST_SYNC.chat.copied') || 'Copied'
+          );
         }
       } catch (err) {
         console.warn('[Archivist Sync] Copy failed', err);
@@ -157,7 +176,7 @@ export class AskChatWindow {
     };
     root?.addEventListener?.('click', handleCopyClick);
     // Submit on Enter, newline on Shift+Enter within the composer
-    const handleComposerKeydown = e => {
+    const handleComposerKeydown = (e) => {
       try {
         if (!e) return;
         if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -167,7 +186,9 @@ export class AskChatWindow {
           if (form?.requestSubmit) {
             form.requestSubmit();
           } else {
-            form?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+            form?.dispatchEvent(
+              new Event('submit', { cancelable: true, bubbles: true })
+            );
           }
         }
       } catch (_) {
@@ -175,7 +196,7 @@ export class AskChatWindow {
       }
     };
     input?.addEventListener?.('keydown', handleComposerKeydown);
-    form?.addEventListener('submit', e => {
+    form?.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = input?.value?.trim();
       if (text) {
@@ -196,7 +217,10 @@ export class AskChatWindow {
           modal: true,
         });
       } catch (e) {
-        console.warn('[Archivist Sync] Dialog confirm failed, defaulting to cancel', e);
+        console.warn(
+          '[Archivist Sync] Dialog confirm failed, defaulting to cancel',
+          e
+        );
         ok = false;
       }
       if (!ok) return;
@@ -210,8 +234,10 @@ export class AskChatWindow {
 
   async render(_force) {
     try {
-      console.log('[Archivist Sync][AskChatWindow] render()', { hasMount: !!this._mountEl });
-    } catch (_) { }
+      console.log('[Archivist Sync][AskChatWindow] render()', {
+        hasMount: !!this._mountEl,
+      });
+    } catch (_) {}
     if (!this._mountEl) return;
     const data = await this.getData();
     const html = await foundry.applications.handlebars.renderTemplate(
@@ -224,18 +250,24 @@ export class AskChatWindow {
       const msgList = this._mountEl.querySelector?.('.messages');
       if (msgList) msgList.scrollTop = msgList.scrollHeight;
       console.log('[Archivist Sync][AskChatWindow] render() complete');
-    } catch (_) { }
+    } catch (_) {}
   }
 
   async _onSend(text) {
     if (!settingsManager.isApiConfigured()) {
-      return ui.notifications?.warn(game.i18n.localize('ARCHIVIST_SYNC.chat.noApi'));
+      return ui.notifications?.warn(
+        game.i18n.localize('ARCHIVIST_SYNC.chat.noApi')
+      );
     }
     if (!settingsManager.isWorldSelected()) {
-      return ui.notifications?.warn(game.i18n.localize('ARCHIVIST_SYNC.chat.noWorld'));
+      return ui.notifications?.warn(
+        game.i18n.localize('ARCHIVIST_SYNC.chat.noWorld')
+      );
     }
     if (!settingsManager.isWorldInitialized()) {
-      return ui.notifications?.warn(game.i18n.localize('ARCHIVIST_SYNC.chat.notInitialized'));
+      return ui.notifications?.warn(
+        game.i18n.localize('ARCHIVIST_SYNC.chat.notInitialized')
+      );
     }
 
     const userMsg = { role: 'user', content: text, from: 'me', at: Date.now() };
@@ -254,8 +286,8 @@ export class AskChatWindow {
 
     // Prepare last 10 messages in API schema (role/content only)
     const recent = this._messages
-      .map(m => ({ role: m.role, content: String(m.content ?? '') }))
-      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role, content: String(m.content ?? '') }))
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
       .slice(-10);
 
     const apiKey = settingsManager.getApiKey();
@@ -269,7 +301,7 @@ export class AskChatWindow {
         apiKey,
         worldId,
         recent,
-        chunk => {
+        (chunk) => {
           if (assistantMsg.typing) assistantMsg.typing = false;
           assistantMsg.content += chunk;
           // Try incremental DOM update to avoid full re-render jank
@@ -284,7 +316,7 @@ export class AskChatWindow {
               // Render partial markdown to HTML, then enrich for inline update
               // Avoid blocking too often: keep simple for now, renderer is fast
               this._enrichMarkdown(String(assistantMsg.content))
-                .then(html => {
+                .then((html) => {
                   bubble.innerHTML = html;
                   container.scrollTop = container.scrollHeight;
                 })
@@ -295,7 +327,7 @@ export class AskChatWindow {
               container.scrollTop = container.scrollHeight;
               updated = true;
             }
-          } catch (_) { }
+          } catch (_) {}
           if (!updated) {
             this.render(false);
           }
@@ -321,7 +353,7 @@ export class AskChatWindow {
     if (this._streamAbort) {
       try {
         this._streamAbort.abort();
-      } catch (_) { }
+      } catch (_) {}
       this._isStreaming = false;
       this._streamAbort = null;
       this.render(false);

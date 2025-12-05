@@ -5,6 +5,15 @@ All notable changes to the Archivist Sync module will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Restored compatibility with PopOut! by cloning sidebar base options before overriding defaults so Combat Tracker and other stock tabs keep their pop-out buttons when realtime sync is enabled.
+
+### Changed
+- Recap custom sheet now displays the session date as MM/DD/YYYY.
+- After importing Recaps via the Sync dialog, Recaps in the Recaps folder are normalized to sort by the `sessionDate` flag ascending (oldest → newest); undated Recaps are placed at the end.
+
 ## [1.3.7] - 2025-12-05
 
 ### Fixed
