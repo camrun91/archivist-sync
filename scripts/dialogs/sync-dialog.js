@@ -320,7 +320,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                 if (!type) continue;
                 const arch = byId[type].get(archId) || null;
                 if (!arch) {
-                    diffs.push({ type, id: archId, name: j.name, journalId: j.id, deleted: true, selected: true, changes: {} });
+                    diffs.push({ type, id: archId, name: j.name, journalId: j.id, deleted: true, selected: false, changes: {} });
                     continue;
                 }
                 const changes = {};
@@ -374,7 +374,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                     if (toAdd.length || toRemove.length) changes.links = { add: toAdd, remove: toRemove };
                 } catch (_) { /* ignore */ }
                 if (Object.keys(changes).length > 0) {
-                    diffs.push({ type, id: archId, name: archName || j.name, journalId: j.id, changes, selected: true });
+                    diffs.push({ type, id: archId, name: archName || j.name, journalId: j.id, changes, selected: false });
                 }
             }
 
@@ -671,5 +671,4 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
 }
 
 export const ArchivistSyncDialog = SyncDialog;
-
 
