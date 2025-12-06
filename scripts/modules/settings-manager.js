@@ -715,6 +715,18 @@ export class SettingsManager {
       onChange: (value) => {
         console.log(`${this.moduleTitle} | World initialized: ${value}`);
         this._onChatAvailabilityChange();
+        // Trigger Journal Directory re-render when world initialization changes
+        // This ensures custom elements mount immediately after setup
+        if (value) {
+          setTimeout(async () => {
+            try {
+              await ui?.journal?.render?.({ force: true });
+              console.log('[Archivist Sync] Journal Directory re-rendered after world initialization change');
+            } catch (e) {
+              console.warn('[Archivist Sync] Failed to re-render Journal Directory on setting change', e);
+            }
+          }, 100);
+        }
       },
     });
   }
