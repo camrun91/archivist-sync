@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recap custom sheet now displays the session date as MM/DD/YYYY.
 - After importing Recaps via the Sync dialog, Recaps in the Recaps folder are normalized to sort by the `sessionDate` flag ascending (oldest → newest); undated Recaps are placed at the end.
 
+## [1.3.9] - 2025-12-06
+
+### Fixed
+- Recap “lock” (save) action could wipe the summary in Foundry and on the Archivist API if the editor selector failed to resolve; editor detection has been made robust for the Recap layout, local page updates only occur when content is actually read, and the API summary field is only included when content is present.
+
 ## [1.3.7] - 2025-12-05
 
 ### Fixed

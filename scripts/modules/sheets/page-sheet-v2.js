@@ -753,6 +753,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
 
     // Pull current editor content (unsaved) and update local page
     let html = '';
+    let htmlRead = false;
     try {
       const root = this.element;
       const textarea = root?.querySelector?.(
@@ -760,27 +761,31 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       );
       if (textarea) {
         html = String(textarea.value || '');
+        htmlRead = true;
         console.log(
           '[Archivist V2 Sheet] Textarea content length:',
           html.length
         );
       } else {
-        const editor = root?.querySelector?.(
-          'section.tab[data-tab="info"] prose-mirror'
-        );
+        // Try multiple selectors to support both tabbed sheets and Recap layout
+        const editor =
+          root?.querySelector?.(
+            'prose-mirror[name="text.content"], prose-mirror[data-action="prose-editor"], section.tab[data-tab="info"] prose-mirror, .recap-body-editor prose-mirror, prose-mirror'
+          ) || null;
         console.log('[Archivist V2 Sheet] ProseMirror editor found:', !!editor);
         if (editor) {
           const value = Array.isArray(editor.value)
             ? editor.value[0]
             : editor.value;
           html = String(value || '');
+          htmlRead = true;
           console.log(
             '[Archivist V2 Sheet] Editor content length:',
             html.length
           );
         }
       }
-      if (infoPage) {
+      if (infoPage && htmlRead) {
         const fmt = Number(infoPage?.text?.format ?? 0);
         console.log('[Archivist V2 Sheet] Updating page content');
         if (fmt === 2) {
@@ -909,8 +914,9 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         }
       } else if (sheetType === 'recap' || sheetType === 'session') {
         console.log('[Archivist V2 Sheet] Syncing Recap/Session to API');
-        const summary = html || '';
-        const payload = { title: nameNow, summary };
+        const payload = { title: nameNow };
+        // Only include summary if we actually read editor content this cycle
+        if (htmlRead) payload.summary = html;
         if (sessionDate) {
           // Send full ISO (with time) using flags value if available
           let fullIso = '';
