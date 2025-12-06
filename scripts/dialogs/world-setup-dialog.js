@@ -3164,6 +3164,17 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           );
         }
       } catch (_) {}
+
+      // Force re-render Journal Directory to mount custom elements
+      // Use a small delay to ensure the dialog is fully closed first
+      setTimeout(async () => {
+        try {
+          await ui?.journal?.render?.({ force: true });
+          console.log('[Archivist Sync] Journal Directory re-rendered after setup');
+        } catch (e) {
+          console.warn('[Archivist Sync] Failed to re-render Journal Directory after setup', e);
+        }
+      }, 100);
     } catch (error) {
       console.error('Error completing world setup:', error);
       ui.notifications.error(

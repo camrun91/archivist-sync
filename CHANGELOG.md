@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Restored compatibility with PopOut! by cloning sidebar base options before overriding defaults so Combat Tracker and other stock tabs keep their pop-out buttons when realtime sync is enabled.
 
+## [1.3.10] - 2025-01-15
+
+### Fixed
+- Custom elements (sync button, create buttons, eye toggle buttons) in the Journals tab now mount immediately after world setup completes, without requiring a manual refresh. Fixed V13 ApplicationV2 element access and added automatic re-render triggers when world initialization completes.
+- Improved robustness of Journal Directory hooks with retry mechanisms to handle asynchronous DOM rendering.
+
 ### Changed
 - Recap custom sheet now displays the session date as MM/DD/YYYY.
 - After importing Recaps via the Sync dialog, Recaps in the Recaps folder are normalized to sort by the `sessionDate` flag ascending (oldest → newest); undated Recaps are placed at the end.

@@ -249,6 +249,19 @@ Hooks.once('ready', async function () {
   // Conditionally set up Archivist chat based on availability
   updateArchivistChatAvailability();
 
+  // If world is already initialized, ensure Journal Directory renders with custom elements
+  // This handles cases where the directory was rendered before initialization
+  if (settingsManager.isWorldInitialized?.() && game.user?.isGM) {
+    setTimeout(async () => {
+      try {
+        await ui?.journal?.render?.({ force: true });
+        console.log('[Archivist Sync] Journal Directory re-rendered on ready (world already initialized)');
+      } catch (e) {
+        console.warn('[Archivist Sync] Failed to re-render Journal Directory on ready', e);
+      }
+    }, 500); // Delay to ensure everything is fully loaded
+  }
+
   // Delegated renderer: when the archivist tab button is clicked, render chat into panel
   try {
     const sidebar = document.getElementById('sidebar');
@@ -438,28 +451,35 @@ Hooks.once('ready', async function () {
       if (!isWorldInitialized) return;
       if (!game.user?.isGM) return;
 
-      const root = html instanceof jQuery ? html[0] : html?.element || html;
+      // V13 ApplicationV2: app.element is the root, fallback to html for compatibility
+      const root = app?.element || (html instanceof jQuery ? html[0] : html?.element || html);
       if (!root) return;
-      const header =
-        root.querySelector('header.directory-header') ||
-        root.querySelector('header.header') ||
-        root.querySelector('header') ||
-        root.querySelector('.directory-header') ||
-        root.querySelector('.header');
-      if (!header) return;
-      if (header.querySelector?.('.archivist-sync-btn')) return;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'archivist-sync-btn';
-      btn.textContent = 'Sync with Archivist';
-      btn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        try {
-          new SyncDialog().render(true);
-        } catch (_) {}
+      
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        const header =
+          root.querySelector('header.directory-header') ||
+          root.querySelector('header.header') ||
+          root.querySelector('header') ||
+          root.querySelector('.directory-header') ||
+          root.querySelector('.header');
+        if (!header) return;
+        if (header.querySelector?.('.archivist-sync-btn')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'archivist-sync-btn';
+        btn.textContent = 'Sync with Archivist';
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          try {
+            new SyncDialog().render(true);
+          } catch (_) {}
+        });
+        header.appendChild(btn);
       });
-      header.appendChild(btn);
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[Archivist Sync] Failed to inject sync button', e);
+    }
   });
 
   // Inject quick-create buttons for Archivist sheets in the Journal Directory header
@@ -469,119 +489,125 @@ Hooks.once('ready', async function () {
       const isWorldInitialized = settingsManager.isWorldInitialized?.();
       if (!isWorldInitialized) return;
       if (!game.user?.isGM) return;
-      const root = html instanceof jQuery ? html[0] : html?.element || html;
+      
+      // V13 ApplicationV2: app.element is the root, fallback to html for compatibility
+      const root = app?.element || (html instanceof jQuery ? html[0] : html?.element || html);
       if (!root) return;
-      const header =
-        root.querySelector('header.directory-header') ||
-        root.querySelector('header.header') ||
-        root.querySelector('header') ||
-        root.querySelector('.directory-header') ||
-        root.querySelector('.header');
-      if (!header) return;
-      if (header.querySelector('.archivist-create-buttons')) return;
+      
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        const header =
+          root.querySelector('header.directory-header') ||
+          root.querySelector('header.header') ||
+          root.querySelector('header') ||
+          root.querySelector('.directory-header') ||
+          root.querySelector('.header');
+        if (!header) return;
+        if (header.querySelector('.archivist-create-buttons')) return;
 
-      const wrap = document.createElement('div');
-      wrap.className = 'archivist-create-buttons';
-      wrap.style.display = 'flex';
-      wrap.style.flexWrap = 'wrap';
-      wrap.style.gap = '6px';
-      wrap.style.marginTop = '6px';
+        const wrap = document.createElement('div');
+        wrap.className = 'archivist-create-buttons';
+        wrap.style.display = 'flex';
+        wrap.style.flexWrap = 'wrap';
+        wrap.style.gap = '6px';
+        wrap.style.marginTop = '6px';
 
-      const types = [
-        { key: 'pc', label: 'PC', icon: 'fa-user', tooltip: 'Create New PC' },
-        {
-          key: 'npc',
-          label: 'NPC',
-          icon: 'fa-user-ninja',
-          tooltip: 'Create New NPC',
-        },
-        {
-          key: 'item',
-          label: 'Item',
-          icon: 'fa-gem',
-          tooltip: 'Create New Item',
-        },
-        {
-          key: 'location',
-          label: 'Location',
-          icon: 'fa-location-dot',
-          tooltip: 'Create New Location',
-        },
-        {
-          key: 'faction',
-          label: 'Faction',
-          icon: 'fa-people-group',
-          tooltip: 'Create New Faction',
-        },
-      ];
+        const types = [
+          { key: 'pc', label: 'PC', icon: 'fa-user', tooltip: 'Create New PC' },
+          {
+            key: 'npc',
+            label: 'NPC',
+            icon: 'fa-user-ninja',
+            tooltip: 'Create New NPC',
+          },
+          {
+            key: 'item',
+            label: 'Item',
+            icon: 'fa-gem',
+            tooltip: 'Create New Item',
+          },
+          {
+            key: 'location',
+            label: 'Location',
+            icon: 'fa-location-dot',
+            tooltip: 'Create New Location',
+          },
+          {
+            key: 'faction',
+            label: 'Faction',
+            icon: 'fa-people-group',
+            tooltip: 'Create New Faction',
+          },
+        ];
 
-      const promptForName = async (title) => {
-        try {
-          const name = await foundry.applications.api.DialogV2.prompt({
-            window: { title },
-            content: `
-              <div class="form-group">
-                <label>Name:</label>
-                <input type="text" name="name" placeholder="Enter name..." autofocus style="width: 100%;" />
-              </div>
-            `,
-            ok: {
-              icon: '<i class="fas fa-check"></i>',
-              label: 'Create',
-              callback: (event, button) => {
-                const enteredName = button.form.elements.name.value.trim();
-                return enteredName || null;
-              },
-            },
-            cancel: { icon: '<i class="fas fa-times"></i>', label: 'Cancel' },
-            rejectClose: true,
-          });
-          return name;
-        } catch (_) {
-          return null;
-        }
-      };
-
-      const makeBtn = (t) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'archivist-create-btn';
-        b.innerHTML = `<i class="fas ${t.icon}"></i>`;
-        b.title = t.tooltip;
-        b.dataset.type = t.key;
-        b.addEventListener('click', async (ev) => {
-          ev.preventDefault();
+        const promptForName = async (title) => {
           try {
-            const worldId = settingsManager.getSelectedWorldId?.();
-            const name = await promptForName(`Create ${t.label}`);
-            if (!name) return;
-
-            let journal = null;
-            if (t.key === 'pc')
-              journal = await Utils.createPcJournal({ name, worldId });
-            else if (t.key === 'npc')
-              journal = await Utils.createNpcJournal({ name, worldId });
-            else if (t.key === 'item')
-              journal = await Utils.createItemJournal({ name, worldId });
-            else if (t.key === 'location')
-              journal = await Utils.createLocationJournal({ name, worldId });
-            else if (t.key === 'faction')
-              journal = await Utils.createFactionJournal({ name, worldId });
-
-            // Open the newly created sheet and bring it to front
-            if (journal) {
-              journal.sheet?.render?.(true);
-              setTimeout(() => journal.sheet?.bringToFront?.(), 50);
-            }
-          } catch (e) {
-            console.warn('[Archivist Sync] create button failed', e);
+            const name = await foundry.applications.api.DialogV2.prompt({
+              window: { title },
+              content: `
+                <div class="form-group">
+                  <label>Name:</label>
+                  <input type="text" name="name" placeholder="Enter name..." autofocus style="width: 100%;" />
+                </div>
+              `,
+              ok: {
+                icon: '<i class="fas fa-check"></i>',
+                label: 'Create',
+                callback: (event, button) => {
+                  const enteredName = button.form.elements.name.value.trim();
+                  return enteredName || null;
+                },
+              },
+              cancel: { icon: '<i class="fas fa-times"></i>', label: 'Cancel' },
+              rejectClose: true,
+            });
+            return name;
+          } catch (_) {
+            return null;
           }
-        });
-        return b;
-      };
+        };
 
-      for (const t of types) wrap.appendChild(makeBtn(t));
-      header.appendChild(wrap);
+        const makeBtn = (t) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'archivist-create-btn';
+          b.innerHTML = `<i class="fas ${t.icon}"></i>`;
+          b.title = t.tooltip;
+          b.dataset.type = t.key;
+          b.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            try {
+              const worldId = settingsManager.getSelectedWorldId?.();
+              const name = await promptForName(`Create ${t.label}`);
+              if (!name) return;
+
+              let journal = null;
+              if (t.key === 'pc')
+                journal = await Utils.createPcJournal({ name, worldId });
+              else if (t.key === 'npc')
+                journal = await Utils.createNpcJournal({ name, worldId });
+              else if (t.key === 'item')
+                journal = await Utils.createItemJournal({ name, worldId });
+              else if (t.key === 'location')
+                journal = await Utils.createLocationJournal({ name, worldId });
+              else if (t.key === 'faction')
+                journal = await Utils.createFactionJournal({ name, worldId });
+
+              // Open the newly created sheet and bring it to front
+              if (journal) {
+                journal.sheet?.render?.(true);
+                setTimeout(() => journal.sheet?.bringToFront?.(), 50);
+              }
+            } catch (e) {
+              console.warn('[Archivist Sync] create button failed', e);
+            }
+          });
+          return b;
+        };
+
+        for (const t of types) wrap.appendChild(makeBtn(t));
+        header.appendChild(wrap);
+      });
     } catch (e) {
       console.warn('[Archivist Sync] Failed to inject create buttons', e);
     }
@@ -1437,57 +1463,82 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
 Hooks.on('renderJournalDirectory', (app, html) => {
   try {
     if (!game.user?.isGM) return;
-    const root = html instanceof jQuery ? html[0] : html?.element || html;
+    if (!settingsManager.isWorldInitialized?.()) return;
+    
+    // V13 ApplicationV2: app.element is the root, fallback to html for compatibility
+    const root = app?.element || (html instanceof jQuery ? html[0] : html?.element || html);
     if (!root) return;
-    const list =
-      root.querySelector('ol.directory-list') ||
-      root.querySelector('.directory-list') ||
-      root;
-    const items = list.querySelectorAll(
-      'li[data-document-id], li.directory-item, li.document, li.journal-entry'
-    );
-    const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
-    const NON = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
-    items.forEach((li) => {
-      try {
-        const id =
-          li.getAttribute('data-document-id') ||
-          li.getAttribute('data-entry-id');
-        if (!id) return;
-        if (li.querySelector('.archivist-eye')) return;
-        const j = game.journal?.get?.(id);
-        if (!j) return;
-        // Only render for Archivist custom sheets (identified by our flags)
-        let isCustom = false;
-        try {
-          const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-          isCustom = !!(f.archivistId || f.sheetType);
-        } catch (_) {
-          isCustom = false;
-        }
-        if (!isCustom) return;
-        const cur = Number(j?.ownership?.default ?? NON);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'archivist-eye';
-        const icon = document.createElement('i');
-        icon.className = cur >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
-        btn.title = cur >= OBS ? 'Hide from Players' : 'Show to Players';
-        btn.appendChild(icon);
-        btn.addEventListener('click', async (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          try {
-            const now = Number(j?.ownership?.default ?? NON);
-            const next = now >= OBS ? NON : OBS;
-            await j.update({ ownership: { default: next } });
-            icon.className = next >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
-            btn.title = next >= OBS ? 'Hide from Players' : 'Show to Players';
-          } catch (_) {}
-        });
-        // Append to the end of the row
-        li.appendChild(btn);
-      } catch (_) {}
-    });
-  } catch (_) {}
+    
+    // Retry mechanism: try multiple times with increasing delays to handle async rendering
+    const injectEyeButtons = (attempt = 0) => {
+      const maxAttempts = 5;
+      const delay = attempt * 100; // 0ms, 100ms, 200ms, 300ms, 400ms
+      
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const list =
+            root.querySelector('ol.directory-list') ||
+            root.querySelector('.directory-list') ||
+            root;
+          const items = list.querySelectorAll(
+            'li[data-document-id], li.directory-item, li.document, li.journal-entry'
+          );
+          
+          // If no items found and we haven't exhausted retries, try again
+          if (items.length === 0 && attempt < maxAttempts) {
+            injectEyeButtons(attempt + 1);
+            return;
+          }
+          
+          const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+          const NON = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
+          items.forEach((li) => {
+            try {
+              const id =
+                li.getAttribute('data-document-id') ||
+                li.getAttribute('data-entry-id');
+              if (!id) return;
+              if (li.querySelector('.archivist-eye')) return;
+              const j = game.journal?.get?.(id);
+              if (!j) return;
+              // Only render for Archivist custom sheets (identified by our flags)
+              let isCustom = false;
+              try {
+                const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                isCustom = !!(f.archivistId || f.sheetType);
+              } catch (_) {
+                isCustom = false;
+              }
+              if (!isCustom) return;
+              const cur = Number(j?.ownership?.default ?? NON);
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'archivist-eye';
+              const icon = document.createElement('i');
+              icon.className = cur >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+              btn.title = cur >= OBS ? 'Hide from Players' : 'Show to Players';
+              btn.appendChild(icon);
+              btn.addEventListener('click', async (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                try {
+                  const now = Number(j?.ownership?.default ?? NON);
+                  const next = now >= OBS ? NON : OBS;
+                  await j.update({ ownership: { default: next } });
+                  icon.className = next >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+                  btn.title = next >= OBS ? 'Hide from Players' : 'Show to Players';
+                } catch (_) {}
+              });
+              // Append to the end of the row
+              li.appendChild(btn);
+            } catch (_) {}
+          });
+        }, delay);
+      });
+    };
+    
+    injectEyeButtons();
+  } catch (e) {
+    console.warn('[Archivist Sync] Failed to inject eye buttons', e);
+  }
 });
