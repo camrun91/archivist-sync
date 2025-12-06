@@ -95,7 +95,10 @@ export class ArchivistApiService {
     // Simple client-side throttle for write-heavy operations
     const method = String(options?.method || 'GET').toUpperCase();
     const isWrite =
-      method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+      method === 'POST' ||
+      method === 'PUT' ||
+      method === 'PATCH' ||
+      method === 'DELETE';
 
     if (isWrite) {
       const now = Date.now();
@@ -120,7 +123,7 @@ export class ArchivistApiService {
 
       const waitMs = Math.max(0, this._lastWriteAtMs + minSpacingMs - now);
       if (waitMs > 0) {
-        await new Promise(r => setTimeout(r, waitMs));
+        await new Promise((r) => setTimeout(r, waitMs));
       }
 
       this._lastWriteAtMs = Date.now();
@@ -137,8 +140,16 @@ export class ArchivistApiService {
       try {
         const method = String(options?.method || 'GET').toUpperCase();
         const isWrite =
-          method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
-        const fetchOptions = { ...options, headers, mode: 'cors', cache: 'no-store' };
+          method === 'POST' ||
+          method === 'PUT' ||
+          method === 'PATCH' ||
+          method === 'DELETE';
+        const fetchOptions = {
+          ...options,
+          headers,
+          mode: 'cors',
+          cache: 'no-store',
+        };
         if (isWrite) fetchOptions.keepalive = true;
         const response = await fetch(url, fetchOptions);
 
@@ -154,7 +165,9 @@ export class ArchivistApiService {
           console.error(
             `${CONFIG.MODULE_TITLE} | Max retries (${maxRetries}) exceeded for ${method} ${path}`
           );
-          throw new Error(`API request failed: 429 rate limited after ${maxRetries} retries`);
+          throw new Error(
+            `API request failed: 429 rate limited after ${maxRetries} retries`
+          );
         }
 
         // Calculate retry delay
@@ -176,9 +189,12 @@ export class ArchivistApiService {
         console.warn(
           `${CONFIG.MODULE_TITLE} | Rate limited (429) on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms`
         );
-        await new Promise(r => setTimeout(r, delay));
+        await new Promise((r) => setTimeout(r, delay));
       } catch (error) {
-        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        if (
+          error.name === 'TypeError' &&
+          error.message.includes('Failed to fetch')
+        ) {
           // Network error - retry with exponential backoff
           attempt += 1;
           if (attempt > maxRetries) {
@@ -186,16 +202,19 @@ export class ArchivistApiService {
               `${CONFIG.MODULE_TITLE} | Network error after ${maxRetries} retries for ${method} ${path}:`,
               error
             );
-            throw new Error(`Network error after ${maxRetries} retries: ${error.message}`);
+            throw new Error(
+              `Network error after ${maxRetries} retries: ${error.message}`
+            );
           }
 
           const delay =
-            Math.min(30000, 1000 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 500);
+            Math.min(30000, 1000 * Math.pow(2, attempt - 1)) +
+            Math.floor(Math.random() * 500);
           console.warn(
             `${CONFIG.MODULE_TITLE} | Network error on ${method} ${path}, attempt ${attempt}/${maxRetries}, retrying in ${delay}ms:`,
             error.message
           );
-          await new Promise(r => setTimeout(r, delay));
+          await new Promise((r) => setTimeout(r, delay));
         } else {
           // Other errors should not be retried
           throw error;
@@ -217,7 +236,11 @@ export class ArchivistApiService {
       'X-Requested-With': 'XMLHttpRequest',
     };
     // Only set Content-Type when we actually send a body (avoids preflight on simple GETs)
-    const hasBody = !!options?.body || method === 'POST' || method === 'PUT' || method === 'PATCH';
+    const hasBody =
+      !!options?.body ||
+      method === 'POST' ||
+      method === 'PUT' ||
+      method === 'PATCH';
     if (hasBody) h['Content-Type'] = 'application/json';
     return h;
   }
@@ -256,7 +279,9 @@ export class ArchivistApiService {
             detailStr.includes('10,000'));
 
         if (isDescriptionTooLong) {
-          const error = new Error(`Description exceeds maximum length (10,000 characters)`);
+          const error = new Error(
+            `Description exceeds maximum length (10,000 characters)`
+          );
           error.status = 422;
           error.isDescriptionTooLong = true;
           error.detail = errorData;
@@ -265,7 +290,9 @@ export class ArchivistApiService {
       }
 
       const suffix = detail ? ` — ${String(detail).slice(0, 300)}` : '';
-      const error = new Error(`API request failed: ${response.status} ${response.statusText}${suffix}`);
+      const error = new Error(
+        `API request failed: ${response.status} ${response.statusText}${suffix}`
+      );
       error.status = response.status;
       error.detail = errorData;
       throw error;
@@ -312,7 +339,10 @@ export class ArchivistApiService {
         data: campaigns,
       };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch campaigns:`, error);
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to fetch campaigns:`,
+        error
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch campaigns from API',
@@ -330,12 +360,21 @@ export class ArchivistApiService {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/campaigns`, {
         method: 'POST',
-        body: JSON.stringify({ title: norm.title, description: norm.description || '' }),
+        body: JSON.stringify({
+          title: norm.title,
+          description: norm.description || '',
+        }),
       });
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to create campaign:`, error);
-      return { success: false, message: error.message || 'Failed to create campaign' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to create campaign:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to create campaign',
+      };
     }
   }
 
@@ -351,12 +390,19 @@ export class ArchivistApiService {
       campaignId,
     });
     try {
-      const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, {
-        method: 'GET',
-      });
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}`,
+        {
+          method: 'GET',
+        }
+      );
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to fetch campaign details:`, error);
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to fetch campaign details:`,
+        error
+      );
       return {
         success: false,
         message: error.message || 'Failed to fetch campaign details from API',
@@ -374,14 +420,24 @@ export class ArchivistApiService {
   async syncCampaignTitle(apiKey, campaignId, titleData) {
     try {
       const norm = this._normalizePayload(titleData);
-      const requestData = { title: norm.title, description: norm.description || '' };
-      const data = await this._request(apiKey, `/campaigns/${encodeURIComponent(campaignId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(requestData),
-      });
+      const requestData = {
+        title: norm.title,
+        description: norm.description || '',
+      };
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(requestData),
+        }
+      );
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to sync campaign title:`, error);
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to sync campaign title:`,
+        error
+      );
       return {
         success: false,
         message: error.message || 'Failed to sync campaign title',
@@ -406,17 +462,31 @@ export class ArchivistApiService {
           `/characters?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to list characters:`, error);
-      return { success: false, message: error.message || 'Failed to list characters' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to list characters:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to list characters',
+      };
     }
   }
 
@@ -426,7 +496,8 @@ export class ArchivistApiService {
    * @param {object} payload
    */
   async createCharacter(apiKey, payload) {
-    const entityName = payload?.character_name || payload?.name || 'Unknown Character';
+    const entityName =
+      payload?.character_name || payload?.name || 'Unknown Character';
     try {
       const norm = this._normalizePayload(payload);
       const data = await this._request(apiKey, `/characters`, {
@@ -436,9 +507,11 @@ export class ArchivistApiService {
       return { success: true, data };
     } catch (error) {
       const isRateLimited =
-        error.message?.includes('429') || error.message?.includes('rate limited');
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
       const isNetworkError =
-        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create character:`, {
@@ -467,13 +540,18 @@ export class ArchivistApiService {
    * @param {object} payload
    */
   async updateCharacter(apiKey, characterId, payload) {
-    const entityName = payload?.character_name || payload?.name || 'Unknown Character';
+    const entityName =
+      payload?.character_name || payload?.name || 'Unknown Character';
     try {
       const norm = this._normalizePayload(payload);
-      const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(norm),
-      });
+      const data = await this._request(
+        apiKey,
+        `/characters/${encodeURIComponent(characterId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(norm),
+        }
+      );
       return { success: true, data };
     } catch (error) {
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
@@ -499,13 +577,23 @@ export class ArchivistApiService {
    */
   async deleteCharacter(apiKey, characterId) {
     try {
-      const data = await this._request(apiKey, `/characters/${encodeURIComponent(characterId)}`, {
-        method: 'DELETE',
-      });
+      const data = await this._request(
+        apiKey,
+        `/characters/${encodeURIComponent(characterId)}`,
+        {
+          method: 'DELETE',
+        }
+      );
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete character:`, error);
-      return { success: false, message: error.message || 'Failed to delete character' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to delete character:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to delete character',
+      };
     }
   }
 
@@ -523,17 +611,28 @@ export class ArchivistApiService {
           `/factions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to list factions:`, error);
-      return { success: false, message: error.message || 'Failed to list factions' };
+      return {
+        success: false,
+        message: error.message || 'Failed to list factions',
+      };
     }
   }
 
@@ -548,9 +647,11 @@ export class ArchivistApiService {
       return { success: true, data };
     } catch (error) {
       const isRateLimited =
-        error.message?.includes('429') || error.message?.includes('rate limited');
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
       const isNetworkError =
-        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create faction:`, {
@@ -575,11 +676,17 @@ export class ArchivistApiService {
   async updateFaction(apiKey, factionId, payload) {
     const entityName = payload?.name || 'Unknown Faction';
     try {
-      const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
-      const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(norm),
+      const norm = this._normalizePayload(payload, {
+        stripImageFromDescription: true,
       });
+      const data = await this._request(
+        apiKey,
+        `/factions/${encodeURIComponent(factionId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(norm),
+        }
+      );
       return { success: true, data };
     } catch (error) {
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
@@ -600,13 +707,23 @@ export class ArchivistApiService {
 
   async deleteFaction(apiKey, factionId) {
     try {
-      const data = await this._request(apiKey, `/factions/${encodeURIComponent(factionId)}`, {
-        method: 'DELETE',
-      });
+      const data = await this._request(
+        apiKey,
+        `/factions/${encodeURIComponent(factionId)}`,
+        {
+          method: 'DELETE',
+        }
+      );
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete faction:`, error);
-      return { success: false, message: error.message || 'Failed to delete faction' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to delete faction:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to delete faction',
+      };
     }
   }
 
@@ -624,17 +741,31 @@ export class ArchivistApiService {
           `/locations?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to list locations:`, error);
-      return { success: false, message: error.message || 'Failed to list locations' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to list locations:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to list locations',
+      };
     }
   }
 
@@ -652,17 +783,28 @@ export class ArchivistApiService {
           `/sessions?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to list sessions:`, error);
-      return { success: false, message: error.message || 'Failed to list sessions' };
+      return {
+        success: false,
+        message: error.message || 'Failed to list sessions',
+      };
     }
   }
 
@@ -675,14 +817,24 @@ export class ArchivistApiService {
   async updateSession(apiKey, sessionId, payload) {
     try {
       const norm = this._normalizePayload(payload);
-      const data = await this._request(apiKey, `/sessions/${encodeURIComponent(sessionId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(norm),
-      });
+      const data = await this._request(
+        apiKey,
+        `/sessions/${encodeURIComponent(sessionId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(norm),
+        }
+      );
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to update session:`, error);
-      return { success: false, message: error.message || 'Failed to update session' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to update session:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to update session',
+      };
     }
   }
 
@@ -697,9 +849,11 @@ export class ArchivistApiService {
       return { success: true, data };
     } catch (error) {
       const isRateLimited =
-        error.message?.includes('429') || error.message?.includes('rate limited');
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
       const isNetworkError =
-        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create location:`, {
@@ -724,11 +878,17 @@ export class ArchivistApiService {
   async updateLocation(apiKey, locationId, payload) {
     const entityName = payload?.name || 'Unknown Location';
     try {
-      const norm = this._normalizePayload(payload, { stripImageFromDescription: true });
-      const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(norm),
+      const norm = this._normalizePayload(payload, {
+        stripImageFromDescription: true,
       });
+      const data = await this._request(
+        apiKey,
+        `/locations/${encodeURIComponent(locationId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(norm),
+        }
+      );
       return { success: true, data };
     } catch (error) {
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
@@ -749,13 +909,23 @@ export class ArchivistApiService {
 
   async deleteLocation(apiKey, locationId) {
     try {
-      const data = await this._request(apiKey, `/locations/${encodeURIComponent(locationId)}`, {
-        method: 'DELETE',
-      });
+      const data = await this._request(
+        apiKey,
+        `/locations/${encodeURIComponent(locationId)}`,
+        {
+          method: 'DELETE',
+        }
+      );
       return { success: true, data };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete location:`, error);
-      return { success: false, message: error.message || 'Failed to delete location' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to delete location:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to delete location',
+      };
     }
   }
 
@@ -773,17 +943,28 @@ export class ArchivistApiService {
           `/items?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to list items:`, error);
-      return { success: false, message: error.message || 'Failed to list items' };
+      return {
+        success: false,
+        message: error.message || 'Failed to list items',
+      };
     }
   }
 
@@ -801,9 +982,11 @@ export class ArchivistApiService {
       return { success: true, data };
     } catch (error) {
       const isRateLimited =
-        error.message?.includes('429') || error.message?.includes('rate limited');
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
       const isNetworkError =
-        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
 
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create item:`, {
@@ -832,10 +1015,14 @@ export class ArchivistApiService {
     const entityName = payload?.name || 'Unknown Item';
     try {
       const norm = this._normalizePayload(payload);
-      const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(norm),
-      });
+      const data = await this._request(
+        apiKey,
+        `/items/${encodeURIComponent(itemId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(norm),
+        }
+      );
       return { success: true, data };
     } catch (error) {
       const isDescriptionTooLong = error.isDescriptionTooLong === true;
@@ -856,13 +1043,20 @@ export class ArchivistApiService {
 
   async deleteItem(apiKey, itemId) {
     try {
-      const data = await this._request(apiKey, `/items/${encodeURIComponent(itemId)}`, {
-        method: 'DELETE',
-      });
+      const data = await this._request(
+        apiKey,
+        `/items/${encodeURIComponent(itemId)}`,
+        {
+          method: 'DELETE',
+        }
+      );
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to delete item:`, error);
-      return { success: false, message: error.message || 'Failed to delete item' };
+      return {
+        success: false,
+        message: error.message || 'Failed to delete item',
+      };
     }
   }
 
@@ -883,17 +1077,28 @@ export class ArchivistApiService {
           `/campaigns/${encodeURIComponent(campaignId)}/links?page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to list links:`, error);
-      return { success: false, message: error.message || 'Failed to list links' };
+      return {
+        success: false,
+        message: error.message || 'Failed to list links',
+      };
     }
   }
 
@@ -916,17 +1121,31 @@ export class ArchivistApiService {
           `/campaigns/${encodeURIComponent(campaignId)}/links?from_id=${fid}&page=${page}&size=${size}`,
           { method: 'GET' }
         );
-        const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : [];
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
         all.push(...items);
         const totalPages =
-          typeof data.pages === 'number' ? data.pages : items.length < size ? page : page + 1;
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
         if (page >= totalPages || items.length < size) break;
         page += 1;
       }
       return { success: true, data: all };
     } catch (error) {
-      console.error(`${CONFIG.MODULE_TITLE} | Failed to list links by from_id:`, error);
-      return { success: false, message: error.message || 'Failed to list links by from_id' };
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to list links by from_id:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to list links by from_id',
+      };
     }
   }
 
@@ -950,9 +1169,11 @@ export class ArchivistApiService {
       return { success: true, data };
     } catch (error) {
       const isRateLimited =
-        error.message?.includes('429') || error.message?.includes('rate limited');
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
       const isNetworkError =
-        error.message?.includes('Network error') || error.message?.includes('Failed to fetch');
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
       console.error(`${CONFIG.MODULE_TITLE} | Failed to create link:`, {
         error: error.message,
         from: `${payload?.from_type}:${payload?.from_id}`,
@@ -984,7 +1205,10 @@ export class ArchivistApiService {
       return { success: true, data };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to delete link:`, error);
-      return { success: false, message: error.message || 'Failed to delete link' };
+      return {
+        success: false,
+        message: error.message || 'Failed to delete link',
+      };
     }
   }
 
@@ -998,7 +1222,9 @@ export class ArchivistApiService {
   async ask(apiKey, campaignId, messages) {
     try {
       const url = `${this._rootBase()}/v1/ask`;
-      const headers = { ...this._createHeaders(apiKey, { method: 'POST', body: '1' }) };
+      const headers = {
+        ...this._createHeaders(apiKey, { method: 'POST', body: '1' }),
+      };
       const r = await fetch(url, {
         method: 'POST',
         headers,
@@ -1028,10 +1254,16 @@ export class ArchivistApiService {
    */
   async askStream(apiKey, campaignId, messages, onChunk, onDone, signal) {
     const url = `${this._rootBase()}/v1/ask`;
-    const headers = { ...this._createHeaders(apiKey, { method: 'POST', body: '1' }) };
+    const headers = {
+      ...this._createHeaders(apiKey, { method: 'POST', body: '1' }),
+    };
     // Accept any stream; some servers send text/plain for streaming
     headers['Accept'] = '*/*';
-    const body = JSON.stringify({ campaign_id: campaignId, messages, stream: true });
+    const body = JSON.stringify({
+      campaign_id: campaignId,
+      messages,
+      stream: true,
+    });
     const resp = await fetch(url, { method: 'POST', headers, body, signal });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -1039,8 +1271,10 @@ export class ArchivistApiService {
         `Ask stream failed: ${resp.status} ${resp.statusText}${text ? ` — ${text}` : ''}`
       );
     }
-    const monthly = Number(resp.headers.get('X-Monthly-Remaining-Tokens') || '') || undefined;
-    const hourly = Number(resp.headers.get('X-Hourly-Remaining-Tokens') || '') || undefined;
+    const monthly =
+      Number(resp.headers.get('X-Monthly-Remaining-Tokens') || '') || undefined;
+    const hourly =
+      Number(resp.headers.get('X-Hourly-Remaining-Tokens') || '') || undefined;
     const reader = resp.body?.getReader?.();
     if (!reader) {
       // Fallback: try parse as JSON answer
@@ -1048,12 +1282,20 @@ export class ArchivistApiService {
         const data = await resp.clone().json();
         const answer = data?.answer || '';
         if (answer) onChunk?.(answer);
-        onDone?.({ text: answer, monthlyTokensRemaining: monthly, hourlyTokensRemaining: hourly });
+        onDone?.({
+          text: answer,
+          monthlyTokensRemaining: monthly,
+          hourlyTokensRemaining: hourly,
+        });
         return;
       } catch (_) {
         const text = await resp.text();
         if (text) onChunk?.(text);
-        onDone?.({ text, monthlyTokensRemaining: monthly, hourlyTokensRemaining: hourly });
+        onDone?.({
+          text,
+          monthlyTokensRemaining: monthly,
+          hourlyTokensRemaining: hourly,
+        });
         return;
       }
     }
@@ -1068,7 +1310,11 @@ export class ArchivistApiService {
         onChunk?.(chunk);
       }
     }
-    onDone?.({ text: fullText, monthlyTokensRemaining: monthly, hourlyTokensRemaining: hourly });
+    onDone?.({
+      text: fullText,
+      monthlyTokensRemaining: monthly,
+      hourlyTokensRemaining: hourly,
+    });
   }
 
   /**
@@ -1081,7 +1327,10 @@ export class ArchivistApiService {
       await this.fetchCampaignsList(apiKey);
       return true;
     } catch (error) {
-      console.warn(`${CONFIG.MODULE_TITLE} | API connection test failed:`, error);
+      console.warn(
+        `${CONFIG.MODULE_TITLE} | API connection test failed:`,
+        error
+      );
       return false;
     }
   }

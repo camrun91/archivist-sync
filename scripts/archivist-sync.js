@@ -1196,14 +1196,30 @@ function installRealtimeSyncListeners() {
       const html = Utils.extractPageHtml(page);
       const payload = { description: Utils.toMarkdownIfHtml?.(html) || html };
 
-      if (sheetType === 'pc' || sheetType === 'npc' || sheetType === 'character') {
-        res = await archivistApi.updateCharacter(apiKey, flags.archivistId, payload);
+      if (
+        sheetType === 'pc' ||
+        sheetType === 'npc' ||
+        sheetType === 'character'
+      ) {
+        res = await archivistApi.updateCharacter(
+          apiKey,
+          flags.archivistId,
+          payload
+        );
       } else if (sheetType === 'item') {
         res = await archivistApi.updateItem(apiKey, flags.archivistId, payload);
       } else if (sheetType === 'location') {
-        res = await archivistApi.updateLocation(apiKey, flags.archivistId, payload);
+        res = await archivistApi.updateLocation(
+          apiKey,
+          flags.archivistId,
+          payload
+        );
       } else if (sheetType === 'faction') {
-        res = await archivistApi.updateFaction(apiKey, flags.archivistId, payload);
+        res = await archivistApi.updateFaction(
+          apiKey,
+          flags.archivistId,
+          payload
+        );
       } else if (sheetType === 'recap') {
         await archivistApi.updateSession(apiKey, flags.archivistId, {
           title: parent?.name || page.name,
