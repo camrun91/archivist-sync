@@ -7,8 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.11] - 2025-01-15
+
 ### Fixed
-- Restored compatibility with PopOut! by cloning sidebar base options before overriding defaults so Combat Tracker and other stock tabs keep their pop-out buttons when realtime sync is enabled.
+- When syncing existing Session Recaps via the "Sync with Archivist" button, the `sessionDate` flag is now properly detected and updated when the `session_date` changes in Archivist, ensuring correct date display and chronological sorting in the Recaps folder.
 
 ## [1.3.10] - 2025-01-15
 
