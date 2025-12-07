@@ -214,6 +214,50 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
       }
 
+      // Reorder all recaps after any sessionDate changes (from diffs or imports)
+      const hasRecapDiffs = selectedDiffs.some(
+        (d) => d.type === 'Session' && d.changes?.sessionDate
+      );
+      if (hasRecapDiffs || selectedImports.some((i) => i.type === 'Session')) {
+        try {
+          const recapsFolderId = await Utils.ensureJournalFolder('Recaps');
+          const entries = (game.journal?.contents || [])
+            .filter((j) => (j.folder?.id || null) === (recapsFolderId || null))
+            .filter(
+              (j) =>
+                String(
+                  (j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}).sheetType ||
+                    ''
+                ) === 'recap'
+            );
+          const withDates = entries.map((j) => ({
+            j,
+            dateMs: (() => {
+              const iso = String(
+                j.getFlag(CONFIG.MODULE_ID, 'sessionDate') || ''
+              ).trim();
+              const t = iso ? new Date(iso).getTime() : NaN;
+              return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; // undated go to end
+            })(),
+          }));
+          withDates.sort((a, b) => a.dateMs - b.dateMs);
+          let index = 0;
+          for (const { j } of withDates) {
+            const desired = index * 1000;
+            index += 1;
+            if (j.sort !== desired) {
+              try {
+                await j.update({ sort: desired }, { render: false });
+              } catch (_) {
+                /* ignore */
+              }
+            }
+          }
+        } catch (_) {
+          /* ignore ordering failures */
+        }
+      }
+
       ui.notifications?.info?.('Archivist sync applied.');
       // Force-refresh core directories and any open Archivist windows so UI reflects new docs
       await this._refreshUIAfterSync?.();
@@ -420,6 +464,20 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           if (flagImg !== archImg)
             changes.image = { from: flagImg, to: archImg };
         }
+        // Session date diff: compare Archivist session_date with Foundry sessionDate flag
+        if (type === 'Session' && arch.session_date) {
+          try {
+            const currentDate = String(
+              j.getFlag(CONFIG.MODULE_ID, 'sessionDate') || ''
+            ).trim();
+            const archDate = String(arch.session_date || '').trim();
+            if (archDate && currentDate !== archDate) {
+              changes.sessionDate = { from: currentDate || null, to: archDate };
+            }
+          } catch (_) {
+            /* ignore */
+          }
+        }
         // Links diff: only outgoing links (from_id == this sheet's archivistId), ignore alias
         try {
           const wantList = outgoing.get(archId) || [];
@@ -585,6 +643,35 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       nextFlags.image = imageUrl;
       await j.setFlag(CONFIG.MODULE_ID, 'archivist', nextFlags);
       // Hub image flag removed
+    }
+    if (changes.sessionDate) {
+      // Update sessionDate flag to match Archivist session_date (same as world setup)
+      const archDate = String(changes.sessionDate.to || '').trim();
+      if (archDate) {
+        try {
+          await j.setFlag(
+            CONFIG.MODULE_ID,
+            'sessionDate',
+            archDate
+          );
+          // Also update sort order if this is a recap in the Recaps folder
+          const sheetType = String(
+            (j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}).sheetType || ''
+          ).toLowerCase();
+          if (sheetType === 'recap' || sheetType === 'session') {
+            try {
+              const sortValue = new Date(archDate).getTime();
+              if (Number.isFinite(sortValue)) {
+                await j.update({ sort: sortValue }, { render: false });
+              }
+            } catch (_) {
+              /* ignore sort update failures */
+            }
+          }
+        } catch (_) {
+          /* ignore */
+        }
+      }
     }
     if (changes.links) {
       const buckets = {

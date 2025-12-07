@@ -29,6 +29,7 @@
                         <th style="width: 80px; text-align: center;">Title</th>
                         <th style="width: 100px; text-align: center;">Description</th>
                         <th style="width: 80px; text-align: center;">Image</th>
+                        <th style="width: 80px; text-align: center;">Date</th>
                         <th style="width: 80px; text-align: center;">Links</th>
                     </tr>
                 </thead>
@@ -52,6 +53,10 @@
                         </td>
                         <td style="text-align: center;">
                             {{#if d.changes.image}}<i class="fas fa-check"
+                                style="color: var(--arch-success);"></i>{{/if}}
+                        </td>
+                        <td style="text-align: center;">
+                            {{#if d.changes.sessionDate}}<i class="fas fa-check"
                                 style="color: var(--arch-success);"></i>{{/if}}
                         </td>
                         <td style="text-align: center;">
