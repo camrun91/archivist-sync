@@ -1217,9 +1217,10 @@ export class ArchivistApiService {
    * @param {string} apiKey
    * @param {string} campaignId
    * @param {Array<{role:'user'|'assistant',content:string}>} messages
+   * @param {boolean} gmPermissions
    * @returns {Promise<{success:boolean, answer?:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number, message?:string}>}
    */
-  async ask(apiKey, campaignId, messages) {
+  async ask(apiKey, campaignId, messages, gmPermissions = false) {
     try {
       const url = `${this._rootBase()}/v1/ask`;
       const headers = {
@@ -1228,7 +1229,11 @@ export class ArchivistApiService {
       const r = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ campaign_id: campaignId, messages }),
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          messages,
+          gm_permissions: !!gmPermissions,
+        }),
       });
       const data = await this._handleResponse(r);
       return {
@@ -1248,11 +1253,26 @@ export class ArchivistApiService {
    * @param {string} apiKey
    * @param {string} campaignId
    * @param {Array<{role:'user'|'assistant',content:string}>} messages
+   * @param {boolean} gmPermissions
    * @param {(chunk:string)=>void} onChunk
    * @param {(final:{text:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number})=>void} onDone
    * @param {AbortSignal} [signal]
    */
-  async askStream(apiKey, campaignId, messages, onChunk, onDone, signal) {
+  async askStream(
+    apiKey,
+    campaignId,
+    messages,
+    gmPermissions,
+    onChunk,
+    onDone,
+    signal
+  ) {
+    if (typeof gmPermissions === 'function') {
+      signal = onDone;
+      onDone = onChunk;
+      onChunk = gmPermissions;
+      gmPermissions = false;
+    }
     const url = `${this._rootBase()}/v1/ask`;
     const headers = {
       ...this._createHeaders(apiKey, { method: 'POST', body: '1' }),
@@ -1263,6 +1283,7 @@ export class ArchivistApiService {
       campaign_id: campaignId,
       messages,
       stream: true,
+      gm_permissions: !!gmPermissions,
     });
     const resp = await fetch(url, { method: 'POST', headers, body, signal });
     if (!resp.ok) {

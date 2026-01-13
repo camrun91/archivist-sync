@@ -118,6 +118,16 @@ export const SETTINGS = {
     default: 'all', // 'all' | 'gm' | 'none'
   },
 
+  CHAT_GM_PERMISSIONS: {
+    key: 'chatGmPermissions',
+    name: 'ARCHIVIST_SYNC.Settings.ChatGmPermissions.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ChatGmPermissions.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
+  },
+
   PROJECT_DESCRIPTIONS: {
     key: 'projectDescriptions',
     name: 'ARCHIVIST_SYNC.Settings.ProjectDescriptions.Name',

@@ -292,6 +292,8 @@ export class AskChatWindow {
 
     const apiKey = settingsManager.getApiKey();
     const worldId = settingsManager.getSelectedWorldId();
+    const gmPermissions =
+      !!game.user?.isGM && !!settingsManager.getChatGmPermissionsEnabled?.();
     this._isStreaming = true;
     this.render(false);
     const controller = new AbortController();
@@ -301,6 +303,7 @@ export class AskChatWindow {
         apiKey,
         worldId,
         recent,
+        gmPermissions,
         (chunk) => {
           if (assistantMsg.typing) assistantMsg.typing = false;
           assistantMsg.content += chunk;
