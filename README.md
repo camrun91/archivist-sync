@@ -119,6 +119,7 @@ All sheets include:
 Available in Game Settings → Module Settings → Archivist Sync:
 
 - **API Key** (world): Your Archivist API key (obfuscated in the UI for security)
+- **Allow GM private journal context in chat** (world): When enabled, GM chat requests include private journal context during retrieval; non-GM requests never include it.
 - **Run World Setup Again** (menu): Reset initialization and relaunch the setup wizard
 - **Projection: Sidecar Only** (world): When enabled, never modify core system data fields; store descriptions only in sidecar journals.
 
@@ -153,7 +154,8 @@ Examples (representative; bodies vary by type):
   "messages": [
     { "role": "user", "content": "Who is the duke?" }
   ],
-  "stream": true
+  "stream": true,
+  "gm_permissions": false
 }
 ```
 
@@ -167,6 +169,7 @@ Examples (representative; bodies vary by type):
 - The API key is stored as a world-scoped setting and obfuscated in the UI.
 - Real‑Time Sync and the "Sync with Archivist" button execute only on GM clients.
 - The sidebar chat is available to all users once the world is configured and initialized.
+- GM chat requests can include private journal context during retrieval when the GM setting is enabled; non-GM requests always send `gm_permissions: false`.
 - All requests use HTTPS endpoints with CORS-safe headers and exponential backoff on `429` and network failures.
 
 ## Troubleshooting

@@ -34,6 +34,10 @@
           "None": "None"
         }
       },
+      "ChatGmPermissions": {
+        "Name": "Allow GM private journal context in chat",
+        "Hint": "When enabled, GM chat requests include private journal context during retrieval. Non-GM users never send private context."
+      },
       "MappingOverride": {
         "Name": "Mapping Override (JSON)",
         "Hint": "Optional JSON rules to customize importer field mapping"

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.12] - 2026-01-12
+
+### Added
+- New GM-only setting to allow private journal context in Archivist Chat; GM requests now send `gm_permissions` to `/v1/ask` when enabled.
+
 ## [1.3.11] - 2025-01-15
 
 ### Fixed

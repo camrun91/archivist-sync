@@ -27,6 +27,7 @@ export class SettingsManager {
     this._registerRealtimeSync();
     this._registerChatHistory();
     this._registerChatVisibility();
+    this._registerChatGmPermissions();
     this._registerUpdateApiKeyMenu();
     this._registerRunSetupAgainMenu();
     this._registerDocumentationMenu();
@@ -535,6 +536,18 @@ export class SettingsManager {
   }
 
   /**
+   * Check if GM-only private journal context is enabled for chat
+   * @returns {boolean}
+   */
+  getChatGmPermissionsEnabled() {
+    try {
+      return !!this.getSetting(SETTINGS.CHAT_GM_PERMISSIONS.key);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /**
    * Check if world is initialized with Archivist
    * @returns {boolean} True if world has been initialized
    */
@@ -680,6 +693,18 @@ export class SettingsManager {
       },
       default: setting.default,
       onChange: () => this._onChatAvailabilityChange(),
+    });
+  }
+
+  _registerChatGmPermissions() {
+    const setting = SETTINGS.CHAT_GM_PERMISSIONS;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
     });
   }
 
