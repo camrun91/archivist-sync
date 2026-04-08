@@ -916,7 +916,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         console.log('[Archivist V2 Sheet] Syncing Recap/Session to API');
         const payload = { title: nameNow };
         // Only include summary if we actually read editor content this cycle
-        if (htmlRead) payload.summary = html;
+        if (htmlRead) payload.summary = Utils.toMarkdownIfHtml(String(html || ''));
         if (sessionDate) {
           // Send full ISO (with time) using flags value if available
           let fullIso = '';
@@ -930,6 +930,27 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           payload.session_date = fullIso || `${sessionDate}T00:00:00`;
         }
         await archivistApi.updateSession(apiKey, archivistId, payload);
+      } else if (sheetType === 'quest') {
+        console.log('[Archivist V2 Sheet] Syncing Quest to API');
+        const payload = { questName: nameNow };
+        result = await archivistApi.updateQuest(apiKey, archivistId, payload);
+      } else if (sheetType === 'journal') {
+        console.log('[Archivist V2 Sheet] Syncing Journal to API');
+        const payload = {
+          id: archivistId,
+          title: nameNow,
+        };
+        if (htmlRead) {
+          payload.content = Utils.toMarkdownIfHtml(String(html || ''));
+        }
+        result = await archivistApi.updateJournal(apiKey, payload);
+        if (result && !result.success && result.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to save ${result.entityName || nameNow}: Content exceeds the maximum allowed length. Please shorten the content and try again.`,
+            { permanent: true }
+          );
+          return;
+        }
       }
     } catch (e) {
       console.warn('[Archivist Sync][V2] commit: remote sync failed', e);
@@ -1944,6 +1965,225 @@ export class RecapPageSheetV2 extends ArchivistBasePageSheetV2 {
   static PARTS = {
     form: { template: 'modules/archivist-sync/templates/sheets/recap.hbs' },
   };
+}
+export class JournalPageSheetV2 extends ArchivistBasePageSheetV2 {
+  static PARTS = {
+    form: { template: 'modules/archivist-sync/templates/sheets/journal.hbs' },
+  };
+}
+export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
+  static PARTS = {
+    form: { template: 'modules/archivist-sync/templates/sheets/quest.hbs' },
+  };
+
+  static TABS = {
+    archivist: {
+      navSelector: '.archivist-nav',
+      contentSelector: '.archivist-content',
+      initial: 'info',
+    },
+  };
+
+  async _prepareContext(_options) {
+    const ctx = await super._prepareContext(_options);
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const questName = qd.questName || qd.quest_name || '';
+    if (!ctx.setup.name || ctx.setup.name === 'Quest') {
+      ctx.setup.name = questName || ctx.setup.name;
+    }
+    ctx.quest = {
+      questGiver: qd.questGiver || qd.quest_giver || '',
+      questCategory: qd.questCategory || qd.quest_category || 'n/a',
+      status: qd.status || 'planned',
+      successDefinition: qd.successDefinition || qd.success_definition || '',
+      failureConditions: qd.failureConditions || qd.failure_conditions || '',
+      nextAction: qd.nextAction || qd.next_action || '',
+      resolution: qd.resolution || '',
+      objectives: Array.isArray(qd.objectives) ? qd.objectives : [],
+      progressLog: Array.isArray(qd.progressLog)
+        ? qd.progressLog
+        : Array.isArray(qd.progress_log)
+          ? qd.progress_log
+          : [],
+      relatedCharacters: Array.isArray(qd.relatedCharacters)
+        ? qd.relatedCharacters
+        : Array.isArray(qd.related_characters)
+          ? qd.related_characters
+        : [],
+      relatedFactions: Array.isArray(qd.relatedFactions)
+        ? qd.relatedFactions
+        : Array.isArray(qd.related_factions)
+          ? qd.related_factions
+        : [],
+      relatedLocations: Array.isArray(qd.relatedLocations)
+        ? qd.relatedLocations
+        : Array.isArray(qd.related_locations)
+          ? qd.related_locations
+        : [],
+      relatedItems: Array.isArray(qd.relatedItems)
+        ? qd.relatedItems
+        : Array.isArray(qd.related_items)
+          ? qd.related_items
+          : [],
+      firstSession: qd.firstSession || qd.first_session || null,
+      lastSession: qd.lastSession || qd.last_session || null,
+    };
+    ctx.quest.statusLabel = {
+      planned: 'Planned',
+      'in-progress': 'In Progress',
+      blocked: 'Blocked',
+      failed: 'Failed',
+      done: 'Done',
+      'n/a': 'N/A',
+    }[ctx.quest.status] || ctx.quest.status;
+    ctx.quest.statusIcon = {
+      planned: 'fa-compass',
+      'in-progress': 'fa-hourglass-half',
+      blocked: 'fa-ban',
+      failed: 'fa-skull-crossbones',
+      done: 'fa-check-circle',
+      'n/a': 'fa-question',
+    }[ctx.quest.status] || 'fa-question';
+    ctx.quest.categoryLabel = {
+      main: 'Main',
+      side: 'Side',
+      faction: 'Faction',
+      personal: 'Personal',
+      'n/a': '',
+    }[ctx.quest.questCategory] || '';
+    return ctx;
+  }
+
+  _onRender(context, options) {
+    super._onRender(context, options);
+    try {
+      const root = this.element;
+      this._renderQuestObjectives(root, context);
+      this._renderQuestProgress(root, context);
+      this._renderQuestLinks(root, context);
+      this._wireQuestEditActions(root, context);
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Quest _onRender failed', e);
+    }
+  }
+
+  _renderQuestObjectives(root, context) {
+    const list = root.querySelector('.quest-objectives-list');
+    if (!list) return;
+    const objectives = context.quest?.objectives || [];
+    list.innerHTML = '';
+    if (!objectives.length) {
+      list.innerHTML = '<li class="quest-empty-state">No objectives</li>';
+      return;
+    }
+    const iconMap = {
+      pending: 'fa-circle',
+      'in-progress': 'fa-hourglass-half',
+      completed: 'fa-check-circle',
+      failed: 'fa-times-circle',
+      blocked: 'fa-ban',
+    };
+    for (const obj of objectives) {
+      const li = document.createElement('li');
+      li.className = `quest-objective quest-objective-${obj.status || 'pending'}`;
+      const icon = iconMap[obj.status] || 'fa-circle';
+      li.innerHTML = `<i class="fa-solid ${icon} quest-objective-icon"></i><span class="quest-objective-text">${foundry.utils.escapeHTML(obj.text || '')}</span>`;
+      list.appendChild(li);
+    }
+  }
+
+  _renderQuestProgress(root, context) {
+    const list = root.querySelector('.quest-progress-log');
+    if (!list) return;
+    const entries = context.quest?.progressLog || [];
+    list.innerHTML = '';
+    if (!entries.length) {
+      list.innerHTML =
+        '<li class="quest-empty-state">No progress entries</li>';
+      return;
+    }
+    for (const entry of entries) {
+      const li = document.createElement('li');
+      li.className = 'quest-progress-entry';
+      const text = typeof entry === 'string' ? entry : entry.text || '';
+      li.innerHTML = `<i class="fa-solid fa-caret-right quest-progress-icon"></i><span>${foundry.utils.escapeHTML(text)}</span>`;
+      list.appendChild(li);
+    }
+  }
+
+  _renderQuestLinks(root, context) {
+    const q = context.quest || {};
+    const sections = [
+      { sel: '.quest-related-characters', items: q.relatedCharacters },
+      { sel: '.quest-related-factions', items: q.relatedFactions },
+      { sel: '.quest-related-locations', items: q.relatedLocations },
+      { sel: '.quest-related-items', items: q.relatedItems },
+    ];
+    for (const { sel, items } of sections) {
+      const el = root.querySelector(sel);
+      if (!el) continue;
+      el.innerHTML = '';
+      if (!items?.length) {
+        el.innerHTML = '<span class="quest-empty-state">None</span>';
+        continue;
+      }
+      for (const name of items) {
+        const chip = document.createElement('span');
+        chip.className = 'quest-link-chip';
+        chip.textContent = name;
+        el.appendChild(chip);
+      }
+    }
+  }
+
+  _wireQuestEditActions(root, context) {
+    const addBtn = root.querySelector('[data-action="add-objective"]');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this._addObjective());
+    }
+    root.querySelectorAll('[data-action="remove-objective"]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        const idx = Number(
+          ev.currentTarget.closest('[data-obj-index]')?.dataset.objIndex
+        );
+        if (Number.isFinite(idx)) this._removeObjective(idx);
+      });
+    });
+  }
+
+  async _addObjective() {
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = { ...(flags.questData || {}) };
+    const objectives = Array.isArray(qd.objectives)
+      ? [...qd.objectives]
+      : [];
+    objectives.push({ text: 'New Objective', status: 'pending', order: objectives.length });
+    qd.objectives = objectives;
+    await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', {
+      ...flags,
+      questData: qd,
+    });
+    this.render(false);
+  }
+
+  async _removeObjective(idx) {
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = { ...(flags.questData || {}) };
+    const objectives = Array.isArray(qd.objectives)
+      ? [...qd.objectives]
+      : [];
+    objectives.splice(idx, 1);
+    qd.objectives = objectives;
+    await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', {
+      ...flags,
+      questData: qd,
+    });
+    this.render(false);
+  }
 }
 
 export function sheetClassId(Cls) {

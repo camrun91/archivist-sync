@@ -34,27 +34,29 @@ This module uses two separate GitHub Actions workflows for releases:
 **Workflow:** `.github/workflows/beta-release.yml`
 
 ### When it runs:
-- Automatically triggered when `module.json` or `package.json` is pushed to the `staging` branch
+- Automatically triggered when a non-Markdown change is pushed to the `staging` branch
 
 ### What it does:
-1. ✅ Takes the version from `module.json` and appends `-beta.{BUILD_NUMBER}`
-2. ✅ Updates `module.json` URLs to point to the beta release
-3. ✅ Creates a GitHub **pre-release** (marked as beta) with tag `vX.Y.Z-beta.N`
-4. ✅ Uploads `module.zip` and `module.json` as release assets
-5. ✅ Commits the updated `module.json` back to `staging` branch
-6. ❌ **Does NOT publish to Foundry VTT** (beta releases are manual install only)
+1. ✅ Takes the base version from `module.json` and appends `-beta.{BUILD_NUMBER}`
+2. ✅ Prepares beta release assets with `module.json.version = X.Y.Z-beta.N`
+3. ✅ Updates release asset URLs to point to `beta-latest`
+4. ✅ Creates a GitHub **pre-release** (marked as beta) with tag `vX.Y.Z-beta.N`
+5. ✅ Uploads `module.zip` and `module.json` as release assets
+6. ✅ Restores `module.json` on `staging` to the base version and beta URLs, then commits if needed
+7. ❌ **Does NOT publish to Foundry VTT** (beta releases are manual install only)
 
 ### How to create a beta release:
 1. Work on the `staging` branch
-2. Make your changes (code, features, bug fixes, etc.)
-3. Commit and push to `staging`
+2. Make your changes (code, templates, JSON, assets, etc.)
+3. Commit and push a non-Markdown change to `staging`
 4. The workflow **automatically runs** and:
-   - Reads the version from `module.json` (e.g., `1.3.0`)
-   - Creates a release tagged `v1.3.0-beta.{BUILD_NUMBER}` (auto-incrementing)
-   - Updates `module.json` to point to `beta-latest`
-   - Commits the changes back to `staging`
+   - Reads the base version from `module.json` (e.g., `2.0.0`)
+   - Creates a release tagged `vX.Y.Z-beta.{BUILD_NUMBER}` (auto-incrementing)
+   - Publishes release assets whose `module.json` version is `X.Y.Z-beta.{BUILD_NUMBER}`
+   - Keeps the `staging` branch on the base version while pointing `manifest`/`download` at `beta-latest`
+   - Commits the metadata update back to `staging` if the branch still had production URLs
 
-**Note:** You do NOT need to bump the version for each beta! The workflow uses the GitHub run number to auto-increment beta builds. Only update the version when you're ready to target a new release number.
+**Note:** You do NOT need to bump the version for each beta. The workflow uses the GitHub run number to auto-increment beta builds. Only update the base version when you're ready to target a new release number. Markdown-only doc pushes are ignored.
 
 ### How users install beta releases:
 
@@ -86,7 +88,7 @@ main (production releases)
 
 ### Typical workflow:
 1. **Development:** Make changes on feature branches, merge to `staging`
-2. **Beta Testing:** Push version bump to `staging` → creates beta release
+2. **Beta Testing:** Push a non-Markdown change to `staging` → creates beta release
 3. **Testing:** Testers install beta via manifest URL and provide feedback
 4. **Release:** When ready, merge `staging` to `main` → creates production release
 
@@ -103,7 +105,8 @@ main (production releases)
 ### Beta (staging):
 - **Versioned tag:** `v1.2.0-beta.5` (specific beta with full changelog)
 - **Auto-update tag:** `beta-latest` (always points to newest beta)
-- Version in module.json: `1.2.0` (base version)
+- **Release asset version:** `1.2.0-beta.5`
+- **Version on `staging` after workflow:** `1.2.0` (base version)
 - Manifest URL: `/releases/download/beta-latest/module.json` (auto-updates!)
 - Download URL: `/releases/download/beta-latest/module.zip` (auto-updates!)
 
@@ -112,28 +115,30 @@ main (production releases)
    - A versioned beta release (e.g., `v1.2.0-beta.5`) with specific changelog
    - An updated `beta-latest` release that points to the newest beta
 2. The `beta-latest` tag is force-updated to point to the latest commit
-3. Users who install with the `beta-latest` URL automatically get updates!
+3. The uploaded beta manifest advertises the beta version (`X.Y.Z-beta.N`), so Foundry can detect updates
+4. Users who install with the `beta-latest` URL automatically get updates
 
 ---
 
 ## 🛠️ Troubleshooting
 
 ### Beta workflow keeps creating new releases
-- Each push to `staging` that changes `module.json` or `package.json` will create a new beta release
+- Each non-Markdown push to `staging` will create a new beta release
 - The run number increments automatically, so each beta gets a unique tag
 - Use `[skip ci]` in commit messages to prevent workflow from running
 
 ### Module.json URLs are wrong after beta release
-- The workflow automatically updates `module.json` and commits it back
+- The workflow restores `module.json` on `staging` to the base version with beta URLs and commits it back if needed
 - Wait a moment for the commit to complete
 - Pull the latest changes from `staging`
 
 ### Want to test locally without creating a release
-- Make changes but don't update the version numbers
+- Keep the change local until you're ready to push
 - Or use `[skip ci]` in your commit message
+- Markdown-only doc pushes are ignored by the beta workflow
 
 ### Merging staging to main
-- The `staging` branch's `module.json` will have beta URLs:
+- The `staging` branch's `module.json` should keep the base version, but it will have beta URLs:
   ```json
   "manifest": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.json",
   "download": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.zip"
@@ -143,6 +148,7 @@ main (production releases)
   "manifest": "https://github.com/camrun91/archivist-sync/releases/latest/download/module.json",
   "download": "https://github.com/camrun91/archivist-sync/releases/download/v1.2.0/module.zip"
   ```
+- Make sure `module.json.version` matches `package.json.version` before pushing to `main`
 - The main branch should use `releases/latest/download/` for manifest (auto-updates)
 - Update the download URL to match the version you're releasing
 
@@ -156,4 +162,3 @@ main (production releases)
 4. **Use semantic versioning**: `MAJOR.MINOR.PATCH`
 5. **Beta testing**: Share the beta manifest URL with trusted testers
 6. **Production release**: Only merge to main when ready for public release
-

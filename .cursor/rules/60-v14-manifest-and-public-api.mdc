@@ -1,0 +1,45 @@
+---
+description: V14 manifest checklist and Public API guidance
+globs: "module.json"
+alwaysApply: false
+---
+
+# V14 Manifest & Public API
+
+## module.json checklist
+
+Required fields for a v14 module manifest:
+- `id`: machine-readable unique package id (lowercase, no spaces)
+- `title`: human-readable package title
+- `version`: dot-separated version string (no leading "v")
+- `type`: must be `"module"`
+- `compatibility`: object with `minimum` and `verified` (optionally `maximum`)
+- `esmodules`: array of ES module file paths
+
+Recommended fields:
+- `authors`: array of `{ name, email?, url?, discord? }` objects
+- `relationships`: `{ systems: [], requires: [], conflicts: [] }`
+- `languages`: array of language data objects
+- `styles`: array of CSS file paths
+- `url`, `manifest`, `download`, `bugs`, `changelog`, `readme`, `license`
+
+Optional v14 additions:
+- `media`: array of `PackageMediaData` for package gallery
+- `persistentStorage`: boolean, preserves `/storage` folder on update
+- `quickstart`: quick-start configuration
+- `documentTypes`: additional document subtypes provided by this module
+
+## Public vs Private API
+
+V14 formally categorizes every method:
+- `@public`: safe to call from modules, with deprecation guarantees
+- `@protected`: safe to override in subclasses, but do not call externally
+- `@private` / `#method`: internal only, no stability guarantees
+- `@internal`: core-only, do not reference or override
+
+When in doubt, check the v14 API docs: https://foundryvtt.com/api/v14/
+
+## DataModel changes
+
+- The `-=` and `==` special operation keys on `updateSource` are deprecated. Use `DataFieldOperator` values instead.
+- `DataModel.cleanData` has been consolidated with new options for fine-tuning cleaning behavior.

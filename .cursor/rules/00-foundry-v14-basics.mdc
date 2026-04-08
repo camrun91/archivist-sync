@@ -1,0 +1,25 @@
+---
+description: Global guardrails for Foundry VTT v14 projects using App V2
+globs: "**/*"
+alwaysApply: true
+---
+
+# Foundry V14 / App V2 – Global Rules
+
+You are working in a **Foundry VTT v14** module that **must** use the **ApplicationV2** framework and **DocumentSheetV2** sheets.
+
+## Absolutes
+- **Always** target `ApplicationV2` and `DocumentSheetV2` APIs from v14 docs.
+- **Never** introduce V1 classes or jQuery-era hooks (`Application`, `FormApplication`, `DocumentSheet`, `$html`, `activateListeners(html)`, `getData()` returning POJOs, etc.).
+- Prefer modern DOM and event APIs (`addEventListener`, `EventTarget`) over jQuery.
+- Use lifecycle overrides provided by V2: `_prepareContext`, `_renderHTML`, `_onFirstRender`, `_onRender`, `_preClose`, `_onChangeForm`, `submit()`, etc.
+- For tabs, use the built-in `ApplicationV2.TABS` and `_getTabsConfig` rather than ad-hoc tab widgets.
+- Only use methods documented as `@public` or `@protected` in the v14 API docs. Do not call `@private` or `@internal` methods.
+
+## Canonical references (v14)
+- `ApplicationV2` methods and lifecycle: https://foundryvtt.com/api/v14/classes/foundry.applications.api.ApplicationV2.html
+- `DocumentSheetV2` hierarchy and lifecycle: https://foundryvtt.com/api/v14/classes/foundry.applications.api.DocumentSheetV2.html
+- `AbstractSidebarTab` (extends ApplicationV2): https://foundryvtt.com/api/v14/classes/foundry.applications.sidebar.AbstractSidebarTab.html
+- V14 stable release notes: https://foundryvtt.com/releases/14.359
+
+When the user asks for examples, **generate only V2-style code** and call out any legacy snippet as an anti-pattern with a V2 rewrite.

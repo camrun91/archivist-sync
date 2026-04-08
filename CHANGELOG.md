@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-05
+
+### Changed
+- **Foundry V14 migration**: Module now targets Foundry VTT v14 (minimum 14.359, verified 14.359).
+- Updated `module.json` for v14 manifest expectations, including `type: "module"` and v14 compatibility metadata.
+- Kept the existing Archivist Chat sidebar implementation, but updated its runtime wiring so the chat button and panel continue to render correctly on v14.
+- Updated startup and sidebar initialization logic for v14 while preserving the existing Journals tab controls and chat behavior.
+- Updated all Cursor rules from v13 to v14 references with corrected file globs.
+
+### Added
+- New Cursor rules for v14 sidebar/pop-out patterns and manifest/public API guidance.
+- Migration documentation at `docs/foundry-v14-migration.md`.
+
 ## [1.3.12] - 2026-01-12
 
 ### Added

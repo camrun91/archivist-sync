@@ -13,7 +13,6 @@ import { archivistApi } from './services/archivist-api.js';
 import { Utils } from './modules/utils.js';
 import { linkIndexer } from './modules/links/indexer.js';
 import { AskChatWindow } from './dialogs/ask-chat-window.js';
-import AskChatSidebarTab from './sidebar/ask-chat-sidebar-tab.js';
 import { ensureChatSlot } from './sidebar/ask-chat-tab.js';
 import { SyncDialog } from './dialogs/sync-dialog.js';
 import { WorldSetupDialog } from './dialogs/world-setup-dialog.js';
@@ -60,6 +59,8 @@ Hooks.once('init', async function () {
       LocationPageSheetV2,
       FactionPageSheetV2,
       RecapPageSheetV2,
+      JournalPageSheetV2,
+      QuestPageSheetV2,
     } = await import('./modules/sheets/page-sheet-v2.js');
 
     const DSC =
@@ -99,62 +100,29 @@ Hooks.once('init', async function () {
       types: ['base'],
       makeDefault: false,
     });
+    DSC.registerSheet(JournalEntry, 'archivist-sync', JournalPageSheetV2, {
+      label: 'Archivist: Journal',
+      types: ['base'],
+      makeDefault: false,
+    });
+    DSC.registerSheet(JournalEntry, 'archivist-sync', QuestPageSheetV2, {
+      label: 'Archivist: Quest',
+      types: ['base'],
+      makeDefault: false,
+    });
   } catch (e) {
     console.error(
       '[Archivist Sync] Failed to register V2 DocumentSheet sheets',
       e
     );
   }
-  // Register the Archivist Chat tab with the core Sidebar early so it renders its
-  // nav button and panel using the Application V2 TabGroup. Availability will be
-  // handled at runtime by showing/hiding the button and panel.
-  try {
-    const Sidebar = foundry.applications.sidebar?.Sidebar;
-    if (Sidebar) {
-      const label =
-        game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ||
-        'Archivist Chat';
-      Sidebar.TABS = Sidebar.TABS || {};
-      Sidebar.TABS['archivist-chat'] = {
-        id: 'archivist-chat',
-        title: label,
-        icon: 'fa-solid fa-sparkles',
-        group: 'primary',
-        tooltip: label,
-        tab: AskChatSidebarTab,
-        app: AskChatSidebarTab,
-      };
-    }
-  } catch (_) {
-    /* no-op */
-  }
+  // Sidebar.TABS registration removed — v14 does not support dynamic tab
+  // addition via this API.  The chat button is injected at runtime by
+  // updateArchivistChatAvailability() in the ready hook.
 });
 
 Hooks.once('setup', function () {
-  try {
-    console.log('[Archivist Sync] setup');
-  } catch (_) {}
-  // Ensure registration also occurs here in case Sidebar wasn't ready during init
-  try {
-    const Sidebar = foundry.applications.sidebar?.Sidebar;
-    if (Sidebar) {
-      const label =
-        game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ||
-        'Archivist Chat';
-      Sidebar.TABS = Sidebar.TABS || {};
-      Sidebar.TABS['archivist-chat'] = Sidebar.TABS['archivist-chat'] || {
-        id: 'archivist-chat',
-        title: label,
-        icon: 'fa-solid fa-sparkles',
-        group: 'primary',
-        tooltip: label,
-        tab: AskChatSidebarTab,
-        app: AskChatSidebarTab,
-      };
-    }
-  } catch (_) {
-    /* no-op */
-  }
+  console.debug('[Archivist Sync] setup');
 });
 
 // Register Scene Controls immediately (outside ready) so it's available on reloads
@@ -266,9 +234,7 @@ Hooks.once('ready', async function () {
   try {
     const sidebar = document.getElementById('sidebar');
     const tabsNav = sidebar?.querySelector?.('#sidebar-tabs, nav.tabs');
-    if (!tabsNav) {
-      return;
-    }
+    if (tabsNav) {
 
     const onClick = (ev) => {
       // CRITICAL: Ignore clicks on dice roll cards or any elements inside them
@@ -335,6 +301,8 @@ Hooks.once('ready', async function () {
       }, 0);
     };
     tabsNav.addEventListener('click', onClick);
+
+    } // end if (tabsNav found for delegated renderer)
   } catch (e) {
     console.error('[Archivist Sync] Failed to install delegated renderer', e);
   }
@@ -343,9 +311,7 @@ Hooks.once('ready', async function () {
   try {
     const sidebar = document.getElementById('sidebar');
     const tabsNav = sidebar?.querySelector?.('#sidebar-tabs, nav.tabs');
-    if (!tabsNav) {
-      return;
-    }
+    if (tabsNav) {
 
     const onOtherTabClick = (ev) => {
       // CRITICAL: Ignore clicks on dice roll cards or any elements inside them
@@ -410,6 +376,8 @@ Hooks.once('ready', async function () {
       }, 0);
     };
     tabsNav.addEventListener('click', onOtherTabClick);
+
+    } // end if (tabsNav found for delegated cleanup)
   } catch (e) {
     console.error('[Archivist Sync] Failed to install delegated cleanup', e);
   }
@@ -885,7 +853,12 @@ function updateArchivistChatAvailability() {
           });
           li.appendChild(btn);
           const menu = tabsNav.querySelector('menu.flexcol') || tabsNav;
-          menu.appendChild(li);
+          const beforeNode = menu.lastElementChild;
+          if (beforeNode) {
+            menu.insertBefore(li, beforeNode);
+          } else {
+            menu.appendChild(li);
+          }
         } catch (e) {
           console.warn(
             '[Archivist Sync] Failed to inject fallback Sidebar tab button',
@@ -1100,6 +1073,17 @@ function installRealtimeSyncListeners() {
           ...(image ? { image } : {}),
           campaign_id: worldId,
         });
+      } else if (sheetType === 'quest') {
+        res = await archivistApi.createQuest(apiKey, {
+          worldId,
+          questName: entry.name || 'Quest',
+        });
+      } else if (sheetType === 'journal') {
+        res = await archivistApi.createJournal(apiKey, {
+          world_id: worldId,
+          title: entry.name || 'Journal',
+          content: description,
+        });
       }
 
       if (res.success && res.data?.id) {
@@ -1219,6 +1203,7 @@ function installRealtimeSyncListeners() {
       const flags = parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
       const sheetType = String(flags?.sheetType || '').toLowerCase();
       if (!sheetType || !flags.archivistId) return;
+
       const html = Utils.extractPageHtml(page);
       const payload = { description: Utils.toMarkdownIfHtml?.(html) || html };
 
@@ -1250,6 +1235,18 @@ function installRealtimeSyncListeners() {
         await archivistApi.updateSession(apiKey, flags.archivistId, {
           title: parent?.name || page.name,
           summary: payload.description,
+        });
+        return;
+      } else if (sheetType === 'quest') {
+        res = await archivistApi.updateQuest(apiKey, flags.archivistId, {
+          questName: parent?.name || page.name,
+        });
+        return;
+      } else if (sheetType === 'journal') {
+        res = await archivistApi.updateJournal(apiKey, {
+          id: flags.archivistId,
+          title: parent?.name || page.name,
+          content: Utils.toMarkdownIfHtml?.(html) || html,
         });
         return;
       }
@@ -1294,6 +1291,10 @@ function installRealtimeSyncListeners() {
         await archivistApi.updateLocation(apiKey, id, { name });
       } else if (st === 'faction') {
         await archivistApi.updateFaction(apiKey, id, { name });
+      } else if (st === 'quest') {
+        await archivistApi.updateQuest(apiKey, id, { questName: name });
+      } else if (st === 'journal') {
+        await archivistApi.updateJournal(apiKey, { id, title: name });
       }
     } catch (e) {
       console.warn('[RTS] updateJournalEntry (title sync) failed', e);
@@ -1374,6 +1375,10 @@ function installRealtimeSyncListeners() {
         await archivistApi.deleteLocation(apiKey, id);
       } else if (st === 'faction' && archivistApi.deleteFaction) {
         await archivistApi.deleteFaction(apiKey, id);
+      } else if (st === 'quest') {
+        await archivistApi.deleteQuest(apiKey, id);
+      } else if (st === 'journal') {
+        await archivistApi.deleteJournal(apiKey, id);
       }
     } catch (e) {
       console.warn('[RTS] preDeleteJournalEntry failed', e);

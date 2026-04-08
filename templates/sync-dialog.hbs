@@ -1,91 +1,113 @@
 <section class="archivist-sync-dialog sync-dialog-content">
-    {{#if isLoading}}
+    {{#if syncProgress}}
     <div class="loading-panel">
         <span class="loading-spinner"></span>
-        <span>Loading...</span>
+        <span class="sync-progress-text">Processing {{syncProgress.processed}} / {{syncProgress.total}}…</span>
+        {{#if syncProgress.current}}<span class="sync-progress-detail">{{syncProgress.current}}</span>{{/if}}
+    </div>
+    {{else if isLoading}}
+    <div class="loading-panel">
+        <span class="loading-spinner"></span>
+        <span>Comparing Archivist and Foundry data…</span>
     </div>
     {{else}}
     <div class="sync-toolbar">
-        <button type="button" data-action="refresh" title="Refresh" class="icon-btn">
+        <button type="button" data-action="refresh" title="Re-fetch data from Archivist" class="icon-btn">
             <i class="fas fa-sync-alt"></i>
         </button>
     </div>
 
     <section class="panel">
         <div class="panel-header">
-            <h3>Review Diffs ({{stats.diffs}})</h3>
+            <div class="panel-title-group">
+                <h3>Review Changes ({{stats.diffs}})</h3>
+                <p class="panel-subtitle">These Foundry journals have changes in Archivist. Check the ones you want to update.</p>
+            </div>
+            {{#if stats.diffs}}
             <div class="bulk" data-scope="diffs">
                 <button type="button" data-action="selectAll">Select all</button>
                 <button type="button" data-action="selectNone">Select none</button>
             </div>
+            {{/if}}
         </div>
+        {{#if stats.diffs}}
         <div class="table-wrap">
             <table class="diff-table">
                 <thead>
                     <tr>
-                        <th style="width: 40px;"></th>
-                        <th style="width: 120px;">Type</th>
+                        <th class="col-checkbox"></th>
+                        <th class="col-type">Type</th>
                         <th>Name</th>
-                        <th style="width: 80px; text-align: center;">Title</th>
-                        <th style="width: 100px; text-align: center;">Description</th>
-                        <th style="width: 80px; text-align: center;">Image</th>
-                        <th style="width: 80px; text-align: center;">Date</th>
-                        <th style="width: 80px; text-align: center;">Links</th>
+                        <th class="col-indicator">Name</th>
+                        <th class="col-indicator">Description</th>
+                        <th class="col-indicator">Image</th>
+                        <th class="col-indicator">Date</th>
+                        <th class="col-indicator">Links</th>
                     </tr>
                 </thead>
                 <tbody>
                     {{#each diffs as |d|}}
                     <tr data-kind="diff" data-id="{{d.id}}"
-                        class="{{#if d.selected}}selected{{/if}} {{#if d.deleted}}deleted-row{{/if}}">
+                        class="{{#if d.selected}}selected{{/if}} {{#if d.deleted}}sync-deleted-row{{/if}}"
+                        {{#if d.deleted}}title="This entity was deleted in Archivist. Syncing will permanently remove the Foundry journal."{{/if}}>
                         <td><input type="checkbox" {{#if d.selected}}checked{{/if}} data-action="toggleRow" /></td>
                         <td>{{d.type}}</td>
                         <td>
                             {{d.name}}
-                            {{#if d.deleted}}<span class="badge danger">Deleted</span>{{/if}}
+                            {{#if d.deleted}}
+                            <span class="badge danger"><i class="fas fa-exclamation-triangle"></i> Deleted</span>
+                            {{/if}}
                         </td>
-                        <td style="text-align: center;">
-                            {{#if d.changes.name}}<i class="fas fa-check"
-                                style="color: var(--arch-success);"></i>{{/if}}
+                        <td class="cell-center">
+                            {{#if d.changes.name}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
                         </td>
-                        <td style="text-align: center;">
-                            {{#if d.changes.description}}<i class="fas fa-check"
-                                style="color: var(--arch-success);"></i>{{/if}}
+                        <td class="cell-center">
+                            {{#if d.changes.description}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
                         </td>
-                        <td style="text-align: center;">
-                            {{#if d.changes.image}}<i class="fas fa-check"
-                                style="color: var(--arch-success);"></i>{{/if}}
+                        <td class="cell-center">
+                            {{#if d.changes.image}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
                         </td>
-                        <td style="text-align: center;">
-                            {{#if d.changes.sessionDate}}<i class="fas fa-check"
-                                style="color: var(--arch-success);"></i>{{/if}}
+                        <td class="cell-center">
+                            {{#if d.changes.sessionDate}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
                         </td>
-                        <td style="text-align: center;">
-                            {{#if d.changes.links}}<i class="fas fa-check"
-                                style="color: var(--arch-success);"></i>{{/if}}
+                        <td class="cell-center">
+                            {{#if d.changes.links}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
                         </td>
                     </tr>
                     {{/each}}
                 </tbody>
             </table>
         </div>
+        {{else}}
+        <div class="sync-empty-state">
+            <i class="fas fa-check-circle"></i>
+            <span>No changes detected — your Foundry journals are up to date with Archivist.</span>
+        </div>
+        {{/if}}
     </section>
 
     <section class="panel">
         <div class="panel-header">
-            <h3>Import New ({{stats.imports}})</h3>
+            <div class="panel-title-group">
+                <h3>Import New ({{stats.imports}})</h3>
+                <p class="panel-subtitle">These Archivist entities don't have a Foundry journal yet. Check the ones you want to import.</p>
+            </div>
+            {{#if stats.imports}}
             <div class="bulk" data-scope="imports">
                 <button type="button" data-action="selectAll">Select all</button>
                 <button type="button" data-action="selectNone">Select none</button>
             </div>
+            {{/if}}
         </div>
+        {{#if stats.imports}}
         <div class="table-wrap">
             <table class="import-table">
                 <thead>
                     <tr>
-                        <th style="width: 40px;"></th>
-                        <th style="width: 120px;">Type</th>
+                        <th class="col-checkbox"></th>
+                        <th class="col-type">Type</th>
                         <th>Name</th>
-                        <th style="width: 140px; text-align: center;">Create New</th>
+                        <th class="col-create-new">Create New</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -94,11 +116,11 @@
                         <td><input type="checkbox" {{#if r.selected}}checked{{/if}} data-action="toggleRow" /></td>
                         <td>{{r.type}}</td>
                         <td>{{r.name}}</td>
-                        <td style="text-align: center;">
+                        <td class="cell-center">
                             {{#if r.coreType}}
-                            <label style="display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer;">
+                            <label class="core-toggle-label">
                                 <input type="checkbox" data-action="toggleCore" {{#if r.createCore}}checked{{/if}} />
-                                <span style="text-transform: capitalize;">{{r.coreType}}</span>
+                                <span>{{r.coreType}}</span>
                             </label>
                             {{/if}}
                         </td>
@@ -107,11 +129,19 @@
                 </tbody>
             </table>
         </div>
+        {{else}}
+        <div class="sync-empty-state">
+            <i class="fas fa-check-circle"></i>
+            <span>No new Archivist entities to import.</span>
+        </div>
+        {{/if}}
     </section>
 
     <footer class="sync-footer">
         <button type="button" data-action="cancel" class="secondary">Cancel</button>
-        <button type="button" data-action="sync" class="primary">Sync</button>
+        <button type="button" data-action="sync" class="primary" {{#unless hasSelected}}disabled{{/unless}}>
+            <i class="fas fa-arrow-right"></i> Apply Selected Changes
+        </button>
     </footer>
     {{/if}}
 </section>

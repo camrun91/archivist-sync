@@ -463,28 +463,52 @@ export class Utils {
   static markdownToStoredHtml(markdown) {
     const md = String(markdown ?? '');
     try {
+      const trimmed = md.trim();
+      const isProbablyHtml =
+        !!trimmed &&
+        ((trimmed.startsWith('<') && trimmed.includes('>')) ||
+          /<\/?[a-z][\s\S]*>/i.test(trimmed) ||
+          /&(?:lt|gt|amp|quot|#39);/i.test(trimmed));
+
+      if (isProbablyHtml) {
+        return foundry?.utils?.TextEditor?.cleanHTML
+          ? foundry.utils.TextEditor.cleanHTML(md)
+          : md;
+      }
+
       let rawHtml = '';
-      if (window?.MarkdownIt) {
-        const mdIt = new window.MarkdownIt({
+      const MarkdownItCtor = globalThis.MarkdownIt || window?.MarkdownIt;
+      if (MarkdownItCtor) {
+        const mdIt = new MarkdownItCtor({
+          html: false,
+          linkify: true,
+          breaks: true,
+        });
+        rawHtml = mdIt.render(md);
+      } else if (typeof globalThis.markdownit === 'function') {
+        const mdIt = globalThis.markdownit({
           html: false,
           linkify: true,
           breaks: true,
         });
         rawHtml = mdIt.render(md);
       } else {
-        // Minimal fallback: paragraphs + bold/italic with HTML escaping for security
+        // Minimal fallback: escape first, then apply lightweight markdown formatting
+        // so generated tags are not re-escaped into visible literal text.
+        const renderInline = (text) =>
+          foundry.utils
+            .escapeHTML(String(text ?? ''))
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/_(.+?)_/g, '<em>$1</em>')
+            .replace(/`(.+?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+
         rawHtml = md
           .replace(/\r\n/g, '\n')
-          .replace(
-            /\*\*(.*?)\*\*/g,
-            (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`
-          )
-          .replace(
-            /_(.*?)_/g,
-            (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`
-          )
           .split(/\n{2,}/)
-          .map((p) => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p) => `<p>${renderInline(p)}</p>`)
           .join('');
       }
       return foundry?.utils?.TextEditor?.cleanHTML
@@ -1013,6 +1037,8 @@ export class Utils {
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
+        journal: 'Archivist - Journals',
+        quest: 'Archivist - Quests',
       };
 
       console.log(
@@ -1040,6 +1066,8 @@ export class Utils {
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
+        journal: 'Archivist - Journals',
+        quest: 'Archivist - Quests',
       };
       const name = map[String(type || '').toLowerCase()];
 
@@ -1110,6 +1138,8 @@ export class Utils {
         location: 'archivist-sync.LocationPageSheetV2',
         faction: 'archivist-sync.FactionPageSheetV2',
         recap: 'archivist-sync.RecapPageSheetV2',
+        journal: 'archivist-sync.JournalPageSheetV2',
+        quest: 'archivist-sync.QuestPageSheetV2',
       };
       const normalizedType = String(sheetType || '').toLowerCase();
       const sheetClass = sheetClassMap[normalizedType] || '';

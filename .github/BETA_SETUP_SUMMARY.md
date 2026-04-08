@@ -24,15 +24,16 @@ The beta release system now provides **automatic updates** for testers using a s
 
 ### For Developers (staging branch):
 
-1. Make changes and push to `staging` branch (no version bump required!)
+1. Make a non-Markdown change and push to `staging` branch (no version bump required!)
 2. Workflow automatically:
-   - Reads version from `module.json` (e.g., `1.3.0`)
-   - Creates `v1.3.0-beta.{BUILD_NUMBER}` release (auto-increments)
+   - Reads the base version from `module.json` (e.g., `2.0.0`)
+   - Creates `v2.0.0-beta.{BUILD_NUMBER}` release (auto-increments)
+   - Publishes release assets whose `module.json` version is `2.0.0-beta.{BUILD_NUMBER}`
    - Force-updates `beta-latest` tag to point to this release
-   - Updates `module.json` URLs to point to `beta-latest`
-   - Commits changes back to `staging`
+   - Restores `staging` to the base version while keeping `module.json` URLs pointed at `beta-latest`
+   - Commits metadata changes back to `staging` if needed
 
-**Key Point:** You don't need to bump the version for each beta. The build number auto-increments with each push. Only update the version in `module.json` when you want to target a new release number (e.g., moving from `1.2.x` to `1.3.0`).
+**Key Point:** You don't need to bump the version for each beta. The build number auto-increments with each qualifying push. Only update the base version in `module.json` when you want to target a new release number (for example, moving from `1.3.x` to `2.0.0`).
 
 ### For Beta Testers (users):
 
@@ -90,6 +91,7 @@ The beta release system now provides **automatic updates** for testers using a s
 
 ### When merging staging to main:
 - Update `module.json` URLs from `beta-latest` to production URLs
+- Keep `module.json.version` aligned with `package.json.version`
 - Make sure version numbers are correct
 - Update `CHANGELOG.md` if not already done
 
@@ -99,9 +101,10 @@ The beta release system now provides **automatic updates** for testers using a s
 - Force-pushed on each beta release (this is intentional)
 
 ### Version numbering:
-- Base version in `module.json`: `1.3.0`
-- Versioned tag created: `v1.3.0-beta.5`
-- Auto-update tag: `beta-latest` (points to `v1.3.0-beta.5`)
+- Base version on `staging`: `2.0.0`
+- Versioned release asset: `2.0.0-beta.5`
+- Versioned tag created: `v2.0.0-beta.5`
+- Auto-update tag: `beta-latest` (points to `v2.0.0-beta.5`)
 
 ## Benefits
 
@@ -113,11 +116,11 @@ The beta release system now provides **automatic updates** for testers using a s
 ## Testing the Setup
 
 1. Create a `staging` branch if it doesn't exist
-2. Make a small change (any code change, even a comment)
+2. Make a small non-Markdown change (any code or config change)
 3. Commit and push to `staging`
 4. Check GitHub Actions for workflow execution
 5. Verify two releases appear:
-   - `v{VERSION}-beta.{BUILD_NUMBER}` (e.g., `v1.2.0-beta.15`)
+   - `v{VERSION}-beta.{BUILD_NUMBER}` (e.g., `v2.0.0-beta.15`)
    - `beta-latest` (updated to point to the new beta)
 6. Test the beta-latest manifest URL in Foundry
 7. Make another change and push → verify build number increments automatically
@@ -125,4 +128,3 @@ The beta release system now provides **automatic updates** for testers using a s
 ## Questions?
 
 See `.github/RELEASE_WORKFLOW.md` for detailed documentation or open an issue.
-

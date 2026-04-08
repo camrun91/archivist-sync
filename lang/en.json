@@ -170,6 +170,8 @@
       "locations": "Locations",
       "items": "Items",
       "recaps": "Recaps",
+      "journals": "Journals",
+      "quests": "Quests",
       "mappingOverride": "Mapping Override (JSON)",
       "importProgress": "Import Progress"
     },
@@ -229,7 +231,9 @@
       "locationsPulled": "Locations pulled successfully",
       "charactersPulled": "Characters pulled successfully",
       "worldInitialized": "Foundry world has been initialized with Archivist for the first time",
-      "worldInitializedReset": "World initialization reset. Reloading to run setup again..."
+      "worldInitializedReset": "World initialization reset. Reloading to run setup again...",
+      "journalImportNotice": "Journal content syncs with Archivist. Folder structure is a point-in-time snapshot and not kept in sync.",
+      "questSynced": "Quest synced with Archivist."
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",
@@ -312,6 +316,35 @@
         "description": "We will create and link journal entries in the Archivist directory and perform the selected operations.",
         "placeholder": "Summary UI coming next with counts and details.",
         "beginSync": "Begin Sync"
+      }
+    },
+    "quest": {
+      "status": {
+        "planned": "Planned",
+        "inProgress": "In Progress",
+        "blocked": "Blocked",
+        "failed": "Failed",
+        "done": "Done"
+      },
+      "category": {
+        "main": "Main",
+        "side": "Side",
+        "faction": "Faction",
+        "personal": "Personal"
+      },
+      "objectiveStatus": {
+        "pending": "Pending",
+        "inProgress": "In Progress",
+        "completed": "Completed",
+        "failed": "Failed",
+        "blocked": "Blocked"
+      },
+      "fields": {
+        "questGiver": "Quest Giver",
+        "successDefinition": "Success Definition",
+        "failureConditions": "Failure Conditions",
+        "nextAction": "Next Action",
+        "resolution": "Resolution"
       }
     },
     "settings": {

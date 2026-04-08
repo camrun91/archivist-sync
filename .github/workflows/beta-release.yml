@@ -5,10 +5,8 @@ on:
     branches:
       - staging
     paths-ignore:
-      - "**.md"
-      - ".github/RELEASE_WORKFLOW.md"
-      - ".github/BETA_SETUP_SUMMARY.md"
-      - ".github/WORKFLOW_DIAGRAM.md"
+      - "*.md"
+      - "**/*.md"
 
 jobs:
   beta-release:
@@ -55,17 +53,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Update module.json with beta URLs
+      - name: Prepare module.json for beta release assets
         run: |
           REPO="${{ github.repository }}"
+          BETA_VERSION="${{ steps.get_version.outputs.BETA_VERSION }}"
 
-          # Update manifest and download URLs to point to beta-latest (stable tag for updates)
-          jq --arg repo "$REPO" \
-            '.manifest = "https://github.com/\($repo)/releases/download/beta-latest/module.json" |
+          # Beta release assets must advertise the beta version so Foundry detects updates.
+          jq --arg repo "$REPO" --arg beta_version "$BETA_VERSION" \
+            '.version = $beta_version |
+             .manifest = "https://github.com/\($repo)/releases/download/beta-latest/module.json" |
              .download = "https://github.com/\($repo)/releases/download/beta-latest/module.zip"' \
             module.json > module.json.tmp && mv module.json.tmp module.json
 
-          echo "✅ Updated module.json with beta-latest URLs (for automatic updates)"
+          echo "✅ Prepared module.json for beta release assets"
+          echo "   Version: $(jq -r '.version' module.json)"
           echo "   Manifest: $(jq -r '.manifest' module.json)"
           echo "   Download: $(jq -r '.download' module.json)"
 
@@ -90,12 +91,12 @@ jobs:
       - name: Extract changelog for beta release
         id: changelog
         run: |
-          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          BASE_VERSION="${{ steps.get_version.outputs.BASE_VERSION }}"
           BETA_VERSION="${{ steps.get_version.outputs.BETA_VERSION }}"
 
-          # Try to extract changelog section for this version
+          # Try to extract changelog section for the base version targeted by this beta.
           if [ -f CHANGELOG.md ]; then
-            awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > release_notes.md
+            awk "/## \[$BASE_VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > release_notes.md
           fi
 
           # If release notes are empty or don't exist, use a default message
@@ -184,6 +185,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Restore module.json for staging branch
+        run: |
+          REPO="${{ github.repository }}"
+          BASE_VERSION="${{ steps.get_version.outputs.BASE_VERSION }}"
+
+          # Keep staging mergeable to main: base version on branch, beta URLs in metadata.
+          jq --arg repo "$REPO" --arg base_version "$BASE_VERSION" \
+            '.version = $base_version |
+             .manifest = "https://github.com/\($repo)/releases/download/beta-latest/module.json" |
+             .download = "https://github.com/\($repo)/releases/download/beta-latest/module.zip"' \
+            module.json > module.json.tmp && mv module.json.tmp module.json
+
+          echo "✅ Restored module.json for staging branch"
+          echo "   Version: $(jq -r '.version' module.json)"
+          echo "   Manifest: $(jq -r '.manifest' module.json)"
+          echo "   Download: $(jq -r '.download' module.json)"
+
       - name: Commit updated module.json back to staging
         run: |
           # Check if module.json has changes
@@ -191,7 +209,7 @@ jobs:
             echo "ℹ️  No changes to module.json, skipping commit"
           else
             git add module.json
-            git commit -m "chore: update module.json URLs for beta release ${{ steps.get_version.outputs.TAG }} [skip ci]"
+            git commit -m "chore: update staging beta metadata for ${{ steps.get_version.outputs.TAG }} [skip ci]"
             git push origin staging
             echo "✅ Pushed updated module.json to staging branch"
           fi

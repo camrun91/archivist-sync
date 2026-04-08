@@ -1,0 +1,39 @@
+<section class="archivist-sheet archivist-sheet-journal">
+    <main class="archivist-content archivist-content-full">
+        <header class="recap-header">
+            <div class="recap-title-container">
+                {{#if setup.editingInfo}}
+                <input class="archivist-title-input" type="text" value="{{setup.name}}" />
+                {{else}}
+                <h1 class="recap-title">{{setup.name}}</h1>
+                {{/if}}
+            </div>
+            <small class="archivist-subtitle journal-subtitle">Journal</small>
+            {{#if setup.isGM}}
+            <button type="button" class="archivist-edit-toggle" data-action="toggle-edit-mode"
+                title="{{#if setup.editingInfo}}Save Changes{{else}}Edit Sheet{{/if}}">
+                {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
+                    class="fa-solid fa-lock"></i>{{/if}}
+            </button>
+            {{/if}}
+        </header>
+        {{#if setup.isGM}}
+        <div class="journal-import-notice">
+            <i class="fa-solid fa-circle-info"></i>
+            Edits sync to Archivist. Folder structure is a point-in-time snapshot and not kept in sync.
+        </div>
+        {{/if}}
+        <div class="recap-body-container">
+            <div class="recap-body-editor">
+                {{#if setup.editingInfo}}
+                <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
+                    compact="true" toggled data-toggled="true" data-action="prose-editor">
+                    {{{htmlContent}}}
+                </prose-mirror>
+                {{else}}
+                {{{htmlContent}}}
+                {{/if}}
+            </div>
+        </div>
+    </main>
+</section>
