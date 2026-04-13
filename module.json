@@ -8,10 +8,10 @@
       "email": "cameron.b.llewellyn@gmail.com"
     }
   ],
-  "version": "1.3.12",
+  "version": "1.3.13",
   "compatibility": {
     "minimum": "13.341",
-    "verified": "13.346"
+    "verified": "13.351"
   },
   "relationships": {
     "systems": [],
