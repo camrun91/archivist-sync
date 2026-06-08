@@ -83,6 +83,21 @@ jobs:
       #   if: steps.check_release.outputs.exists == 'false'
       #   run: npm run lint
 
+      - name: Ensure production URLs in module.json
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          REPO="${{ github.repository }}"
+
+          # Reset manifest and download URLs to production (latest) in case beta URLs leaked from staging merge
+          jq --arg repo "$REPO" \
+            '.manifest = "https://github.com/\($repo)/releases/latest/download/module.json" |
+             .download = "https://github.com/\($repo)/releases/latest/download/module.zip"' \
+            module.json > module.json.tmp && mv module.json.tmp module.json
+
+          echo "✅ Ensured production URLs in module.json"
+          echo "   Manifest: $(jq -r '.manifest' module.json)"
+          echo "   Download: $(jq -r '.download' module.json)"
+
       - name: Create module archive
         if: steps.check_release.outputs.exists == 'false'
         run: |
