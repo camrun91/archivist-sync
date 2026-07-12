@@ -2519,12 +2519,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             } catch (_) {}
           }
 
-          const html = Utils.toMarkdownIfHtml(
-            String(fullQuest.successDefinition || fullQuest.nextAction || '')
-          );
+          // Quest has no generic description field in the API; its Info tab is a
+          // structured metadata form (see quest.hbs), not free-text page content.
           const journal = await Utils.createCustomJournalForImport({
             name: fullQuest.questName || fullQuest.quest_name || 'Quest',
-            html,
+            html: '',
             sheetType: 'quest',
             archivistId: fullQuest.id,
             worldId: campaignId,
@@ -2566,6 +2565,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 fullQuest.relatedLocations || fullQuest.related_locations || [],
               relatedItems:
                 fullQuest.relatedItems || fullQuest.related_items || [],
+              relatedEntityRefs:
+                fullQuest.relatedEntityRefs || fullQuest.related_entity_refs || [],
               firstSession: fullQuest.firstSession || fullQuest.first_session || null,
               lastSession: fullQuest.lastSession || fullQuest.last_session || null,
             };

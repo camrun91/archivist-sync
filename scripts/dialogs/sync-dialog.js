@@ -968,6 +968,8 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
             fullQuest.relatedLocations || fullQuest.related_locations || [],
           relatedItems:
             fullQuest.relatedItems || fullQuest.related_items || [],
+          relatedEntityRefs:
+            fullQuest.relatedEntityRefs || fullQuest.related_entity_refs || [],
           firstSession: fullQuest.firstSession || fullQuest.first_session || null,
           lastSession: fullQuest.lastSession || fullQuest.last_session || null,
         };

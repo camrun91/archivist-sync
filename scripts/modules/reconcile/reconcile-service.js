@@ -18,14 +18,17 @@ export class ReconcileService {
     if (!apiKey || !campaignId) throw new Error('Archivist not configured');
 
     // Fetch entities in parallel
-    const [chars, items, locs, facs, sessions, links] = await Promise.all([
-      archivistApi.listCharacters(apiKey, campaignId),
-      archivistApi.listItems(apiKey, campaignId),
-      archivistApi.listLocations(apiKey, campaignId),
-      archivistApi.listFactions(apiKey, campaignId),
-      archivistApi.listSessions(apiKey, campaignId),
-      archivistApi.listLinks(apiKey, campaignId),
-    ]);
+    const [chars, items, locs, facs, sessions, links, quests, journalsList] =
+      await Promise.all([
+        archivistApi.listCharacters(apiKey, campaignId),
+        archivistApi.listItems(apiKey, campaignId),
+        archivistApi.listLocations(apiKey, campaignId),
+        archivistApi.listFactions(apiKey, campaignId),
+        archivistApi.listSessions(apiKey, campaignId),
+        archivistApi.listLinks(apiKey, campaignId),
+        archivistApi.listQuests(apiKey, campaignId),
+        archivistApi.listJournals(apiKey, campaignId),
+      ]);
 
     const characters = chars.success ? chars.data || [] : [];
     const itemsData = items.success ? items.data || [] : [];
@@ -33,6 +36,12 @@ export class ReconcileService {
     const factions = facs.success ? facs.data || [] : [];
     const sessionsData = sessions.success ? sessions.data || [] : [];
     const linksData = links.success ? links.data || [] : [];
+    // listQuests() rows aren't normalized server-side consistently; route through
+    // the same camelCase/snake_case-tolerant normalizer used elsewhere for quests.
+    const questsData = (quests.success ? quests.data || [] : []).map((q) =>
+      archivistApi._normalizeQuestResponse(q)
+    );
+    const journalsData = journalsList.success ? journalsList.data || [] : [];
 
     // Ensure default folders, index existing journals by archivistId
     try {
@@ -96,6 +105,45 @@ export class ReconcileService {
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
+    for (const j of journalsData) await ensureSheet(j, 'journal');
+
+    // Quests: ensure a sheet exists, then refresh its full questData from Archivist
+    // (title/image handled generically by ensureSheet; the rest is quest-specific).
+    for (const q of questsData) {
+      const entity = { ...q, name: q.questName || 'Quest' };
+      const j = await ensureSheet(entity, 'quest');
+      try {
+        const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+        flags.questData = {
+          questName: q.questName || '',
+          questGiver: q.questGiver || '',
+          questCategory: q.questCategory || 'n/a',
+          status: q.status || 'planned',
+          successDefinition: q.successDefinition || '',
+          failureConditions: q.failureConditions || '',
+          nextAction: q.nextAction || '',
+          resolution: q.resolution || '',
+          objectives: Array.isArray(q.objectives) ? q.objectives : [],
+          progressLog: Array.isArray(q.progressLog) ? q.progressLog : [],
+          relatedCharacters: Array.isArray(q.relatedCharacters)
+            ? q.relatedCharacters
+            : [],
+          relatedFactions: Array.isArray(q.relatedFactions)
+            ? q.relatedFactions
+            : [],
+          relatedLocations: Array.isArray(q.relatedLocations)
+            ? q.relatedLocations
+            : [],
+          relatedItems: Array.isArray(q.relatedItems) ? q.relatedItems : [],
+          relatedEntityRefs: Array.isArray(q.relatedEntityRefs)
+            ? q.relatedEntityRefs
+            : [],
+          firstSession: q.firstSession || null,
+          lastSession: q.lastSession || null,
+        };
+        await j.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+      } catch (_) {}
+    }
 
     // Recaps: ensure a single Recaps container exists with pages ordered by session_date
     try {
