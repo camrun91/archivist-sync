@@ -1659,6 +1659,177 @@ export class ArchivistApiService {
   }
 
   /**
+   * Update a Link's alias in a campaign (PATCH).
+   * Prefer this over delete+recreate when only the alias/label changes and the
+   * from/to endpoints stay the same.
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {string} linkId
+   * @param {{alias?: string}} payload
+   */
+  async updateLink(apiKey, campaignId, linkId, payload) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}/links/${encodeURIComponent(linkId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update link:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to update link',
+      };
+    }
+  }
+
+  /**
+   * Step 1 of the local-image-upload flow: request a presigned upload URL.
+   * Supported entity types: character, faction, location, item (NOT quest —
+   * the API has no image support for Quest).
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {{entityType:string, entityId:string, fileName:string, contentType:string}} params
+   * @returns {Promise<{success:boolean, data?:{object_key:string, upload_url:string, public_url:string, expires_in_seconds:number}}>}
+   */
+  async initImageUpload(
+    apiKey,
+    campaignId,
+    { entityType, entityId, fileName, contentType }
+  ) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}/images/init`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            entity_type: entityType,
+            entity_id: entityId,
+            file_name: fileName,
+            content_type: contentType,
+          }),
+        }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to init image upload:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to init image upload',
+      };
+    }
+  }
+
+  /**
+   * Step 2: PUT the raw image bytes directly to the presigned R2 URL from initImageUpload.
+   * This does NOT go through _request (no api key / json headers — the presigned
+   * URL carries its own auth).
+   * @param {string} uploadUrl
+   * @param {Blob|ArrayBuffer} bytes
+   * @param {string} contentType
+   */
+  async uploadImageBytes(uploadUrl, bytes, contentType) {
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: bytes,
+    });
+    if (!res.ok) {
+      throw new Error(`Image upload PUT failed: HTTP ${res.status}`);
+    }
+    return true;
+  }
+
+  /**
+   * Step 3: tell the API the upload finished so it can validate + attach the image.
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {{objectKey:string, entityType:string, entityId:string, attach?:boolean}} params
+   * @returns {Promise<{success:boolean, data?:{url:string, attached:boolean}}>}
+   */
+  async completeImageUpload(
+    apiKey,
+    campaignId,
+    { objectKey, entityType, entityId, attach = true }
+  ) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}/images/complete`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            object_key: objectKey,
+            entity_type: entityType,
+            entity_id: entityId,
+            attach,
+          }),
+        }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to complete image upload:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to complete image upload',
+      };
+    }
+  }
+
+  /**
+   * Convenience wrapper: run the full init -> PUT -> complete flow for a local
+   * Foundry image (read via Utils.fetchLocalImageBytes or similar).
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {{entityType:string, entityId:string, fileName:string, contentType:string, bytes:Blob|ArrayBuffer}} params
+   * @returns {Promise<{success:boolean, url?:string, message?:string}>}
+   */
+  async uploadEntityImage(
+    apiKey,
+    campaignId,
+    { entityType, entityId, fileName, contentType, bytes }
+  ) {
+    const init = await this.initImageUpload(apiKey, campaignId, {
+      entityType,
+      entityId,
+      fileName,
+      contentType,
+    });
+    if (!init.success) return init;
+    try {
+      await this.uploadImageBytes(
+        init.data.upload_url,
+        bytes,
+        contentType
+      );
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to upload image bytes',
+      };
+    }
+    const complete = await this.completeImageUpload(apiKey, campaignId, {
+      objectKey: init.data.object_key,
+      entityType,
+      entityId,
+      attach: true,
+    });
+    if (!complete.success) return complete;
+    return { success: true, url: complete.data?.url };
+  }
+
+  /**
    * Ask (RAG chat) — non-streaming
    * @param {string} apiKey
    * @param {string} campaignId

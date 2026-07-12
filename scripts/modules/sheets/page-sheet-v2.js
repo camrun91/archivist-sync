@@ -269,6 +269,17 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
               visBtn.style.height = '16px';
             } catch (_) {}
           }
+          const uploadBtn = root.querySelector(
+            '[data-action="upload-local-image"]'
+          );
+          if (uploadBtn && !uploadBtn.dataset.bound) {
+            uploadBtn.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              this._onUploadLocalImage();
+            });
+            uploadBtn.dataset.bound = 'true';
+          }
         } catch (_) {}
       }
 
@@ -1806,6 +1817,100 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           (j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}).archivistId === id
       ) || null
     );
+  }
+
+  static SHEET_TYPE_TO_IMAGE_ENTITY_TYPE = {
+    pc: 'character',
+    npc: 'character',
+    character: 'character',
+    item: 'item',
+    location: 'location',
+    faction: 'faction',
+  };
+
+  /**
+   * Resolve a genuinely local Foundry image path worth uploading to Archivist,
+   * mirroring _resolveSheetImage's fallback chain but stopping before the
+   * default-icon fallback (nothing useful to upload in that case).
+   */
+  _resolveLocalImageForUpload() {
+    const entry = this.document;
+    if (!entry) return null;
+    const f = entry?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const st = String(f.sheetType || '').toLowerCase();
+    const explicit = String(entry?.img || '').trim();
+    if (explicit) return explicit;
+    if (st === 'pc' || st === 'npc' || st === 'character') {
+      const actorId = (f.foundryRefs?.actors || [])[0];
+      const actor = actorId ? game.actors?.get?.(actorId) : null;
+      if (actor?.img) return String(actor.img).trim();
+    } else if (st === 'item') {
+      const itemId = (f.foundryRefs?.items || [])[0];
+      const itm = itemId ? game.items?.get?.(itemId) : null;
+      if (itm?.img) return String(itm.img).trim();
+    } else if (st === 'location') {
+      const sceneId = (f.foundryRefs?.scenes || [])[0];
+      const scene = sceneId ? game.scenes?.get?.(sceneId) : null;
+      const sc = scene?.thumbnail || scene?.img || '';
+      if (sc) return String(sc).trim();
+    }
+    return null;
+  }
+
+  /**
+   * Upload the sheet's local Foundry image (Actor/Item/Scene/journal img) to
+   * Archivist via the presigned-URL flow, so it's visible outside Foundry.
+   * Not available for Quests — the API has no image support for that type.
+   */
+  async _onUploadLocalImage() {
+    const flags = this._getArchivistFlags();
+    const sheetType = String(flags.sheetType || '').toLowerCase();
+    const entityType =
+      ArchivistBasePageSheetV2.SHEET_TYPE_TO_IMAGE_ENTITY_TYPE[sheetType];
+    if (!entityType) return;
+    const archivistId = String(flags.archivistId || '');
+    const apiKey = settingsManager.getApiKey?.();
+    const campaignId = settingsManager.getSelectedWorldId?.();
+    if (!apiKey || !campaignId || !archivistId) {
+      ui.notifications?.warn?.('Archivist world not configured.');
+      return;
+    }
+    const src = this._resolveLocalImageForUpload();
+    if (!src) {
+      ui.notifications?.warn?.('No local image found to upload for this sheet.');
+      return;
+    }
+    if (/^https?:\/\//i.test(src)) {
+      ui.notifications?.info?.(
+        'This image is already hosted remotely; nothing to upload.'
+      );
+      return;
+    }
+    ui.notifications?.info?.('Uploading image to Archivist…');
+    try {
+      const res = await fetch(src);
+      if (!res.ok) throw new Error(`Could not read local image (HTTP ${res.status})`);
+      const blob = await res.blob();
+      const contentType = blob.type || 'image/png';
+      const fileName = src.split('/').pop() || 'image';
+      const result = await archivistApi.uploadEntityImage(apiKey, campaignId, {
+        entityType,
+        entityId: archivistId,
+        fileName,
+        contentType,
+        bytes: blob,
+      });
+      if (result.success) {
+        ui.notifications?.info?.('Image uploaded to Archivist.');
+      } else {
+        ui.notifications?.error?.(
+          `Image upload failed: ${result.message || 'unknown error'}`
+        );
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Local image upload failed', e);
+      ui.notifications?.error?.('Image upload failed. See console for details.');
+    }
   }
 }
 
