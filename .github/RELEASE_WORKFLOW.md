@@ -1,8 +1,26 @@
 # Release Workflow Documentation
 
-This module uses two separate GitHub Actions workflows for releases:
+This module publishes **two parallel version lines to the same Foundry package
+listing**: a legacy v13 line (`1.x`, from `main`) and a v14 line (`2.x`, from
+`release/v14`). Foundry's registry natively supports multiple versions per
+package, each with its own compatibility range — the Foundry client picks
+whichever version matches the user's installed core version, so no separate
+listing/package id is needed.
 
-## 🚀 Production Release (main branch)
+There are four GitHub Actions workflows involved:
+
+| Branch | Workflow | Publishes to Foundry? | Version family |
+|---|---|---|---|
+| `main` | `auto-release.yml` | Yes | `1.x`, compat `13.x` |
+| `release/v14` | `auto-release-v14.yml` | Yes | `2.x`, compat `14.x` |
+| `staging` | `beta-release.yml` | No (GitHub pre-release only) | v14 betas |
+
+Both stable workflows refuse to run if `module.json`'s version/compatibility
+don't match their expected family — this guards against the exact incident
+that previously broke v13 users (a v14-shaped build publishing under a v13
+version string via `main`).
+
+## 🚀 Production Release — v13 (main branch)
 
 **Workflow:** `.github/workflows/auto-release.yml`
 
@@ -10,14 +28,16 @@ This module uses two separate GitHub Actions workflows for releases:
 - Automatically triggered when `module.json` or `package.json` is pushed to the `main` branch
 
 ### What it does:
-1. ✅ Verifies version consistency between `module.json` and `package.json`
-2. ✅ Checks that `CHANGELOG.md` has been updated for the new version
-3. ✅ Creates a GitHub release with tag `vX.Y.Z`
-4. ✅ Uploads `module.zip` and `module.json` as release assets
-5. ✅ **Publishes to Foundry VTT package repository** (visible to all users)
+1. ✅ Verifies `module.json` version is `1.x` and `compatibility.minimum` is `13.x` — refuses to publish otherwise
+2. ✅ Verifies version consistency between `module.json` and `package.json`
+3. ✅ Checks that `CHANGELOG.md` has been updated for the new version
+4. ✅ Creates a GitHub release with tag `vX.Y.Z`
+5. ✅ Updates the moving `v13-latest` tag/release so direct-manifest-URL installs auto-update
+6. ✅ Uploads `module.zip` and `module.json` as release assets
+7. ✅ **Publishes to Foundry VTT package repository** (visible to all users)
 
 ### How to create a production release:
-1. Update version in both `module.json` and `package.json`
+1. Update version in both `module.json` and `package.json` (keep it in the `1.x` family)
 2. Add a section for the new version in `CHANGELOG.md`:
    ```markdown
    ## [1.2.0] - 2025-01-15
@@ -26,6 +46,29 @@ This module uses two separate GitHub Actions workflows for releases:
    ```
 3. Commit and push to `main`
 4. The workflow will automatically create the release
+
+---
+
+## 🚀 Production Release — v14 (release/v14 branch)
+
+**Workflow:** `.github/workflows/auto-release-v14.yml`
+
+### When it runs:
+- Automatically triggered when `module.json` or `package.json` is pushed to the `release/v14` branch
+
+### What it does:
+Same steps as the v13 workflow above, but requires `module.json` version to be
+`2.x` and `compatibility.minimum` to be `14.x`, and maintains its own moving
+`v14-latest` tag/release instead of `v13-latest`. Publishes to the **same**
+Foundry package listing as `main` (same `FOUNDRY_ADMIN_MODULE_ID`), as a
+separate version entry with its own compatibility range.
+
+### How to create a v14 production release:
+1. Merge tested `staging` work into `release/v14` (create the branch from
+   `staging` if it doesn't exist yet)
+2. Update version in both `module.json` and `package.json` (keep it in the `2.x` family, compat `14.x`)
+3. Add a section for the new version in `CHANGELOG.md`
+4. Push to `release/v14` — the workflow creates the release and publishes to Foundry
 
 ---
 
@@ -77,28 +120,40 @@ In Foundry VTT:
 ## 📋 Branch Strategy
 
 ```
-staging (beta releases)
-   ↓
-   ↓ (merge when ready)
-   ↓
-main (production releases)
+                     staging (v14 beta releases)
+                        ↓
+                        ↓ (merge tested work when ready)
+                        ↓
+                     release/v14 (v14 production releases) ──┐
+                                                              ├─→ same Foundry listing,
+                     main (v13 production releases) ─────────┘   different version entries
 ```
 
+`main` and `staging`/`release/v14` are independent lines — `main` no longer
+receives the v14 rewrite. Fixes that apply to both must be ported by hand
+(cherry-pick or reimplement), not by merging the branches into each other.
+
 ### Typical workflow:
-1. **Development:** Make changes on feature branches, merge to `staging`
-2. **Beta Testing:** Push version bump to `staging` → creates beta release
-3. **Testing:** Testers install beta via manifest URL and provide feedback
-4. **Release:** When ready, merge `staging` to `main` → creates production release
+1. **v14 development:** Make changes on feature branches, merge to `staging`
+2. **v14 Beta Testing:** Push version bump to `staging` → creates beta release
+3. **v14 Release:** When ready, merge `staging` to `release/v14` → creates v14 production release
+4. **v13 maintenance:** Fixes/parity changes for the legacy line go directly to `main` → creates v13 production release
 
 ---
 
 ## 🔧 Version Numbering
 
-### Production (main):
+### Production v13 (main):
 - Tag: `v1.2.0`
 - Version in module.json: `1.2.0`
-- Manifest URL: `/releases/latest/download/module.json` (auto-updates)
+- Manifest URL: `/releases/download/v13-latest/module.json` (auto-updates)
 - Download URL: `/releases/download/v1.2.0/module.zip` (specific version)
+
+### Production v14 (release/v14):
+- Tag: `v2.1.0`
+- Version in module.json: `2.1.0`
+- Manifest URL: `/releases/download/v14-latest/module.json` (auto-updates)
+- Download URL: `/releases/download/v2.1.0/module.zip` (specific version)
 
 ### Beta (staging):
 - **Versioned tag:** `v1.2.0-beta.5` (specific beta with full changelog)
