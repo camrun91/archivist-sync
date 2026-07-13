@@ -24,36 +24,17 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       selectedWorldId: '',
       selectedWorldName: '',
       setupComplete: false,
-      // Mapping removed
-      systemPreset: '',
       destinations: { pc: '', npc: '', item: '', location: '', faction: '' },
-      // Step 4 selections
-      selections: { pcs: [], npcs: [], items: [], locations: [], factions: [] },
-      // Step 5: Create Foundry core objects choices
       createFoundry: { actors: [], items: [], scenes: [] },
     };
-    // Mapping discovery caches removed
-    this.folderOptions = {
-      pc: [],
-      npc: [],
-      item: [],
-      location: [],
-      faction: [],
-    };
-    // Mapping options removed (keep empty object to avoid legacy access)
-    this.mappingOptions = { actor: [], item: [] };
     this.archivistCandidates = {
       characters: [],
       items: [],
       locations: [],
       factions: [],
-    };
-    this.eligibleDocs = {
-      pcs: [],
-      npcs: [],
-      items: [],
-      locations: [],
-      factions: [],
+      journals: [],
+      journalFolders: [],
+      quests: [],
     };
     this.syncPlan = { createInFoundry: [], createInArchivist: [], link: [] };
     this.syncStatus = {
@@ -193,25 +174,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       nextStep: WorldSetupDialog.prototype._onNextStep,
       prevStep: WorldSetupDialog.prototype._onPrevStep,
       validateApiKey: WorldSetupDialog.prototype._onValidateApiKey,
-      syncWorlds: WorldSetupDialog.prototype._onSyncWorlds,
-      selectWorld: WorldSetupDialog.prototype._onSelectWorld,
       openDocumentation: WorldSetupDialog.prototype._onOpenDocumentation,
-      // Step 3 actions
       loadCampaigns: WorldSetupDialog.prototype._onLoadCampaigns,
       createCampaign: WorldSetupDialog.prototype._onCreateCampaign,
-      campaignSelectChange: WorldSetupDialog.prototype._onCampaignSelectChange,
-      // Step 5 actions
       prepareSelections: WorldSetupDialog.prototype._onPrepareSelections,
-      toggleSelection: WorldSetupDialog.prototype._onToggleSelection,
-      changeMatch: WorldSetupDialog.prototype._onChangeMatch,
-      confirmSelections: WorldSetupDialog.prototype._onConfirmSelections,
-      selectAll: WorldSetupDialog.prototype._onSelectAll,
-      selectNone: WorldSetupDialog.prototype._onSelectNone,
-      // Step 6 actions
       beginSync: WorldSetupDialog.prototype._onBeginSync,
-      // Configuration file actions
-      downloadSampleConfig: WorldSetupDialog.prototype._onDownloadSampleConfig,
-      // Finalization
       completeSetup: WorldSetupDialog.prototype._onCompleteSetup,
       cancel: WorldSetupDialog.prototype._onCancel,
     },
@@ -228,365 +195,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   };
 
   /**
-   * Discover string properties in object model recursively
-   * @param {Object} obj - Object to traverse
-   * @param {string} basePath - Current path prefix
-   * @param {Array} results - Array to collect results
-   * @param {number} maxDepth - Maximum recursion depth
-   * @param {number} currentDepth - Current recursion depth
-   * @private
-   */
-  _discoverStringProperties(
-    obj,
-    basePath = '',
-    results = [],
-    maxDepth = 6,
-    currentDepth = 0
-  ) {
-    if (!obj || currentDepth >= maxDepth || typeof obj !== 'object')
-      return results;
-
-    for (const [key, value] of Object.entries(obj)) {
-      const path = basePath ? `${basePath}.${key}` : key;
-
-      if (typeof value === 'string' && value.trim().length > 0) {
-        // Only include non-empty string properties
-        results.push({
-          path,
-          type: 'string',
-          sample: value.length > 50 ? value.substring(0, 47) + '...' : value,
-        });
-      } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-        // Recurse into nested objects
-        this._discoverStringProperties(
-          value,
-          path,
-          results,
-          maxDepth,
-          currentDepth + 1
-        );
-      }
-    }
-
-    return results;
-  }
-
-  /**
-   * Prepare mapping options by discovering string properties in Actor and Item models
-   * Uses temporary document creation to ensure complete property discovery
-   * @private
-   */
-  async _prepareMappingOptions() {
-    try {
-      console.log('Archivist Sync | Discovering document properties...');
-
-      // Discover Actor properties by creating temporary actors
-      this.mappingOptions.actor = await this._discoverActorProperties();
-
-      // Discover Item properties by creating temporary items
-      this.mappingOptions.item = await this._discoverItemProperties();
-
-      // Sort options with priority for commonly used fields
-      const sortWithPriority = (options, priorityFields = []) => {
-        return options.sort((a, b) => {
-          const aPriority = priorityFields.indexOf(a.path);
-          const bPriority = priorityFields.indexOf(b.path);
-
-          // If both are priority fields, sort by priority order
-          if (aPriority !== -1 && bPriority !== -1) {
-            return aPriority - bPriority;
-          }
-
-          // Priority fields come first
-          if (aPriority !== -1) return -1;
-          if (bPriority !== -1) return 1;
-
-          // Then sort by path depth (simpler first), then alphabetically
-          const depthDiff = a.path.split('.').length - b.path.split('.').length;
-          return depthDiff !== 0 ? depthDiff : a.path.localeCompare(b.path);
-        });
-      };
-
-      const actorPriorityFields = [
-        'name',
-        'img',
-        'system.details.biography.value',
-        'system.details.biography.public',
-        'system.details.trait',
-        'system.details.ideal',
-        'system.details.bond',
-        'system.details.flaw',
-        'system.details.appearance',
-        'system.description.value',
-      ];
-
-      const itemPriorityFields = [
-        'name',
-        'img',
-        'system.description.value',
-        'system.description.short',
-        'system.description.chat',
-      ];
-
-      this.mappingOptions.actor = sortWithPriority(
-        this.mappingOptions.actor,
-        actorPriorityFields
-      );
-      this.mappingOptions.item = sortWithPriority(
-        this.mappingOptions.item,
-        itemPriorityFields
-      );
-
-      console.log(
-        `Archivist Sync | Property discovery complete: ${this.mappingOptions.actor.length} actor properties, ${this.mappingOptions.item.length} item properties`
-      );
-    } catch (error) {
-      console.warn('Error preparing mapping options:', error);
-      // Ensure we have fallback options
-      this.mappingOptions.actor = [
-        { path: 'name', type: 'string', sample: 'Actor name' },
-        { path: 'img', type: 'string', sample: 'Actor image path' },
-      ];
-      this.mappingOptions.item = [
-        { path: 'name', type: 'string', sample: 'Item name' },
-        { path: 'img', type: 'string', sample: 'Item image path' },
-      ];
-    }
-  }
-
-  /**
-   * Discover Actor properties by creating temporary actors of different types
-   * Uses the new Document() constructor (v13+) instead of deprecated { temporary: true }
-   * @private
-   */
-  async _discoverActorProperties() {
-    const allProperties = new Map(); // Use Map to avoid duplicates by path
-    const actorTypes = ['character', 'npc']; // Common D&D 5e actor types
-
-    // First, try to use existing actors
-    const existingActors = game.actors?.contents || [];
-    for (const actor of existingActors.slice(0, 2)) {
-      // Sample max 2 existing
-      try {
-        const actorData = actor.toObject();
-        const properties = this._discoverStringProperties(actorData);
-        for (const prop of properties) {
-          allProperties.set(prop.path, prop);
-        }
-        console.log(
-          `Archivist Sync | Discovered ${properties.length} properties from existing ${actor.type} actor: ${actor.name}`
-        );
-      } catch (error) {
-        console.warn(
-          `Error discovering properties from existing actor ${actor.name}:`,
-          error
-        );
-      }
-    }
-
-    // Try to discover properties from system data model templates instead of creating actors
-    for (const actorType of actorTypes) {
-      const hasExistingOfType = existingActors.some(
-        (a) => a.type === actorType
-      );
-
-      if (!hasExistingOfType) {
-        try {
-          console.log(
-            `Archivist Sync | Attempting system template discovery for ${actorType} actor`
-          );
-
-          // Try to access system data model template if available
-          let templateProperties = [];
-
-          // Check if we can access the system's data model templates
-          if (game.system?.model?.Actor?.[actorType]) {
-            console.log(
-              `Archivist Sync | Found system template for ${actorType}`
-            );
-            const template = game.system.model.Actor[actorType];
-            templateProperties = this._discoverStringProperties(template);
-
-            for (const prop of templateProperties) {
-              // Prefix with 'system.' since these are system model properties
-              const systemProp = {
-                ...prop,
-                path: prop.path.startsWith('system.')
-                  ? prop.path
-                  : `system.${prop.path}`,
-                sample: `${prop.sample} (from template)`,
-              };
-              allProperties.set(systemProp.path, systemProp);
-            }
-
-            console.log(
-              `Archivist Sync | Discovered ${templateProperties.length} properties from ${actorType} system template`
-            );
-          } else {
-            // Fallback: use predefined property sets for this actor type
-            console.log(
-              `Archivist Sync | No system template found for ${actorType}, using fallback properties`
-            );
-            const fallbackProperties =
-              this._getFallbackActorProperties(actorType);
-            for (const prop of fallbackProperties) {
-              allProperties.set(prop.path, prop);
-            }
-            console.log(
-              `Archivist Sync | Used ${fallbackProperties.length} fallback properties for ${actorType} actor`
-            );
-          }
-        } catch (error) {
-          console.warn(
-            `Error discovering properties for ${actorType} actor:`,
-            error
-          );
-
-          // Final fallback: use predefined property sets
-          try {
-            const fallbackProperties =
-              this._getFallbackActorProperties(actorType);
-            for (const prop of fallbackProperties) {
-              allProperties.set(prop.path, prop);
-            }
-            console.log(
-              `Archivist Sync | Used fallback properties for ${actorType} actor after error`
-            );
-          } catch (fallbackError) {
-            console.warn(
-              `Fallback also failed for ${actorType}:`,
-              fallbackError
-            );
-          }
-        }
-      }
-    }
-
-    // Add known D&D 5e paths that might not have been discovered
-    const knownPaths = [
-      { path: 'name', sample: 'Actor name' },
-      { path: 'img', sample: 'Actor image path' },
-      { path: 'system.details.biography.value', sample: 'Full biography text' },
-      {
-        path: 'system.details.biography.public',
-        sample: 'Public biography text',
-      },
-      { path: 'system.description.value', sample: 'Description text' },
-      { path: 'system.details.trait', sample: 'Personality traits' },
-      { path: 'system.details.ideal', sample: 'Ideals' },
-      { path: 'system.details.bond', sample: 'Bonds' },
-      { path: 'system.details.flaw', sample: 'Flaws' },
-      { path: 'system.details.appearance', sample: 'Physical appearance' },
-      { path: 'system.details.background', sample: 'Character background' },
-      { path: 'system.details.race', sample: 'Character race' },
-      { path: 'system.details.class', sample: 'Character class' },
-      { path: 'system.biography.value', sample: 'Biography (alt path)' },
-      {
-        path: 'system.biography.public',
-        sample: 'Public biography (alt path)',
-      },
-    ];
-
-    for (const pathInfo of knownPaths) {
-      if (!allProperties.has(pathInfo.path)) {
-        allProperties.set(pathInfo.path, {
-          path: pathInfo.path,
-          type: 'string',
-          sample: pathInfo.sample,
-        });
-      }
-    }
-
-    return Array.from(allProperties.values());
-  }
-
-  /**
-   * Get fallback properties for actor types when temporary document creation fails
-   * @private
-   */
-  _getFallbackActorProperties(actorType) {
-    const baseProperties = [
-      { path: 'name', type: 'string', sample: 'Actor name' },
-      { path: 'img', type: 'string', sample: 'Actor image path' },
-    ];
-
-    if (actorType === 'character') {
-      return [
-        ...baseProperties,
-        {
-          path: 'system.details.biography.value',
-          type: 'string',
-          sample: 'Full biography text',
-        },
-        {
-          path: 'system.details.trait',
-          type: 'string',
-          sample: 'Personality traits',
-        },
-        { path: 'system.details.ideal', type: 'string', sample: 'Ideals' },
-        { path: 'system.details.bond', type: 'string', sample: 'Bonds' },
-        { path: 'system.details.flaw', type: 'string', sample: 'Flaws' },
-        {
-          path: 'system.details.appearance',
-          type: 'string',
-          sample: 'Physical appearance',
-        },
-        {
-          path: 'system.details.background',
-          type: 'string',
-          sample: 'Character background',
-        },
-      ];
-    } else if (actorType === 'npc') {
-      return [
-        ...baseProperties,
-        {
-          path: 'system.details.biography.value',
-          type: 'string',
-          sample: 'Full biography text',
-        },
-        {
-          path: 'system.details.biography.public',
-          type: 'string',
-          sample: 'Public biography text',
-        },
-        {
-          path: 'system.description.value',
-          type: 'string',
-          sample: 'Description text',
-        },
-      ];
-    }
-
-    return baseProperties;
-  }
-
-  /**
    * Prepare context data for template rendering
    * @returns {Object} Template data
    */
   async _prepareContext() {
-    // Prepare folder options when needed
-    try {
-      const folders = game.folders?.contents || [];
-      const pick = (type) =>
-        folders
-          .filter((f) => f.type === type)
-          .map((f) => ({ id: f.id, name: f.name, depth: f.depth || 0 }))
-          .sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name));
-      this.folderOptions = {
-        pc: pick('Actor'),
-        npc: pick('Actor'),
-        item: pick('Item'),
-        location: pick('JournalEntry'),
-        faction: pick('JournalEntry'),
-      };
-    } catch (_) {
-      /* no-op */
-    }
-
-    // Mapping step removed; skip legacy mapping preparation entirely
-
     const contextData = {
       currentStep: this.currentStep,
       totalSteps: this.totalSteps,
@@ -596,8 +208,6 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       foundryWorldDescription: game.world.description || '',
       worlds: this.worlds,
       setupData: this.setupData,
-      folderOptions: this.folderOptions,
-      mappingOptions: this.mappingOptions,
       archivistCandidates: this.archivistCandidates,
       syncPlan: this.syncPlan,
       syncStatus: this.syncStatus,
@@ -607,7 +217,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               (this.syncStatus.processed / this.syncStatus.total) * 100
             )
           : 0,
-      steps: Array.from({ length: this.totalSteps }, (_, i) => i + 1),
+      steps: [
+        { num: 1, label: 'Welcome' },
+        { num: 2, label: 'API Key' },
+        { num: 3, label: 'Campaign' },
+        { num: 4, label: 'Reconcile' },
+        { num: 5, label: 'Create' },
+        { num: 6, label: 'Sync' },
+      ],
       // Step-specific data
       isStep1: this.currentStep === 1,
       isStep2: this.currentStep === 2,
@@ -689,6 +306,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           // Import-only buckets
           count.imp.factions = this.archivistCandidates?.factions?.length || 0;
           count.imp.recaps = this.archivistCandidates?.recaps?.length || 0;
+          count.imp.journals = this.archivistCandidates?.journals?.length || 0;
+          count.imp.quests = this.archivistCandidates?.quests?.length || 0;
 
           imp = count.imp;
           exp = count.exp;
@@ -795,7 +414,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     } catch (_) {}
 
     if (this.currentStep === 4) {
-      console.log('[World Setup] _prepareContext for Step 4:', {
+      console.debug('[World Setup] _prepareContext for Step 4:', {
         hasReconcileData: !!contextData.setupData?.reconcile,
         hasAnyCandidates: contextData.setupData?.hasAnyCandidates,
         isLoading: contextData.isLoading,
@@ -853,14 +472,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
    */
   async _onNextStep(event) {
     event.preventDefault();
-    console.log(
+    console.debug(
       '[World Setup] _onNextStep called, currentStep before increment:',
       this.currentStep
     );
 
     // Special handling: if leaving step 4, must build sync plan first
     if (this.currentStep === 4 && this._canProceedFromCurrentStep()) {
-      console.log(
+      console.debug(
         '[World Setup] _onNextStep from step 4: building sync plan via _onConfirmSelections'
       );
       await this._onConfirmSelections(event);
@@ -873,13 +492,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       this._canProceedFromCurrentStep()
     ) {
       this.currentStep++;
-      console.log(
+      console.debug(
         '[World Setup] _onNextStep, currentStep after increment:',
         this.currentStep
       );
       // Auto-prepare reconciliation data when entering Step 4
       if (this.currentStep === 4) {
-        console.log(
+        console.debug(
           '[World Setup] _onNextStep triggering _onPrepareSelections for Step 4'
         );
         await this._onPrepareSelections(event);
@@ -887,7 +506,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       }
       // Prepare create choices when entering Step 5
       if (this.currentStep === 5) {
-        console.log(
+        console.debug(
           '[World Setup] _onNextStep preparing create choices for Step 5'
         );
         await this._prepareCreateFoundryChoices();
@@ -896,7 +515,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       }
       await this.render();
     } else {
-      console.log('[World Setup] _onNextStep cannot proceed:', {
+      console.debug('[World Setup] _onNextStep cannot proceed:', {
         currentStep: this.currentStep,
         totalSteps: this.totalSteps,
         canProceed: this._canProceedFromCurrentStep(),
@@ -1000,35 +619,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   }
 
   /**
-   * Handle sync worlds button click
-   * @param {Event} event - Click event
-   * @private
-   */
-  async _onSyncWorlds(event) {
-    // Delegate to load campaigns (legacy compatibility)
-    return await this._onLoadCampaigns(event);
-  }
-
-  /**
    * Step 3: Load user's campaigns using validated API key
    */
   async _onLoadCampaigns(event) {
     event?.preventDefault?.();
     try {
       this.isLoading = true;
-      try {
-        await this.render();
-      } catch (_) {
-        /* ignore after close */
-      }
+      await this.render();
       const apiKey = this.setupData.apiKey || settingsManager.getApiKey();
       if (!apiKey) throw new Error('Missing API key');
       const resp = await archivistApi.fetchCampaignsList(apiKey);
       if (resp.success) {
         this.worlds = resp.data || [];
-        // Move to step 3 if not already there
         if (this.currentStep < 3) this.currentStep = 3;
-        await this.render();
       } else {
         ui.notifications.error(resp.message || 'Failed to load campaigns');
       }
@@ -1102,14 +705,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   async _onPrepareSelections(event) {
     event?.preventDefault?.();
     try {
-      console.log('[World Setup] Starting _onPrepareSelections');
+      console.debug('[World Setup] Starting _onPrepareSelections');
       this.isLoading = true;
       await this.render();
       const apiKey = this.setupData.apiKey || settingsManager.getApiKey();
       // Always prefer the explicit selection from Step 3; fallback to saved setting only if necessary
       const campaignId =
         this.setupData.selectedWorldId || settingsManager.getSelectedWorldId();
-      console.log('[World Setup] Using campaignId:', campaignId);
+      console.debug('[World Setup] Using campaignId:', campaignId);
       if (!campaignId) {
         ui.notifications.warn(
           'Please select a campaign in Step 3 before continuing.'
@@ -1123,27 +726,33 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const foundryActors = getAll(game.actors);
       const foundryItems = getAll(game.items);
       const foundryScenes = getAll(game.scenes);
-      console.log('[World Setup] Foundry docs:', {
+      console.debug('[World Setup] Foundry docs:', {
         actors: foundryActors.length,
         items: foundryItems.length,
         scenes: foundryScenes.length,
       });
 
       // Archivist side
-      console.log('[World Setup] Fetching Archivist data...');
-      const [chars, its, locs, facs, sessions] = await Promise.all([
+      console.debug('[World Setup] Fetching Archivist data...');
+      const [chars, its, locs, facs, sessions, journals, journalFolders, quests] = await Promise.all([
         archivistApi.listCharacters(apiKey, campaignId),
         archivistApi.listItems(apiKey, campaignId),
         archivistApi.listLocations(apiKey, campaignId),
         archivistApi.listFactions(apiKey, campaignId),
         archivistApi.listSessions(apiKey, campaignId),
+        archivistApi.listJournals(apiKey, campaignId),
+        archivistApi.listJournalFolders(apiKey, campaignId),
+        archivistApi.listQuests(apiKey, campaignId),
       ]);
-      console.log('[World Setup] Archivist API responses:', {
+      console.debug('[World Setup] Archivist API responses:', {
         chars,
         its,
         locs,
         facs,
         sessions,
+        journals,
+        journalFolders,
+        quests,
       });
       this.archivistCandidates.characters = chars.success
         ? chars.data || []
@@ -1154,16 +763,28 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       this.archivistCandidates.recaps = sessions.success
         ? sessions.data || []
         : [];
-      console.log('[World Setup] Archivist docs:', {
+      this.archivistCandidates.journals = journals.success
+        ? journals.data || []
+        : [];
+      this.archivistCandidates.journalFolders = journalFolders.success
+        ? journalFolders.data || []
+        : [];
+      this.archivistCandidates.quests = quests.success
+        ? quests.data || []
+        : [];
+      console.debug('[World Setup] Archivist docs:', {
         characters: this.archivistCandidates.characters.length,
         items: this.archivistCandidates.items.length,
         locations: this.archivistCandidates.locations.length,
         factions: this.archivistCandidates.factions.length,
         recaps: this.archivistCandidates.recaps.length,
+        journals: this.archivistCandidates.journals.length,
+        journalFolders: this.archivistCandidates.journalFolders.length,
+        quests: this.archivistCandidates.quests.length,
       });
 
       // Build reconciliation model with initial matches and selections
-      console.log('[World Setup] Building reconciliation model...');
+      console.debug('[World Setup] Building reconciliation model...');
       const reconcile = this._buildReconciliationModel({
         archivist: {
           characters: this.archivistCandidates.characters,
@@ -1177,8 +798,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           scenes: foundryScenes,
         },
       });
-      console.log('[World Setup] Reconciliation model built:', reconcile);
-      console.log('[World Setup] Detailed reconciliation counts:', {
+      console.debug('[World Setup] Reconciliation model built:', reconcile);
+      console.debug('[World Setup] Detailed reconciliation counts:', {
         charactersArchivist: reconcile?.characters?.archivist?.length || 0,
         charactersFoundry: reconcile?.characters?.foundry?.length || 0,
         itemsArchivist: reconcile?.items?.archivist?.length || 0,
@@ -1200,30 +821,24 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           (reconcile?.factions?.archivist?.length || 0) +
           (reconcile?.factions?.foundry?.length || 0)
       );
-      console.log(
+      console.debug(
         '[World Setup] Has candidates:',
         this.setupData.hasAnyCandidates
       );
-      console.log(
+      console.debug(
         '[World Setup] setupData.reconcile assigned:',
         this.setupData.reconcile
       );
-      console.log(
+      console.debug(
         '[World Setup] Sample archivist character (first item):',
         reconcile?.characters?.archivist?.[0]
       );
-      console.log(
+      console.debug(
         '[World Setup] Sample archivist location (first item):',
         reconcile?.locations?.archivist?.[0]
       );
 
-      // stay on Selection step after refresh
       this.currentStep = 4;
-      try {
-        await this.render();
-      } catch (_) {
-        /* ignore after close */
-      }
     } catch (e) {
       console.error('Prepare selections error', e);
       ui.notifications.error('Failed to prepare selections');
@@ -1235,46 +850,6 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         /* ignore after close */
       }
     }
-  }
-
-  _updateSelection(kind, id, updates) {
-    const arr = this.setupData.selections[kind] || [];
-    const idx = arr.findIndex((x) => x.id === id);
-    if (idx >= 0) Object.assign(arr[idx], updates);
-  }
-
-  async _onToggleSelection(event) {
-    const el = event?.target;
-    const kind = el?.dataset?.kind;
-    const id = el?.dataset?.id;
-    if (!kind || !id) return;
-    this._updateSelection(kind, id, { selected: el.checked });
-  }
-
-  async _onChangeMatch(event) {
-    const el = event?.target;
-    const kind = el?.dataset?.kind;
-    const id = el?.dataset?.id;
-    if (!kind || !id) return;
-    this._updateSelection(kind, id, {
-      match: { id: el.value, label: el.options[el.selectedIndex]?.text || '' },
-    });
-  }
-
-  async _onSelectAll(event) {
-    const kind = event?.target?.dataset?.kind;
-    if (!kind) return;
-    (this.setupData.selections[kind] || []).forEach((s) => (s.selected = true));
-    await this.render();
-  }
-
-  async _onSelectNone(event) {
-    const kind = event?.target?.dataset?.kind;
-    if (!kind) return;
-    (this.setupData.selections[kind] || []).forEach(
-      (s) => (s.selected = false)
-    );
-    await this.render();
   }
 
   async _onConfirmSelections(event) {
@@ -1455,6 +1030,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     plan.importFromArchivist.recaps =
       this.archivistCandidates.recaps?.length || 0;
 
+    // Journals (Archivist-only, import all with folder structure)
+    plan.importFromArchivist.journals =
+      this.archivistCandidates.journals?.length || 0;
+
+    // Quests (Archivist-only, import all)
+    plan.importFromArchivist.quests =
+      this.archivistCandidates.quests?.length || 0;
+
     this.syncPlan = plan;
     this.currentStep = 5;
     await this._prepareCreateFoundryChoices();
@@ -1503,7 +1086,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       });
     } catch (_) {
       // User cancelled or closed the dialog - do not proceed with sync
-      console.log('[World Setup] Sync cancelled by user');
+      console.debug('[World Setup] Sync cancelled by user');
       return;
     }
 
@@ -1542,7 +1125,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const campaignId =
         this.setupData.selectedWorldId || settingsManager.getSelectedWorldId();
 
-      console.log('Archivist Sync | Beginning sync with:', {
+      console.debug('Archivist Sync | Beginning sync with:', {
         apiKey: apiKey ? `***${apiKey.slice(-4)}` : 'none',
         campaignId,
       });
@@ -1567,11 +1150,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         await this.render();
         return;
       }
-      console.log('[World Setup] ✓ Real-time sync successfully suppressed');
+      console.debug('[World Setup] ✓ Real-time sync successfully suppressed');
 
       // Ensure Journal folders exist for each sheet type BEFORE importing
       try {
-        console.log('[World Setup] Creating organized folders...');
+        console.debug('[World Setup] Creating organized folders...');
         const ensureFolder = async (name) => {
           try {
             return await Utils.ensureJournalFolder(name);
@@ -1586,15 +1169,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           location: await ensureFolder('Archivist - Locations'),
           faction: await ensureFolder('Archivist - Factions'),
           recap: await ensureFolder('Recaps'),
+          journal: await ensureFolder('Archivist - Journals'),
+          quest: await ensureFolder('Archivist - Quests'),
         };
 
-        console.log('[World Setup] Folders created:', {
+        console.debug('[World Setup] Folders created:', {
           pc: folders.pc || 'failed',
           npc: folders.npc || 'failed',
           item: folders.item || 'failed',
           location: folders.location || 'failed',
           faction: folders.faction || 'failed',
           recap: folders.recap || 'failed',
+          journal: folders.journal || 'failed',
+          quest: folders.quest || 'failed',
         });
 
         this.setupData.destinations = {
@@ -1603,14 +1190,18 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           item: folders.item,
           location: folders.location,
           faction: folders.faction,
+          journal: folders.journal,
+          quest: folders.quest,
+          recap: folders.recap,
         };
 
-        console.log('[World Setup] Destinations set:', {
+        console.debug('[World Setup] Destinations set:', {
           pc: this.setupData.destinations.pc || 'none',
           npc: this.setupData.destinations.npc || 'none',
           item: this.setupData.destinations.item || 'none',
           location: this.setupData.destinations.location || 'none',
           faction: this.setupData.destinations.faction || 'none',
+          recap: this.setupData.destinations.recap || 'none',
         });
       } catch (e) {
         console.error('[World Setup] Folder creation failed:', e);
@@ -1621,7 +1212,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         ...(this.syncPlan.createInArchivist || []),
         ...(this.syncPlan.link || []),
       ];
-      console.log(`Archivist Sync | Processing ${work.length} sync jobs:`, {
+      console.debug(`Archivist Sync | Processing ${work.length} sync jobs:`, {
         createInArchivist: this.syncPlan.createInArchivist?.length || 0,
         link: this.syncPlan.link?.length || 0,
       });
@@ -1971,7 +1562,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             type: job.kind,
             campaign_id: campaignId,
           };
-          console.log(`Archivist Sync | Creating ${job.kind} character:`, {
+          console.debug(`Archivist Sync | Creating ${job.kind} character:`, {
             name: payload.character_name,
             campaignId,
           });
@@ -1981,7 +1572,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             ...getMappedFields('Item', doc),
             campaign_id: campaignId,
           };
-          console.log(`Archivist Sync | Creating item:`, {
+          console.debug(`Archivist Sync | Creating item:`, {
             name: payload.name,
             campaignId,
           });
@@ -2000,7 +1591,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             ...(image ? { image } : {}),
             campaign_id: campaignId,
           };
-          console.log(`Archivist Sync | Creating location from Scene:`, {
+          console.debug(`Archivist Sync | Creating location from Scene:`, {
             name: payload.name,
             campaignId,
           });
@@ -2047,7 +1638,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               html = Utils.toMarkdownIfHtml(String(desc || ''));
               imageUrl = doc?.img || undefined;
 
-              console.log(
+              console.debug(
                 `[World Setup] Creating journal for exported ${job.kind}:`,
                 {
                   name: doc.name,
@@ -2088,7 +1679,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               html = Utils.toMarkdownIfHtml(String(desc || ''));
               imageUrl = doc?.img || undefined;
 
-              console.log(`[World Setup] Creating journal for exported Item:`, {
+              console.debug(`[World Setup] Creating journal for exported Item:`, {
                 name: doc.name,
                 archivistId: newId,
                 targetFolderId: targetFolderId || 'none',
@@ -2123,7 +1714,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               html = '';
               imageUrl = doc?.thumb || doc?.background?.src || undefined;
 
-              console.log(
+              console.debug(
                 `[World Setup] Creating journal for exported Location:`,
                 {
                   name: doc.name,
@@ -2177,7 +1768,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         await settingsManager.setJournalDestinations(
           this.setupData.destinations
         );
-        console.log(
+        console.debug(
           '[World Setup] Journal destinations saved to settings:',
           this.setupData.destinations
         );
@@ -2194,7 +1785,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       // Resume realtime sync now that batch operations are complete
       try {
         settingsManager.resumeRealtimeSync?.();
-        console.log(
+        console.debug(
           '[World Setup] ✓ Real-time sync resumed after successful setup'
         );
       } catch (_) {}
@@ -2214,16 +1805,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             : `Failed to process ${count} entities: ${errorNames}. Their descriptions exceed the maximum length of 10,000 characters. Please shorten the descriptions and try again.`;
         ui.notifications.error(message, { permanent: true });
       } else {
-        ui.notifications.info('Sync completed');
+        ui.notifications.info('Sync completed successfully. Click "Complete Setup" to finish.');
       }
-
-      try {
-        await this.close();
-      } catch (_) {}
     } catch (e) {
       try {
         settingsManager.resumeRealtimeSync?.();
-        console.log('[World Setup] Real-time sync resumed after error');
+        console.debug('[World Setup] Real-time sync resumed after error');
       } catch (_) {}
       console.error('[World Setup] ❌ Begin sync failed', e);
       ui.notifications.error('Sync failed');
@@ -2241,24 +1828,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
   // Removed Archivist journal folder setup; journals are created only in user destinations
 
-  async _importArchivistMissing(apiKey, campaignId, jf) {
+  async _importArchivistMissing(apiKey, campaignId) {
     try {
-      console.log('Archivist Sync | Importing existing data from Archivist...');
-
-      // Always import existing Archivist data to Foundry during world setup
-      // This ensures that existing campaign data is available in the new Foundry world
-
-      // Pull candidates from Archivist
-      const [chars, its, locs, facs] = await Promise.all([
-        archivistApi.listCharacters(apiKey, campaignId),
-        archivistApi.listItems(apiKey, campaignId),
-        archivistApi.listLocations(apiKey, campaignId),
-        archivistApi.listFactions(apiKey, campaignId),
-      ]);
-      const allCharacters = chars.success ? chars.data || [] : [];
-      const allItems = its.success ? its.data || [] : [];
-      const allLocations = locs.success ? locs.data || [] : [];
-      const factions = facs.success ? facs.data || [] : [];
+      const allCharacters = this.archivistCandidates?.characters || [];
+      const allItems = this.archivistCandidates?.items || [];
+      const allLocations = this.archivistCandidates?.locations || [];
+      const factions = this.archivistCandidates?.factions || [];
+      const archivistJournals = this.archivistCandidates?.journals || [];
+      const archivistJournalFolders = this.archivistCandidates?.journalFolders || [];
+      const archivistQuests = this.archivistCandidates?.quests || [];
 
       // Build reconciliation lookup maps to avoid duplicating existing Foundry docs when user mapped them
       const reconcile = this.setupData?.reconcile || {};
@@ -2315,13 +1893,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       );
 
       const total =
-        characters.length + items.length + locations.length + factions.length;
-      console.log(
-        `Archivist Sync | Found ${characters.length} characters, ${items.length} items, ${locations.length} locations, ${factions.length} factions in Archivist`
+        characters.length + items.length + locations.length + factions.length +
+        archivistJournals.length + archivistQuests.length;
+      console.debug(
+        `Archivist Sync | Found ${characters.length} characters, ${items.length} items, ${locations.length} locations, ${factions.length} factions, ${archivistJournals.length} journals, ${archivistQuests.length} quests in Archivist`
       );
 
       if (!total) {
-        console.log(
+        console.debug(
           'Archivist Sync | No existing data found in Archivist to import'
         );
         return;
@@ -2522,7 +2101,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             };
           }
 
-          console.log(`Archivist Sync | Creating ${archivistType} actor:`, {
+          console.debug(`Archivist Sync | Creating ${archivistType} actor:`, {
             name: actorData.name,
             type: foundryType,
             folderId,
@@ -2549,7 +2128,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               ? this.setupData.destinations.npc
               : this.setupData.destinations.pc;
 
-          console.log(`[World Setup] Creating journal for ${archivistType}:`, {
+          console.debug(`[World Setup] Creating journal for ${archivistType}:`, {
             name,
             archivistId: c.id,
             archivistType,
@@ -2654,7 +2233,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           };
           // Description no longer written into item system during setup
 
-          console.log(`Archivist Sync | Creating item:`, {
+          console.debug(`Archivist Sync | Creating item:`, {
             name: itemData.name,
             folderId,
             hasDescription: !!i.description,
@@ -2674,7 +2253,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           const imageUrl = i.image || undefined;
           const targetFolderId = this.setupData.destinations.item;
 
-          console.log(`[World Setup] Creating journal for Item:`, {
+          console.debug(`[World Setup] Creating journal for Item:`, {
             name,
             archivistId: i.id,
             targetFolderId: targetFolderId || 'none',
@@ -2736,7 +2315,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
           const sheetType = kind.toLowerCase();
 
-          console.log(`[World Setup] Creating journal for ${kind}:`, {
+          console.debug(`[World Setup] Creating journal for ${kind}:`, {
             name,
             archivistId: e.id,
             sheetType,
@@ -2804,40 +2383,202 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
       for (const c of characters) {
         this.syncStatus.current = `Import ${c.type || c.character_type || 'PC'}: ${c.character_name || c.name}`;
-        await this.render();
         await createActor(c);
         this.syncStatus.processed++;
         await this.render();
       }
       for (const it of items) {
         this.syncStatus.current = `Import Item: ${it.name}`;
-        await this.render();
         await createItem(it);
         this.syncStatus.processed++;
         await this.render();
       }
-      // Insert Locations alphabetically
       locations.sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''))
       );
       for (const l of locations) {
         this.syncStatus.current = `Import Location: ${l.name || l.title}`;
-        await this.render();
         await upsertIntoContainer(l, 'Location');
         this.syncStatus.processed++;
         await this.render();
       }
-      // Insert Factions alphabetically
       factions.sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''))
       );
       for (const f of factions) {
         this.syncStatus.current = `Import Faction: ${f.name || f.title}`;
-        await this.render();
         await upsertIntoContainer(f, 'Faction');
         this.syncStatus.processed++;
         await this.render();
       }
+
+      // Import Journals with folder structure (GM-only, point-in-time snapshot)
+      if (archivistJournals.length) {
+        const journalRootFolderId = this.setupData.destinations.journal || null;
+        const folderIdMap = new Map();
+
+        // Build Foundry sub-folders mirroring Archivist journal folder paths
+        const sortedFolders = [...archivistJournalFolders].sort((a, b) =>
+          (a.path || '').localeCompare(b.path || '')
+        );
+        for (const af of sortedFolders) {
+          try {
+            const segments = (af.path || af.name || '').split('/').filter(Boolean);
+            let parentId = journalRootFolderId;
+            let currentPath = '';
+            for (const seg of segments) {
+              currentPath = currentPath ? `${currentPath}/${seg}` : seg;
+              if (folderIdMap.has(currentPath)) {
+                parentId = folderIdMap.get(currentPath);
+                continue;
+              }
+              const existing = (game.folders?.contents || []).find(
+                (f) =>
+                  f.type === 'JournalEntry' &&
+                  f.name === seg &&
+                  (f.folder?.id || null) === (parentId || null)
+              );
+              if (existing) {
+                folderIdMap.set(currentPath, existing.id);
+                parentId = existing.id;
+              } else {
+                const created = await Folder.create(
+                  { name: seg, type: 'JournalEntry', folder: parentId || null },
+                  { render: false }
+                );
+                folderIdMap.set(currentPath, created.id);
+                parentId = created.id;
+              }
+            }
+            folderIdMap.set(String(af.id), parentId);
+          } catch (e) {
+            console.warn('[World Setup] Failed to create journal folder', af, e);
+          }
+        }
+
+        for (const j of archivistJournals) {
+          this.syncStatus.current = `Import Journal: ${j.title || 'Untitled'}`;
+          try {
+            const folderId = j.folder_id
+              ? folderIdMap.get(String(j.folder_id)) || journalRootFolderId
+              : journalRootFolderId;
+            const html = Utils.toMarkdownIfHtml(String(j.content || j.summary || ''));
+            const imageUrl =
+              typeof j.cover_image === 'string' && j.cover_image.trim()
+                ? j.cover_image.trim()
+                : null;
+            const journal = await Utils.createCustomJournalForImport({
+              name: j.title || 'Untitled',
+              html,
+              imageUrl,
+              sheetType: 'journal',
+              archivistId: j.id,
+              worldId: campaignId,
+              folderId: folderId || null,
+            });
+            // GM-only: set default ownership to NONE for all players
+            if (journal) {
+              try {
+                await journal.update(
+                  { ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE } },
+                  { render: false }
+                );
+              } catch (_) {}
+              // Store folder_id in flags for reference (not kept in sync)
+              if (j.folder_id) {
+                try {
+                  const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                  flags.archivistFolderId = j.folder_id;
+                  await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+                } catch (_) {}
+              }
+            }
+          } catch (e) {
+            console.warn('[World Setup] Failed to import journal', j, e);
+          }
+          this.syncStatus.processed++;
+          await this.render();
+        }
+        ui.notifications?.info?.(
+          'Journals imported as GM-only. Folder structure reflects the import snapshot and will not auto-sync.'
+        );
+      }
+
+      // Import Quests
+      for (const q of archivistQuests) {
+        this.syncStatus.current = `Import Quest: ${q.questName || q.quest_name || 'Quest'}`;
+        try {
+          const questFolderId = this.setupData.destinations.quest || null;
+
+          // Fetch full quest data if we only have summary
+          let fullQuest = q;
+          if (!q.objectives && q.id) {
+            try {
+              const resp = await archivistApi.getQuest(apiKey, q.id);
+              if (resp.success && resp.data) fullQuest = resp.data;
+            } catch (_) {}
+          }
+
+          // Quest has no generic description field in the API; its Info tab is a
+          // structured metadata form (see quest.hbs), not free-text page content.
+          const journal = await Utils.createCustomJournalForImport({
+            name: fullQuest.questName || fullQuest.quest_name || 'Quest',
+            html: '',
+            sheetType: 'quest',
+            archivistId: fullQuest.id,
+            worldId: campaignId,
+            folderId: questFolderId || null,
+          });
+          if (journal) {
+            const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+            flags.questData = {
+              questName: fullQuest.questName || fullQuest.quest_name || '',
+              questGiver: fullQuest.questGiver || fullQuest.quest_giver || '',
+              questCategory:
+                fullQuest.questCategory || fullQuest.quest_category || 'n/a',
+              status: fullQuest.status || 'planned',
+              successDefinition:
+                fullQuest.successDefinition || fullQuest.success_definition || '',
+              failureConditions:
+                fullQuest.failureConditions || fullQuest.failure_conditions || '',
+              nextAction: fullQuest.nextAction || fullQuest.next_action || '',
+              resolution: fullQuest.resolution || '',
+              objectives: Array.isArray(fullQuest.objectives) ? fullQuest.objectives : [],
+              progressLog: Array.isArray(fullQuest.progressLog)
+                ? fullQuest.progressLog
+                : Array.isArray(fullQuest.progress_log)
+                  ? fullQuest.progress_log
+                : Array.isArray(fullQuest.progressLogEntries)
+                  ? fullQuest.progressLogEntries.map((e) =>
+                      typeof e === 'string' ? e : e.text || ''
+                    )
+                  : Array.isArray(fullQuest.progress_log_entries)
+                    ? fullQuest.progress_log_entries.map((e) =>
+                        typeof e === 'string' ? e : e.text || ''
+                      )
+                  : [],
+              relatedCharacters:
+                fullQuest.relatedCharacters || fullQuest.related_characters || [],
+              relatedFactions:
+                fullQuest.relatedFactions || fullQuest.related_factions || [],
+              relatedLocations:
+                fullQuest.relatedLocations || fullQuest.related_locations || [],
+              relatedItems:
+                fullQuest.relatedItems || fullQuest.related_items || [],
+              relatedEntityRefs:
+                fullQuest.relatedEntityRefs || fullQuest.related_entity_refs || [],
+              firstSession: fullQuest.firstSession || fullQuest.first_session || null,
+              lastSession: fullQuest.lastSession || fullQuest.last_session || null,
+            };
+            await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+          }
+        } catch (e) {
+          console.warn('[World Setup] Failed to import quest', q, e);
+        }
+        this.syncStatus.processed++;
+        await this.render();
+      }
+
       // After creating journals and pages, hydrate link graph from Archivist Links
       try {
         // Ensure parent/child relationships for Locations using helper before indexing
@@ -2963,81 +2704,27 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
   }
 
   /**
-   * Handle world selection
-   * @param {Event} event - Change event
-   * @private
-   */
-  async _onSelectWorld(event) {
-    event.preventDefault();
-
-    const worldId = event.target.value;
-    if (!worldId) {
-      this.setupData.selectedWorldId = '';
-      this.setupData.selectedWorldName = '';
-      return;
-    }
-
-    const selectedWorld = this.worlds.find((w) => w.id === worldId);
-    if (selectedWorld) {
-      const displayName =
-        selectedWorld?.name || selectedWorld?.title || 'World';
-      this.setupData.selectedWorldId = worldId;
-      this.setupData.selectedWorldName = displayName;
-
-      // Save to settings immediately
-      try {
-        await settingsManager.setSelectedWorld(worldId, displayName);
-        ui.notifications.info(
-          game.i18n.localize('ARCHIVIST_SYNC.messages.worldSaved')
-        );
-      } catch (error) {
-        console.error('Error saving world selection during setup:', error);
-        ui.notifications.error(
-          game.i18n.localize('ARCHIVIST_SYNC.errors.saveFailed')
-        );
-      }
-    }
-
-    await this.render();
-  }
-
-  /**
-   * Convert markdown to HTML with proper paragraph and line break handling
-   */
-  _mdToHtml(md) {
-    const s = String(md || '').trim();
-    if (!s) return '';
-    return s
-      .replace(/\r\n/g, '\n')
-      .split('\n\n') // Split on double newlines to create paragraphs
-      .map((para) => {
-        // Within each paragraph, convert single newlines to <br>
-        const content = para
-          .replace(/\n/g, '<br>')
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-          .replace(/_(.*?)_/g, '<em>$1</em>');
-        return `<p>${content}</p>`;
-      })
-      .join('');
-  }
-
-  /**
    * Create a Recaps folder and a journal per session, ordered by date
    */
   async _syncRecapsFromSessions(apiKey, campaignId) {
     try {
       const sessionsResp = await archivistApi.listSessions(apiKey, campaignId);
       if (!sessionsResp.success) return;
-      const sessions = (sessionsResp.data || []).filter(
-        (s) => !!s.session_date
-      );
+      const sessions = Array.isArray(sessionsResp.data) ? sessionsResp.data.slice() : [];
 
-      // Sort by ascending date (oldest first)
+      // Sort by ascending date (oldest first). Undated sessions go last.
       sessions.sort(
-        (a, b) =>
-          new Date(a.session_date).getTime() -
-          new Date(b.session_date).getTime()
+        (a, b) => {
+          const aTime = a?.session_date
+            ? new Date(a.session_date).getTime()
+            : Number.POSITIVE_INFINITY;
+          const bTime = b?.session_date
+            ? new Date(b.session_date).getTime()
+            : Number.POSITIVE_INFINITY;
+          const safeATime = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY;
+          const safeBTime = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY;
+          return safeATime - safeBTime;
+        }
       );
 
       // Create individual Recap journals, one per session, inside Recaps folder
@@ -3064,8 +2751,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       for (const s of sessions) {
         const title = s.title || 'Session';
         const html = String(s.summary || '');
-        // Use session_date timestamp as sort value for proper ordering in Foundry sidebar
-        const sortValue = new Date(s.session_date).getTime();
+        // Use session_date timestamp as sort value for proper ordering in Foundry
+        // sidebar; leave undated sessions unsorted and normalize them later.
+        const sessionDateMs = s.session_date
+          ? new Date(s.session_date).getTime()
+          : NaN;
+        const sortValue = Number.isFinite(sessionDateMs) ? sessionDateMs : undefined;
         const journal = await Utils.createCustomJournalForImport({
           name: title,
           html,
@@ -3077,13 +2768,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           sort: sortValue,
         });
         if (journal) {
-          try {
-            await journal.setFlag(
-              CONFIG.MODULE_ID,
-              'sessionDate',
-              String(s.session_date)
-            );
-          } catch (_) {}
+          if (s.session_date) {
+            try {
+              await journal.setFlag(
+                CONFIG.MODULE_ID,
+                'sessionDate',
+                String(s.session_date)
+              );
+            } catch (_) {}
+          }
         }
       }
 
@@ -3125,6 +2818,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       } catch (_) {
         /* ignore ordering failures */
       }
+
+      // Recaps are created late in the wizard flow, so force the Journal
+      // directory to refresh here rather than waiting for a later global render.
+      try {
+        await ui?.journal?.render?.({ force: true });
+      } catch (_) {
+        /* ignore refresh failures */
+      }
     } catch (e) {
       console.warn('Recaps sync skipped/failed:', e);
     }
@@ -3159,7 +2860,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       try {
         if (window.ARCHIVIST_SYNC?.installRealtimeSyncListeners) {
           window.ARCHIVIST_SYNC.installRealtimeSyncListeners();
-          console.log(
+          console.debug(
             '[Archivist Sync] Real-Time Sync listeners installed after setup'
           );
         }
@@ -3170,7 +2871,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       setTimeout(async () => {
         try {
           await ui?.journal?.render?.({ force: true });
-          console.log('[Archivist Sync] Journal Directory re-rendered after setup');
+          console.debug('[Archivist Sync] Journal Directory re-rendered after setup');
         } catch (e) {
           console.warn('[Archivist Sync] Failed to re-render Journal Directory after setup', e);
         }
@@ -3181,89 +2882,6 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         game.i18n.localize('ARCHIVIST_SYNC.worldSetup.setupFailed')
       );
     }
-  }
-
-  /**
-   * Handle cancel button click
-   * @param {Event} event - Click event
-   * @private
-   */
-  /**
-   * Generate and download a sample configuration file
-   */
-  async _onDownloadSampleConfig(event) {
-    event?.preventDefault?.();
-
-    // Generate sample configuration with schema and examples
-    const sampleConfig = {
-      _schema_version: '1.0',
-      _description:
-        "Archivist Sync Configuration File - Edit the paths below to match your game system's data structure",
-      _instructions: {
-        actorMappings:
-          'Configure how PC and NPC data is mapped from Foundry actors',
-        itemMappings: 'Configure how Item data is mapped from Foundry items',
-        destinations:
-          'Configure where different entity types are synced to in Archivist',
-      },
-      actorMappings: {
-        pc: {
-          namePath: 'name',
-          imagePath: 'img',
-          descriptionPath: 'system.details.biography.value',
-          _examples: {
-            namePath: 'name (actor name field)',
-            imagePath: 'img (actor image field)',
-            descriptionPath:
-              'system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)',
-          },
-        },
-        npc: {
-          namePath: 'name',
-          imagePath: 'img',
-          descriptionPath: 'system.details.biography.value',
-          _examples: {
-            namePath: 'name (actor name field)',
-            imagePath: 'img (actor image field)',
-            descriptionPath:
-              'system.details.biography.value (D&D 5e), system.biography (PF2e), system.description (other systems)',
-          },
-        },
-      },
-      itemMappings: {
-        namePath: 'name',
-        imagePath: 'img',
-        descriptionPath: 'system.description.value',
-        _examples: {
-          namePath: 'name (item name field)',
-          imagePath: 'img (item image field)',
-          descriptionPath:
-            'system.description.value (D&D 5e), system.description (PF2e), system.description.value (other systems)',
-        },
-      },
-      destinations: {
-        pc: 'pc',
-        npc: 'npc',
-        item: 'item',
-        location: 'location',
-        faction: 'faction',
-        _options: {
-          pc: ['pc', 'npc'],
-          npc: ['npc', 'pc'],
-          item: ['item', 'note'],
-          location: ['location', 'note'],
-          faction: ['faction', 'note'],
-        },
-      },
-    };
-
-    // Open the sample config in a new tab
-    window.open(
-      'https://raw.githubusercontent.com/camrun91/archivist-sync/main/archivist-sync-sample-config.json',
-      '_blank'
-    );
-
-    ui.notifications.info('Sample configuration opened in new tab.');
   }
 
   async _onCancel(event) {
@@ -3285,20 +2903,19 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       progressBar.style.width = `${context.progressPercentage}%`;
     }
 
-    // Add keyboard shortcuts for Step 2
     if (context.isStep2) {
       const apiKeyInput = this.element.querySelector('#api-key-input');
       if (apiKeyInput) {
-        // Focus the input field
         apiKeyInput.focus();
-
-        // Add Enter key listener for validation
-        apiKeyInput.addEventListener('keypress', (event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            this._onValidateApiKey(event);
-          }
-        });
+        if (!apiKeyInput.dataset.bound) {
+          apiKeyInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              this._onValidateApiKey(event);
+            }
+          });
+          apiKeyInput.dataset.bound = 'true';
+        }
       }
     }
 
@@ -3435,43 +3052,73 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           }
         });
 
-      // Delegate checkbox toggle
+      // Delegate checkbox toggle with shift+click range-select
       if (!root.dataset.boundReconToggle) {
-        root.addEventListener('change', async (ev) => {
-          const cb = ev.target?.closest?.(
-            'input[type="checkbox"][data-action="recon-toggle-select"]'
-          );
-          if (!cb) return;
-          const tab = cb.dataset.tab;
-          const side = cb.dataset.side;
-          const id = cb.dataset.id;
-          const checked = cb.checked;
+        this._lastReconClick = {};
+
+        const syncRow = (tab, side, id, checked) => {
           const r = this.setupData.reconcile?.[tab];
           if (!r) return;
           const list = r[side] || [];
           const row = list.find((x) => x.id === id);
           if (!row) return;
           row.selected = checked;
-          // Sync with matched counterpart
           const otherSide = side === 'archivist' ? 'foundry' : 'archivist';
           const mid = row.match || null;
           if (mid) {
             const otherRow = (r[otherSide] || []).find((x) => x.id === mid);
             if (otherRow) {
               otherRow.selected = checked;
-              // Update the matched checkbox in the DOM
               const matchedCheckbox = root.querySelector(
                 `input[data-action="recon-toggle-select"][data-tab="${tab}"][data-side="${otherSide}"][data-id="${mid}"]`
               );
               if (matchedCheckbox) matchedCheckbox.checked = checked;
             }
           }
-          // Update header "select all" checkbox state
+        };
+
+        const updateHeaderCheckbox = (tab, side) => {
+          const r = this.setupData.reconcile?.[tab];
+          if (!r) return;
+          const list = r[side] || [];
           const allSelected = list.length > 0 && list.every((x) => x.selected);
-          const headerCheckbox = root.querySelector(
+          const headerCb = root.querySelector(
             `input[data-action="recon-select-all-toggle"][data-tab="${tab}"][data-side="${side}"]`
           );
-          if (headerCheckbox) headerCheckbox.checked = allSelected;
+          if (headerCb) headerCb.checked = allSelected;
+        };
+
+        root.addEventListener('click', (ev) => {
+          const cb = ev.target?.closest?.(
+            'input[type="checkbox"][data-action="recon-toggle-select"]'
+          );
+          if (!cb) return;
+          const tab = cb.dataset.tab;
+          const side = cb.dataset.side;
+          const key = `${tab}:${side}`;
+          const allCbs = Array.from(
+            root.querySelectorAll(
+              `input[data-action="recon-toggle-select"][data-tab="${tab}"][data-side="${side}"]`
+            )
+          );
+          const idx = allCbs.indexOf(cb);
+
+          if (ev.shiftKey && this._lastReconClick[key] != null) {
+            const lastIdx = this._lastReconClick[key];
+            const from = Math.min(lastIdx, idx);
+            const to = Math.max(lastIdx, idx);
+            const checked = cb.checked;
+            for (let i = from; i <= to; i++) {
+              const target = allCbs[i];
+              target.checked = checked;
+              syncRow(tab, side, target.dataset.id, checked);
+            }
+          } else {
+            syncRow(tab, side, cb.dataset.id, cb.checked);
+          }
+
+          this._lastReconClick[key] = idx;
+          updateHeaderCheckbox(tab, side);
         });
         root.dataset.boundReconToggle = 'true';
       }
@@ -3641,553 +3288,201 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       }
     }
 
-    // Legacy Step 4 (Mapping) removed – skip binding for legacy controls
-    if (false && context.isStep4) {
-      const val = (sel) => this.element.querySelector(sel)?.value?.trim() || '';
-      const updateMappingData = () => {
-        this.setupData.mapping.pc.namePath = val('#map-pc-name');
-        this.setupData.mapping.pc.imagePath = val('#map-pc-image');
-        this.setupData.mapping.pc.descPath = val('#map-pc-desc');
-        this.setupData.mapping.npc.namePath = val('#map-npc-name');
-        this.setupData.mapping.npc.imagePath = val('#map-npc-image');
-        this.setupData.mapping.npc.descPath = val('#map-npc-desc');
-        this.setupData.mapping.item.namePath = val('#map-item-name');
-        this.setupData.mapping.item.imagePath = val('#map-item-image');
-        this.setupData.mapping.item.descPath = val('#map-item-desc');
-        this.setupData.destinations.pc = val('#dest-pc');
-        this.setupData.destinations.npc = val('#dest-npc');
-        this.setupData.destinations.item = val('#dest-item');
+  }
+
+  _buildReconciliationModel(input) {
+    const A = input.archivist || {};
+    const F = input.foundry || {};
+    const toName = (v) => String(v || '').trim();
+    const normName = (v) => toName(v).toLowerCase();
+
+    const actors = Array.isArray(F.actors) ? F.actors : [];
+    const actorsBase = actors.map((a) => ({
+      id: a.id,
+      name: toName(a.name),
+      img: a.img || '',
+      type: String(a.type || ''),
+      doc: a,
+    }));
+    let pcActors = actorsBase.filter(
+      (a) => a.type.toLowerCase() === 'character'
+    );
+    let npcActors = actorsBase.filter(
+      (a) =>
+        a.type.toLowerCase() === 'npc' || a.type.toLowerCase() === 'monster'
+    );
+    if (
+      pcActors.length === 0 &&
+      npcActors.length === 0 &&
+      actorsBase.length > 0
+    ) {
+      const acChars = Array.isArray(A.characters) ? A.characters : [];
+      const acByName = new Map();
+      for (const c of acChars) {
+        const n = normName(c.character_name || c.name);
+        if (n)
+          acByName.set(n, (c.type || c.character_type || '').toUpperCase());
+      }
+      for (const a of actorsBase) {
+        const kind = acByName.get(normName(a.name)) || 'NPC';
+        if (kind === 'PC') pcActors.push(a);
+        else npcActors.push(a);
+      }
+    }
+
+    const fItems = (Array.isArray(F.items) ? F.items : []).map((i) => ({
+      id: i.id,
+      name: toName(i.name),
+      img: i.img || '',
+      doc: i,
+    }));
+    const fScenes = (Array.isArray(F.scenes) ? F.scenes : []).map((s) => ({
+      id: s.id,
+      name: toName(s.name),
+      img: s.thumb || s.background?.src || '',
+      doc: s,
+    }));
+
+    const aChars = (Array.isArray(A.characters) ? A.characters : []).map(
+      (c) => ({
+        id: String(c.id),
+        name: toName(c.character_name || c.name),
+        img: toName(c.image || ''),
+        type: String(c.type || c.character_type || 'PC').toUpperCase(),
+      })
+    );
+    const aItems = (Array.isArray(A.items) ? A.items : []).map((i) => ({
+      id: String(i.id),
+      name: toName(i.name),
+      img: toName(i.image || ''),
+    }));
+    const aLocs = (Array.isArray(A.locations) ? A.locations : []).map((l) => ({
+      id: String(l.id),
+      name: toName(l.name || l.title),
+      img: toName(l.image || ''),
+    }));
+    const aFactions = (Array.isArray(A.factions) ? A.factions : []).map(
+      (f) => ({
+        id: String(f.id),
+        name: toName(f.name || f.title),
+        img: toName(f.image || ''),
+      })
+    );
+
+    const matchByName = (
+      left,
+      right,
+      getLeftName,
+      getRightName,
+      constraint
+    ) => {
+      const usedRight = new Set();
+      const leftOut = [];
+      for (const L of left) {
+        let hit = null;
+        for (const R of right) {
+          if (usedRight.has(R.id)) continue;
+          if (constraint && !constraint(L, R)) continue;
+          if (normName(getLeftName(L)) === normName(getRightName(R))) {
+            hit = R;
+            break;
+          }
+        }
+        if (hit) {
+          usedRight.add(hit.id);
+          leftOut.push({ ...L, match: hit.id, selected: true });
+        } else {
+          leftOut.push({ ...L, match: null, selected: false });
+        }
+      }
+      const rightOut = right.map((R) => {
+        const L = leftOut.find((x) => x.match === R.id) || null;
+        return { ...R, match: L ? L.id : null, selected: !!L };
+      });
+      return { leftOut, rightOut };
+    };
+
+    const allActors = [...pcActors, ...npcActors];
+    const charConstraint = (ac, fa) => {
+      if (!fa.type || fa.type === '' || fa.type === 'base') return true;
+      return ac.type === 'PC'
+        ? fa.type.toLowerCase() === 'character'
+        : fa.type.toLowerCase() === 'npc' ||
+            fa.type.toLowerCase() === 'monster';
+    };
+    const { leftOut: aCharsOut, rightOut: fActorsOut } = matchByName(
+      aChars,
+      allActors,
+      (x) => x.name,
+      (x) => x.name,
+      charConstraint
+    );
+
+    const { leftOut: aItemsOut, rightOut: fItemsOut } = matchByName(
+      aItems,
+      fItems,
+      (x) => x.name,
+      (x) => x.name
+    );
+
+    const { leftOut: aLocsOut, rightOut: fScenesOut } = matchByName(
+      aLocs,
+      fScenes,
+      (x) => x.name,
+      (x) => x.name
+    );
+
+    const aFactionsOut = aFactions.map((f) => ({
+      ...f,
+      match: null,
+      selected: false,
+    }));
+    const fFactionsOut = [];
+
+    const result = {
+      characters: { archivist: aCharsOut, foundry: fActorsOut },
+      items: { archivist: aItemsOut, foundry: fItemsOut },
+      locations: { archivist: aLocsOut, foundry: fScenesOut },
+      factions: { archivist: aFactionsOut, foundry: fFactionsOut },
+    };
+
+    try {
+      const ensureNameMatch = (leftArr, rightArr) => {
+        const rightByName = new Map(
+          rightArr.map((r) => [normName(r.name), r])
+        );
+        for (const l of leftArr) {
+          if (!l.match) {
+            const r = rightByName.get(normName(l.name));
+            if (r && !r.match) {
+              l.match = r.id;
+              r.match = l.id;
+            }
+          }
+        }
       };
 
-      // Attach change listeners to all mapping and destination selects
-      const selectors = [
-        '#map-pc-name',
-        '#map-pc-image',
-        '#map-pc-desc',
-        '#map-npc-name',
-        '#map-npc-image',
-        '#map-npc-desc',
-        '#map-item-name',
-        '#map-item-image',
-        '#map-item-desc',
-        '#dest-pc',
-        '#dest-npc',
-        '#dest-item',
-      ];
-
-      selectors.forEach((selector) => {
-        const element = this.element.querySelector(selector);
-        if (element && !element.dataset.boundSetup) {
-          element.addEventListener('change', updateMappingData);
-          element.dataset.boundSetup = 'true';
-        }
-      });
-
-      // Add file input handler for config loading
-      const configFileInput = this.element.querySelector('#config-file-input');
-      if (configFileInput && !configFileInput.dataset.boundSetup) {
-        configFileInput.addEventListener('change', async (event) => {
-          const file = event.target.files[0];
-          if (!file) return;
-
-          try {
-            const text = await file.text();
-            const config = JSON.parse(text);
-
-            // Apply configuration to form fields
-            if (config.actorMappings?.pc) {
-              if (config.actorMappings.pc.namePath) {
-                const pcNameSelect = this.element.querySelector('#map-pc-name');
-                if (pcNameSelect)
-                  pcNameSelect.value = config.actorMappings.pc.namePath;
-              }
-              if (config.actorMappings.pc.imagePath) {
-                const pcImageSelect =
-                  this.element.querySelector('#map-pc-image');
-                if (pcImageSelect)
-                  pcImageSelect.value = config.actorMappings.pc.imagePath;
-              }
-              if (config.actorMappings.pc.descriptionPath) {
-                const pcDescSelect = this.element.querySelector('#map-pc-desc');
-                if (pcDescSelect)
-                  pcDescSelect.value = config.actorMappings.pc.descriptionPath;
-              }
-            }
-
-            if (config.actorMappings?.npc) {
-              if (config.actorMappings.npc.namePath) {
-                const npcNameSelect =
-                  this.element.querySelector('#map-npc-name');
-                if (npcNameSelect)
-                  npcNameSelect.value = config.actorMappings.npc.namePath;
-              }
-              if (config.actorMappings.npc.imagePath) {
-                const npcImageSelect =
-                  this.element.querySelector('#map-npc-image');
-                if (npcImageSelect)
-                  npcImageSelect.value = config.actorMappings.npc.imagePath;
-              }
-              if (config.actorMappings.npc.descriptionPath) {
-                const npcDescSelect =
-                  this.element.querySelector('#map-npc-desc');
-                if (npcDescSelect)
-                  npcDescSelect.value =
-                    config.actorMappings.npc.descriptionPath;
-              }
-            }
-
-            if (config.itemMappings) {
-              if (config.itemMappings.namePath) {
-                const itemNameSelect =
-                  this.element.querySelector('#map-item-name');
-                if (itemNameSelect)
-                  itemNameSelect.value = config.itemMappings.namePath;
-              }
-              if (config.itemMappings.imagePath) {
-                const itemImageSelect =
-                  this.element.querySelector('#map-item-image');
-                if (itemImageSelect)
-                  itemImageSelect.value = config.itemMappings.imagePath;
-              }
-              if (config.itemMappings.descriptionPath) {
-                const itemDescSelect =
-                  this.element.querySelector('#map-item-desc');
-                if (itemDescSelect)
-                  itemDescSelect.value = config.itemMappings.descriptionPath;
-              }
-            }
-
-            // Update internal data
-            updateMappingData();
-
-            ui.notifications.info('Configuration loaded successfully.');
-          } catch (error) {
-            console.error('Failed to load configuration file:', error);
-            ui.notifications.error(
-              'Failed to load configuration file. Please check the file format.'
-            );
-          }
-
-          // Clear the file input
-          event.target.value = '';
-        });
-        configFileInput.dataset.boundSetup = 'true';
-      }
-      // Bind preset change validation in Step 4 (if the dropdown exists here)
-      const presetSelect = this.element.querySelector('#ws-system-preset');
-      if (presetSelect && !presetSelect.dataset.boundSetup) {
-        presetSelect.addEventListener('change', async (e) => {
-          const key = e?.target?.value || '';
-          if (!key) {
-            this.setupData.systemPreset = '';
-            return;
-          }
-          try {
-            await this._validateOrRejectPreset(key);
-            this.setupData.systemPreset = key;
-            this._applyPresetToSetupData(key);
-            await this.render();
-            ui.notifications.info(
-              `Applied ${presetSelect.options[presetSelect.selectedIndex].text} preset`
-            );
-          } catch (err) {
-            ui.notifications.error(
-              String(
-                err?.message || err || 'Preset unavailable for this system.'
-              )
-            );
-            // revert selection
-            presetSelect.value = this.setupData.systemPreset || '';
-          }
-        });
-        presetSelect.dataset.boundSetup = 'true';
-      }
+      ensureNameMatch(result.characters.archivist, result.characters.foundry);
+      ensureNameMatch(result.items.archivist, result.items.foundry);
+      ensureNameMatch(result.locations.archivist, result.locations.foundry);
+    } catch (_) {
+      /* ignore */
     }
-  }
 
-  /**
-   * Get shared system presets (mirrors sync options dialog)
-   */
-  _getSystemPresets() {
-    return {
-      dnd5e: {
-        name: 'D&D 5e',
-        actorMappings: {
-          pc: {
-            namePath: 'name',
-            imagePath: 'img',
-            descriptionPath: 'system.details.biography.value',
-          },
-          npc: {
-            namePath: 'name',
-            imagePath: 'img',
-            descriptionPath: 'system.details.biography.public',
-          },
-        },
-        itemMappings: {
-          namePath: 'name',
-          imagePath: 'img',
-          descriptionPath: 'system.description.value',
-        },
-      },
-      pf2e: {
-        name: 'Pathfinder 2e',
-        actorMappings: {
-          pc: {
-            namePath: 'name',
-            imagePath: 'img',
-            descriptionPath: 'system.details.biography.value',
-          },
-          npc: {
-            namePath: 'name',
-            imagePath: 'img',
-            descriptionPath: 'system.details.publicNotes',
-          },
-        },
-        itemMappings: {
-          namePath: 'name',
-          imagePath: 'img',
-          descriptionPath: 'system.description.value',
-        },
-      },
-      coc7: {
-        name: 'Call of Cthulhu 7e',
-        actorMappings: {
-          pc: {
-            namePath: 'name',
-            imagePath: 'img',
-            descriptionPath: 'system.biography.personal.description',
-          },
-          npc: {
-            namePath: 'name',
-            imagePath: 'img',
-            descriptionPath: 'system.biography.personal.description',
-          },
-        },
-        itemMappings: {
-          namePath: 'name',
-          imagePath: 'img',
-          descriptionPath: 'system.description.value',
-        },
-      },
-    };
-  }
-
-  /**
-   * Try auto-detect preset based on whether all preset paths exist in system model
-   * Order: dnd5e -> pf2e -> coc7
-   */
-  async _autoDetectPreset() {
-    const order = ['dnd5e', 'pf2e', 'coc7'];
-    for (const key of order) {
-      try {
-        await this._validateOrRejectPreset(key);
-        return key;
-      } catch (_) {
-        /* try next */
-      }
+    const sortByName = (arr) =>
+      arr.sort((a, b) => toName(a.name).localeCompare(toName(b.name)));
+    try {
+      sortByName(result.characters.archivist);
+      sortByName(result.characters.foundry);
+      sortByName(result.items.archivist);
+      sortByName(result.items.foundry);
+      sortByName(result.locations.archivist);
+      sortByName(result.locations.foundry);
+      sortByName(result.factions.archivist);
+      sortByName(result.factions.foundry);
+    } catch (_) {
+      /* ignore */
     }
-    return '';
-  }
-
-  /**
-   * Validate preset against current system model; throws if invalid
-   */
-  async _validateOrRejectPreset(key) {
-    const presets = this._getSystemPresets();
-    const preset = presets[key];
-    if (!preset) throw new Error('Unknown preset');
-
-    // Validate that each mapping path exists in the system model/property graph
-    const testPaths = [
-      preset.actorMappings?.pc?.namePath,
-      preset.actorMappings?.pc?.imagePath,
-      preset.actorMappings?.pc?.descriptionPath,
-      preset.actorMappings?.npc?.namePath,
-      preset.actorMappings?.npc?.imagePath,
-      preset.actorMappings?.npc?.descriptionPath,
-      preset.itemMappings?.namePath,
-      preset.itemMappings?.imagePath,
-      preset.itemMappings?.descriptionPath,
-    ].filter(Boolean);
-
-    // Use our discovered mapping options to validate existence
-    const availableActor = new Set(
-      (this.mappingOptions.actor || []).map((o) => o.path)
-    );
-    const availableItem = new Set(
-      (this.mappingOptions.item || []).map((o) => o.path)
-    );
-
-    const exists = (p) => {
-      if (!p) return false;
-      if (p === 'name' || p === 'img') return true; // safe defaults always exist
-      if (p.startsWith('system.')) {
-        // Try actor first, then item
-        return availableActor.has(p) || availableItem.has(p);
-      }
-      return availableActor.has(p) || availableItem.has(p);
-    };
-
-    const missing = testPaths.filter((p) => !exists(p));
-    if (missing.length) {
-      throw new Error(
-        `Preset unavailable: missing properties in this system → ${missing.join(', ')}`
-      );
-    }
-    return true;
-  }
-
-  /**
-   * Apply preset mappings to setupData (does not touch destinations)
-   */
-  _applyPresetToSetupData(key) {
-    const presets = this._getSystemPresets();
-    const preset = presets[key];
-    if (!preset) return;
-    const gp = (o, p, fb = '') => {
-      try {
-        return foundry.utils.getProperty(o, p) ?? fb;
-      } catch (_) {
-        return fb;
-      }
-    };
-    this.setupData.mapping.pc.namePath = gp(
-      preset,
-      'actorMappings.pc.namePath'
-    );
-    this.setupData.mapping.pc.imagePath = gp(
-      preset,
-      'actorMappings.pc.imagePath'
-    );
-    this.setupData.mapping.pc.descPath = gp(
-      preset,
-      'actorMappings.pc.descriptionPath'
-    );
-    this.setupData.mapping.npc.namePath = gp(
-      preset,
-      'actorMappings.npc.namePath'
-    );
-    this.setupData.mapping.npc.imagePath = gp(
-      preset,
-      'actorMappings.npc.imagePath'
-    );
-    this.setupData.mapping.npc.descPath = gp(
-      preset,
-      'actorMappings.npc.descriptionPath'
-    );
-    this.setupData.mapping.item.namePath = gp(preset, 'itemMappings.namePath');
-    this.setupData.mapping.item.imagePath = gp(
-      preset,
-      'itemMappings.imagePath'
-    );
-    this.setupData.mapping.item.descPath = gp(
-      preset,
-      'itemMappings.descriptionPath'
-    );
+    return result;
   }
 }
-
-// Build reconciliation model for Step 4
-WorldSetupDialog.prototype._buildReconciliationModel = function (input) {
-  console.log('[World Setup] _buildReconciliationModel called with:', input);
-  const A = input.archivist || {};
-  const F = input.foundry || {};
-  const toName = (v) => String(v || '').trim();
-  const normName = (v) => toName(v).toLowerCase();
-
-  // Foundry actors classification with fallback
-  const actors = Array.isArray(F.actors) ? F.actors : [];
-  const actorsBase = actors.map((a) => ({
-    id: a.id,
-    name: toName(a.name),
-    img: a.img || '',
-    type: String(a.type || ''),
-    doc: a,
-  }));
-  let pcActors = actorsBase.filter((a) => a.type.toLowerCase() === 'character');
-  let npcActors = actorsBase.filter(
-    (a) => a.type.toLowerCase() === 'npc' || a.type.toLowerCase() === 'monster'
-  );
-  if (
-    pcActors.length === 0 &&
-    npcActors.length === 0 &&
-    actorsBase.length > 0
-  ) {
-    const acChars = Array.isArray(A.characters) ? A.characters : [];
-    const acByName = new Map();
-    for (const c of acChars) {
-      const n = normName(c.character_name || c.name);
-      if (n) acByName.set(n, (c.type || c.character_type || '').toUpperCase());
-    }
-    for (const a of actorsBase) {
-      const kind = acByName.get(normName(a.name)) || 'NPC';
-      if (kind === 'PC') pcActors.push(a);
-      else npcActors.push(a);
-    }
-  }
-
-  // Foundry items and scenes
-  const fItems = (Array.isArray(F.items) ? F.items : []).map((i) => ({
-    id: i.id,
-    name: toName(i.name),
-    img: i.img || '',
-    doc: i,
-  }));
-  const fScenes = (Array.isArray(F.scenes) ? F.scenes : []).map((s) => ({
-    id: s.id,
-    name: toName(s.name),
-    img: s.thumb || s.background?.src || '',
-    doc: s,
-  }));
-
-  // Archivist lists normalized
-  const aChars = (Array.isArray(A.characters) ? A.characters : []).map((c) => ({
-    id: String(c.id),
-    name: toName(c.character_name || c.name),
-    img: toName(c.image || ''),
-    type: String(c.type || c.character_type || 'PC').toUpperCase(),
-  }));
-  const aItems = (Array.isArray(A.items) ? A.items : []).map((i) => ({
-    id: String(i.id),
-    name: toName(i.name),
-    img: toName(i.image || ''),
-  }));
-  const aLocs = (Array.isArray(A.locations) ? A.locations : []).map((l) => ({
-    id: String(l.id),
-    name: toName(l.name || l.title),
-    img: toName(l.image || ''),
-  }));
-  const aFactions = (Array.isArray(A.factions) ? A.factions : []).map((f) => ({
-    id: String(f.id),
-    name: toName(f.name || f.title),
-    img: toName(f.image || ''),
-  }));
-
-  // Matching helpers (one-to-one by name and type/bucket)
-  const matchByName = (left, right, getLeftName, getRightName, constraint) => {
-    const usedRight = new Set();
-    const leftOut = [];
-    for (const L of left) {
-      let hit = null;
-      for (const R of right) {
-        if (usedRight.has(R.id)) continue;
-        if (constraint && !constraint(L, R)) continue;
-        if (normName(getLeftName(L)) === normName(getRightName(R))) {
-          hit = R;
-          break;
-        }
-      }
-      if (hit) {
-        usedRight.add(hit.id);
-        leftOut.push({ ...L, match: hit.id, selected: false });
-      } else {
-        leftOut.push({ ...L, match: null, selected: false });
-      }
-    }
-    // Right side mirror
-    const rightOut = right.map((R) => {
-      const L = leftOut.find((x) => x.match === R.id) || null;
-      return { ...R, match: L ? L.id : null, selected: false };
-    });
-    return { leftOut, rightOut };
-  };
-
-  // Characters: allow PC->character and NPC->npc by constraint
-  const allActors = [...pcActors, ...npcActors];
-  // More lenient constraint: if types exist, respect them; otherwise allow any match
-  const charConstraint = (ac, fa) => {
-    // If Foundry actor has no meaningful type, allow match
-    if (!fa.type || fa.type === '' || fa.type === 'base') return true;
-    // Otherwise respect type matching
-    return ac.type === 'PC'
-      ? fa.type.toLowerCase() === 'character'
-      : fa.type.toLowerCase() === 'npc' || fa.type.toLowerCase() === 'monster';
-  };
-  const { leftOut: aCharsOut, rightOut: fActorsOut } = matchByName(
-    aChars,
-    allActors,
-    (x) => x.name,
-    (x) => x.name,
-    charConstraint
-  );
-
-  // Items
-  const { leftOut: aItemsOut, rightOut: fItemsOut } = matchByName(
-    aItems,
-    fItems,
-    (x) => x.name,
-    (x) => x.name
-  );
-
-  // Locations vs Scenes
-  const { leftOut: aLocsOut, rightOut: fScenesOut } = matchByName(
-    aLocs,
-    fScenes,
-    (x) => x.name,
-    (x) => x.name
-  );
-
-  // Factions — Foundry side empty by default
-  const aFactionsOut = aFactions.map((f) => ({
-    ...f,
-    match: null,
-    selected: false,
-  }));
-  const fFactionsOut = [];
-
-  const result = {
-    characters: { archivist: aCharsOut, foundry: fActorsOut },
-    items: { archivist: aItemsOut, foundry: fItemsOut },
-    locations: { archivist: aLocsOut, foundry: fScenesOut },
-    factions: { archivist: aFactionsOut, foundry: fFactionsOut },
-  };
-
-  // Post-pass: ensure exact-name matches are linked if still unmatched (helps systems without types)
-  try {
-    const ensureNameMatch = (leftArr, rightArr) => {
-      const rightByName = new Map(rightArr.map((r) => [normName(r.name), r]));
-      for (const l of leftArr) {
-        if (!l.match) {
-          const r = rightByName.get(normName(l.name));
-          if (r && !r.match) {
-            l.match = r.id;
-            r.match = l.id;
-          }
-        }
-      }
-    };
-
-    ensureNameMatch(result.characters.archivist, result.characters.foundry);
-    ensureNameMatch(result.items.archivist, result.items.foundry);
-    ensureNameMatch(result.locations.archivist, result.locations.foundry);
-  } catch (_) {
-    /* ignore */
-  }
-
-  // Sort all lists alphabetically by name for display in Steps 4 and 5
-  const sortByName = (arr) =>
-    arr.sort((a, b) => toName(a.name).localeCompare(toName(b.name)));
-  try {
-    sortByName(result.characters.archivist);
-    sortByName(result.characters.foundry);
-    sortByName(result.items.archivist);
-    sortByName(result.items.foundry);
-    sortByName(result.locations.archivist);
-    sortByName(result.locations.foundry);
-    sortByName(result.factions.archivist);
-    sortByName(result.factions.foundry);
-  } catch (_) {
-    /* ignore */
-  }
-  console.log('[World Setup] Reconciliation result:', {
-    charactersArchivist: aCharsOut.length,
-    charactersFoundry: fActorsOut.length,
-    itemsArchivist: aItemsOut.length,
-    itemsFoundry: fItemsOut.length,
-    locationsArchivist: aLocsOut.length,
-    locationsFoundry: fScenesOut.length,
-    factionsArchivist: aFactionsOut.length,
-  });
-  return result;
-};

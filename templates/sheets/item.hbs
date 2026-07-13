@@ -20,6 +20,10 @@
                 {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
                     class="fa-solid fa-lock"></i>{{/if}}
             </button>
+            <button type="button" class="archivist-edit-toggle" data-action="upload-local-image"
+                title="Upload this sheet's local image to Archivist">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </button>
             {{/if}}
         </header>
         <nav class="archivist-nav tabs" data-group="archivist">
@@ -30,6 +34,7 @@
             <a class="item" data-tab="locations">Locations</a>
             <a class="item" data-tab="factions">Factions</a>
             <a class="item" data-tab="journals">Journals</a>
+            <a class="item" data-tab="quests">Quests</a>
             <a class="item" data-tab="notes">GM Notes</a>
         </nav>
     </aside>
@@ -74,6 +79,10 @@
             <div class="archivist-grid archivist-journals">
                 <!-- linked journals/pages will be populated here -->
             </div>
+        </section>
+        <section class="tab" data-tab="quests">
+            <p class="hint">Quests are linked from the Quest sheet itself; this list is read-only here.</p>
+            <div class="archivist-grid quests-grid"></div>
         </section>
         <section class="tab" data-tab="notes">
             {{#if setup.isGM}}

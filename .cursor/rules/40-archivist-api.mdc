@@ -170,6 +170,52 @@ DELETE /v1/items/{item_id} → 204
 
 ⸻
 
+Quests
+
+GET /v1/quests?campaign_id=&page=&size=&search=&status=&quest_category= → paginated list
+GET /v1/quests/{quest_id}
+POST /v1/quests (worldId*/campaign_id*, questName*, questGiver?, questCategory?, status?, successDefinition?, failureConditions?, nextAction?, resolution?, objectives?, progressLog?, relatedCharacters?, relatedFactions?, relatedLocations?, relatedItems?, relatedEntityRefs?) → 201
+PATCH /v1/quests/{quest_id} — same fields as POST, all optional (partial update)
+DELETE /v1/quests/{quest_id} → 204
+
+IMPORTANT — casing differs from every other entity above: Quest's Pydantic schemas
+declare fields in **camelCase** (`questName`, `successDefinition`, `relatedEntityRefs`,
+…) as the primary name, with snake_case accepted only as an alias
+(`populate_by_name=True` + an alias_generator). Every other entity in this doc uses
+snake_case as canonical. Sending camelCase quest field names is correct and is what
+`archivist-sync`'s `_normalizeQuestPayload`/`_normalizeQuestResponse` already assume.
+
+`objectives`: `[{ text, status }]` where status is one of
+`pending | in-progress | completed | failed | blocked`.
+`relatedEntityRefs`: `[{ entityType, entityId, entityNameSnapshot?, label? }]` where
+entityType is one of `character | faction | location | item` — **Quest has no generic
+`description` field**, and **Quest cannot appear in `/v1/campaigns/{id}/links`** (no
+`ENTITY_CONFIG` entry on the backend for it, in either direction). Quest relationships
+only ever persist via `relatedEntityRefs` on the quest itself — treat Quest as the
+single source of truth for its own relationships, not the generic links system.
+
+⸻
+
+Journals
+
+GET /v1/journals?campaign_id=&page=&size=
+GET /v1/journals/{journal_id}
+POST /v1/journals (id?, title*, content?, campaign_id*) → 201
+PATCH /v1/journals (id*, title?, content?) → 200 — note: PATCH takes `id` in the body,
+not as a path param, unlike every other entity in this doc.
+DELETE /v1/journals/{journal_id} → 204
+
+⸻
+
+Links — PATCH exists, use it instead of delete+recreate
+
+PATCH /v1/campaigns/{campaign_id}/links/{link_id} (alias?) → 200
+Prefer this over DELETE-then-POST when only a link's label/alias is changing and the
+from/to endpoints stay the same — cheaper and avoids a window where the link doesn't
+exist. Quest is not a valid `from_type`/`to_type` here (see above).
+
+⸻
+
 Client Helpers (use these in this project)
 
 Create a tiny wrapper so all calls are consistent and type-safe:
