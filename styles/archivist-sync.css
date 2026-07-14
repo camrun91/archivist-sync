@@ -73,6 +73,11 @@
   border-color: var(--color-border-highlight-hover, #ff8020);
 }
 
+/* Upload-image button sits to the left of the edit toggle, not on top of it */
+.archivist-edit-toggle.archivist-upload-toggle {
+  right: 48px;
+}
+
 /* When editing, move button down to not overlap with ProseMirror controls */
 .archivist-sheet prose-mirror[toggled]~.archivist-edit-toggle,
 .archivist-info prose-mirror[toggled]~.archivist-edit-toggle,
