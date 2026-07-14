@@ -371,6 +371,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             linked: 0,
             noteNoExport: true,
           },
+          {
+            key: 'Quests',
+            fromArchivist: Number(imp.quests || 0),
+            createFoundry: 0,
+            toArchivist: 0,
+            linked: 0,
+            noteNoExport: true,
+          },
         ];
 
         // Set warning flag if any of Characters, Items, or Locations have > 100 exports
