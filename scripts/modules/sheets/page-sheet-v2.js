@@ -171,8 +171,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     return result;
   }
 
-  _onRender(context, options) {
-    super._onRender(context, options);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
     try {
       const root = this.element;
       const content = root.querySelector('.archivist-content') || root;
@@ -671,12 +671,19 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       console.warn('[Archivist Sync][PageV2] _onRender failed', e);
     }
     try {
+      // Awaited so Foundry's render pipeline (which awaits _onRender) doesn't
+      // consider the sheet "done" until tab counts/cards are actually set.
+      // Previously these were fire-and-forget: opening a sheet by clicking a
+      // card in another custom sheet (vs. opening it fresh from the Journal
+      // Directory) could resolve .render()'s promise — and any .then() chained
+      // on it, e.g. bringToFront() — before this finished, leaving some tabs
+      // populated with cards but never getting their (N) count set.
       if (typeof this._renderLinkedGrids === 'function')
-        this._renderLinkedGrids();
+        await this._renderLinkedGrids();
       if (typeof this._renderActorItemCards === 'function')
-        this._renderActorItemCards();
+        await this._renderActorItemCards();
       if (typeof this._renderRelatedQuests === 'function')
-        this._renderRelatedQuests();
+        await this._renderRelatedQuests();
     } catch (_) {}
   }
 
@@ -1941,8 +1948,8 @@ export class LocationPageSheetV2 extends ArchivistBasePageSheetV2 {
     form: { template: 'modules/archivist-sync/templates/sheets/location.hbs' },
   };
 
-  _onRender(context, options) {
-    super._onRender(context, options);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
     try {
       const root = this.element;
       // Tab toggling
@@ -2311,8 +2318,8 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
     return ctx;
   }
 
-  _onRender(context, options) {
-    super._onRender(context, options);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
     try {
       const root = this.element;
       this._renderQuestObjectives(root, context);
