@@ -2241,6 +2241,25 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
     },
   };
 
+  /**
+   * Localize a key, returning null when i18n is unavailable or the key is
+   * missing (Foundry returns the key unchanged on a miss) so callers can fall
+   * back with `||`.
+   * @param {string|null} key
+   * @returns {string|null}
+   * @private
+   */
+  static _localize(key) {
+    if (!key) return null;
+    try {
+      const localized = game?.i18n?.localize?.(key);
+      if (localized && localized !== key) return localized;
+    } catch (_) {
+      /* i18n not ready */
+    }
+    return null;
+  }
+
   async _prepareContext(_options) {
     const ctx = await super._prepareContext(_options);
     const flags =
@@ -2292,14 +2311,39 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
       firstSession: qd.firstSession || qd.first_session || null,
       lastSession: qd.lastSession || qd.last_session || null,
     };
-    ctx.quest.statusLabel = {
+    // Status/category labels come from lang/en.json when available, falling
+    // back to English defaults if i18n isn't ready or a key is missing. Status
+    // values use hyphens (e.g. 'in-progress') while lang keys are camelCase.
+    const statusKeyMap = {
+      planned: 'planned',
+      'in-progress': 'inProgress',
+      blocked: 'blocked',
+      failed: 'failed',
+      done: 'done',
+    };
+    const statusFallback = {
       planned: 'Planned',
       'in-progress': 'In Progress',
       blocked: 'Blocked',
       failed: 'Failed',
       done: 'Done',
       'n/a': 'N/A',
-    }[ctx.quest.status] || ctx.quest.status;
+    };
+    const categoryFallback = {
+      main: 'Main',
+      side: 'Side',
+      faction: 'Faction',
+      personal: 'Personal',
+      'n/a': '',
+    };
+    ctx.quest.statusLabel =
+      QuestPageSheetV2._localize(
+        statusKeyMap[ctx.quest.status]
+          ? `ARCHIVIST_SYNC.quest.status.${statusKeyMap[ctx.quest.status]}`
+          : null
+      ) ||
+      statusFallback[ctx.quest.status] ||
+      ctx.quest.status;
     ctx.quest.statusIcon = {
       planned: 'fa-compass',
       'in-progress': 'fa-hourglass-half',
@@ -2308,13 +2352,14 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
       done: 'fa-check-circle',
       'n/a': 'fa-question',
     }[ctx.quest.status] || 'fa-question';
-    ctx.quest.categoryLabel = {
-      main: 'Main',
-      side: 'Side',
-      faction: 'Faction',
-      personal: 'Personal',
-      'n/a': '',
-    }[ctx.quest.questCategory] || '';
+    ctx.quest.categoryLabel =
+      QuestPageSheetV2._localize(
+        ctx.quest.questCategory && ctx.quest.questCategory !== 'n/a'
+          ? `ARCHIVIST_SYNC.quest.category.${ctx.quest.questCategory}`
+          : null
+      ) ||
+      categoryFallback[ctx.quest.questCategory] ||
+      '';
     return ctx;
   }
 
