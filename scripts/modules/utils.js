@@ -456,13 +456,19 @@ export class Utils {
    * Convert Markdown to sanitized HTML suitable for storage in Actor/Item fields.
    * - Prefer a global MarkdownIt instance if available
    * - Fall back to a minimal converter for basic syntax
-   * - Always sanitize with Foundry's TextEditor.cleanHTML
+   * - Always sanitize with Foundry's cleanHTML helper
    * @param {string} markdown
    * @returns {string} sanitized HTML
    */
   static markdownToStoredHtml(markdown) {
     const md = String(markdown ?? '');
     try {
+      // v14+: foundry.utils.cleanHTML. Older builds exposed it via
+      // foundry.utils.TextEditor.cleanHTML or the global TextEditor.
+      const cleanHTML =
+        foundry?.utils?.cleanHTML ??
+        foundry?.utils?.TextEditor?.cleanHTML ??
+        globalThis.TextEditor?.cleanHTML;
       const trimmed = md.trim();
       const isProbablyHtml =
         !!trimmed &&
@@ -471,9 +477,7 @@ export class Utils {
           /&(?:lt|gt|amp|quot|#39);/i.test(trimmed));
 
       if (isProbablyHtml) {
-        return foundry?.utils?.TextEditor?.cleanHTML
-          ? foundry.utils.TextEditor.cleanHTML(md)
-          : md;
+        return cleanHTML ? cleanHTML(md) : md;
       }
 
       let rawHtml = '';
@@ -511,9 +515,7 @@ export class Utils {
           .map((p) => `<p>${renderInline(p)}</p>`)
           .join('');
       }
-      return foundry?.utils?.TextEditor?.cleanHTML
-        ? foundry.utils.TextEditor.cleanHTML(rawHtml)
-        : rawHtml;
+      return cleanHTML ? cleanHTML(rawHtml) : rawHtml;
     } catch (_) {
       return String(markdown || '');
     }

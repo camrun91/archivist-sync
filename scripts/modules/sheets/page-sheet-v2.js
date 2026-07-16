@@ -944,13 +944,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           payload.content = Utils.toMarkdownIfHtml(String(html || ''));
         }
         result = await archivistApi.updateJournal(apiKey, payload);
-        if (result && !result.success && result.isDescriptionTooLong) {
-          ui.notifications?.error?.(
-            `Failed to save ${result.entityName || nameNow}: Content exceeds the maximum allowed length. Please shorten the content and try again.`,
-            { permanent: true }
-          );
-          return;
-        }
+        // The API imposes no length limit on journal content, so there is no
+        // too-long case to surface here (unlike Character/Item/etc.).
       }
     } catch (e) {
       console.warn('[Archivist Sync][V2] commit: remote sync failed', e);
@@ -1976,13 +1971,24 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
     form: { template: 'modules/archivist-sync/templates/sheets/quest.hbs' },
   };
 
-  static TABS = {
-    archivist: {
-      navSelector: '.archivist-nav',
-      contentSelector: '.archivist-content',
-      initial: 'info',
-    },
-  };
+  /**
+   * Localize a key, returning null when i18n is unavailable or the key is
+   * missing (Foundry returns the key unchanged on a miss) so callers can fall
+   * back with `||`.
+   * @param {string|null} key
+   * @returns {string|null}
+   * @private
+   */
+  static _localize(key) {
+    if (!key) return null;
+    try {
+      const localized = game?.i18n?.localize?.(key);
+      if (localized && localized !== key) return localized;
+    } catch (_) {
+      /* i18n not ready */
+    }
+    return null;
+  }
 
   async _prepareContext(_options) {
     const ctx = await super._prepareContext(_options);
@@ -2030,14 +2036,39 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
       firstSession: qd.firstSession || qd.first_session || null,
       lastSession: qd.lastSession || qd.last_session || null,
     };
-    ctx.quest.statusLabel = {
+    // Status/category labels come from lang/en.json when available, falling
+    // back to English defaults if i18n isn't ready or a key is missing. Status
+    // values use hyphens (e.g. 'in-progress') while lang keys are camelCase.
+    const statusKeyMap = {
+      planned: 'planned',
+      'in-progress': 'inProgress',
+      blocked: 'blocked',
+      failed: 'failed',
+      done: 'done',
+    };
+    const statusFallback = {
       planned: 'Planned',
       'in-progress': 'In Progress',
       blocked: 'Blocked',
       failed: 'Failed',
       done: 'Done',
       'n/a': 'N/A',
-    }[ctx.quest.status] || ctx.quest.status;
+    };
+    const categoryFallback = {
+      main: 'Main',
+      side: 'Side',
+      faction: 'Faction',
+      personal: 'Personal',
+      'n/a': '',
+    };
+    ctx.quest.statusLabel =
+      QuestPageSheetV2._localize(
+        statusKeyMap[ctx.quest.status]
+          ? `ARCHIVIST_SYNC.quest.status.${statusKeyMap[ctx.quest.status]}`
+          : null
+      ) ||
+      statusFallback[ctx.quest.status] ||
+      ctx.quest.status;
     ctx.quest.statusIcon = {
       planned: 'fa-compass',
       'in-progress': 'fa-hourglass-half',
@@ -2046,13 +2077,14 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
       done: 'fa-check-circle',
       'n/a': 'fa-question',
     }[ctx.quest.status] || 'fa-question';
-    ctx.quest.categoryLabel = {
-      main: 'Main',
-      side: 'Side',
-      faction: 'Faction',
-      personal: 'Personal',
-      'n/a': '',
-    }[ctx.quest.questCategory] || '';
+    ctx.quest.categoryLabel =
+      QuestPageSheetV2._localize(
+        ctx.quest.questCategory && ctx.quest.questCategory !== 'n/a'
+          ? `ARCHIVIST_SYNC.quest.category.${ctx.quest.questCategory}`
+          : null
+      ) ||
+      categoryFallback[ctx.quest.questCategory] ||
+      '';
     return ctx;
   }
 
@@ -2161,12 +2193,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
       ? [...qd.objectives]
       : [];
     objectives.push({ text: 'New Objective', status: 'pending', order: objectives.length });
-    qd.objectives = objectives;
-    await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', {
-      ...flags,
-      questData: qd,
-    });
-    this.render(false);
+    await this._persistObjectives(flags, qd, objectives);
   }
 
   async _removeObjective(idx) {
@@ -2177,11 +2204,45 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
       ? [...qd.objectives]
       : [];
     objectives.splice(idx, 1);
+    await this._persistObjectives(flags, qd, objectives);
+  }
+
+  /**
+   * Store the objective list on the journal flags and push it to Archivist.
+   * A PATCH with `objectives` replaces the server-side list, so the full array
+   * is sent. Local flags are updated regardless of remote success so the sheet
+   * stays responsive when offline or unconfigured.
+   * @param {object} flags - current archivist flag bag
+   * @param {object} qd - current questData snapshot
+   * @param {Array} objectives - next objective list
+   * @private
+   */
+  async _persistObjectives(flags, qd, objectives) {
     qd.objectives = objectives;
     await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', {
       ...flags,
       questData: qd,
     });
+    try {
+      const apiKey = settingsManager.getApiKey?.();
+      const questId = flags.archivistId;
+      if (apiKey && questId) {
+        const result = await archivistApi.updateQuest(apiKey, questId, {
+          objectives,
+        });
+        if (result && !result.success) {
+          console.warn(
+            '[Archivist Sync][V2] Quest objective sync failed',
+            result.message
+          );
+          ui.notifications?.warn?.(
+            'Objective saved locally but could not sync to Archivist.'
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Quest objective sync error', e);
+    }
     this.render(false);
   }
 }

@@ -1238,9 +1238,10 @@ function installRealtimeSyncListeners() {
         });
         return;
       } else if (sheetType === 'quest') {
-        res = await archivistApi.updateQuest(apiKey, flags.archivistId, {
-          questName: parent?.name || page.name,
-        });
+        // Quest page content is not a synced API field (quests use structured
+        // fields like successDefinition, not a free description), and name
+        // changes are handled by the updateJournalEntry title-sync hook. So a
+        // page-content edit has nothing to push — skip the redundant PATCH.
         return;
       } else if (sheetType === 'journal') {
         res = await archivistApi.updateJournal(apiKey, {
@@ -1248,7 +1249,6 @@ function installRealtimeSyncListeners() {
           title: parent?.name || page.name,
           content: Utils.toMarkdownIfHtml?.(html) || html,
         });
-        return;
       }
 
       if (res && !res?.success && res?.isDescriptionTooLong) {

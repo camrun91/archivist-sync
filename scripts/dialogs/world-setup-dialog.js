@@ -1828,6 +1828,26 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
   // Removed Archivist journal folder setup; journals are created only in user destinations
 
+  /**
+   * Update the Step 6 progress bar/text in place instead of re-rendering the
+   * whole wizard step for every imported entity. The panel is rendered once
+   * before the import loops begin; the final render after the loops reflects
+   * the completed state.
+   * @private
+   */
+  _updateSyncStatusUI() {
+    const root = this.element;
+    if (!root || !this.syncStatus?.total) return;
+    const { processed, total, current } = this.syncStatus;
+    const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+    const fill = root.querySelector('.ws-sync-progress-fill');
+    if (fill) fill.style.width = `${pct}%`;
+    const text = root.querySelector('.ws-sync-progress-text');
+    if (text) {
+      text.textContent = `${processed} / ${total} — ${current || ''}`;
+    }
+  }
+
   async _importArchivistMissing(apiKey, campaignId) {
     try {
       const allCharacters = this.archivistCandidates?.characters || [];
@@ -2385,13 +2405,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         this.syncStatus.current = `Import ${c.type || c.character_type || 'PC'}: ${c.character_name || c.name}`;
         await createActor(c);
         this.syncStatus.processed++;
-        await this.render();
+        this._updateSyncStatusUI();
       }
       for (const it of items) {
         this.syncStatus.current = `Import Item: ${it.name}`;
         await createItem(it);
         this.syncStatus.processed++;
-        await this.render();
+        this._updateSyncStatusUI();
       }
       locations.sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''))
@@ -2400,7 +2420,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         this.syncStatus.current = `Import Location: ${l.name || l.title}`;
         await upsertIntoContainer(l, 'Location');
         this.syncStatus.processed++;
-        await this.render();
+        this._updateSyncStatusUI();
       }
       factions.sort((a, b) =>
         String(a.name || '').localeCompare(String(b.name || ''))
@@ -2409,7 +2429,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         this.syncStatus.current = `Import Faction: ${f.name || f.title}`;
         await upsertIntoContainer(f, 'Faction');
         this.syncStatus.processed++;
-        await this.render();
+        this._updateSyncStatusUI();
       }
 
       // Import Journals with folder structure (GM-only, point-in-time snapshot)
@@ -2497,7 +2517,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             console.warn('[World Setup] Failed to import journal', j, e);
           }
           this.syncStatus.processed++;
-          await this.render();
+          this._updateSyncStatusUI();
         }
         ui.notifications?.info?.(
           'Journals imported as GM-only. Folder structure reflects the import snapshot and will not auto-sync.'
@@ -2575,7 +2595,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           console.warn('[World Setup] Failed to import quest', q, e);
         }
         this.syncStatus.processed++;
-        await this.render();
+        this._updateSyncStatusUI();
       }
 
       // After creating journals and pages, hydrate link graph from Archivist Links

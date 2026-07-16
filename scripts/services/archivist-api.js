@@ -29,26 +29,6 @@ export class ArchivistApiService {
   }
 
   /**
-   * Remove a single leading image from Markdown or HTML at the top of description.
-   * Handles patterns like: \n![alt](url)\n, <img ...>, or wrapped in <p>.
-   * @param {string} text
-   * @returns {string}
-   */
-  _stripLeadingImage(text) {
-    const s = String(text || '');
-    if (!s) return '';
-    // Common patterns: Markdown image at start, possibly followed by blank line
-    const mdImg = /^(?:\s*)!\[[^\]]*\]\([^\)]+\)\s*(?:\n+)?/;
-    if (mdImg.test(s)) return s.replace(mdImg, '').trimStart();
-    // HTML <img> possibly wrapped in <p> at the very start
-    const htmlImgP = /^(?:\s*)<p[^>]*>\s*<img\b[^>]*>\s*<\/p>\s*/i;
-    if (htmlImgP.test(s)) return s.replace(htmlImgP, '').trimStart();
-    const htmlImg = /^(?:\s*)<img\b[^>]*>\s*/i;
-    if (htmlImg.test(s)) return s.replace(htmlImg, '').trimStart();
-    return s;
-  }
-
-  /**
    * Normalize payload text fields to Markdown and optionally strip leading image.
    * - Converts known text fields that can contain rich text (description, summary)
    * - Optionally removes leading image for faction/location descriptions
@@ -61,7 +41,7 @@ export class ArchivistApiService {
     if ('description' in p) {
       p.description = this._sanitizeText(p.description);
       if (opts.stripImageFromDescription) {
-        p.description = this._stripLeadingImage(p.description);
+        p.description = Utils.stripLeadingImage(p.description);
       }
     }
     if ('summary' in p) {
@@ -122,62 +102,75 @@ export class ArchivistApiService {
    */
   _normalizeQuestPayload(payload) {
     const p = payload ? { ...payload } : {};
+    const out = {};
 
-    if (!('campaign_id' in p) && 'campaignId' in p) p.campaign_id = p.campaignId;
-    if (!('campaign_id' in p) && 'worldId' in p) p.campaign_id = p.worldId;
-    if (!('quest_name' in p) && 'questName' in p) p.quest_name = p.questName;
-    if (!('quest_giver' in p) && 'questGiver' in p) p.quest_giver = p.questGiver;
-    if (!('quest_giver_id' in p) && 'questGiverId' in p) p.quest_giver_id = p.questGiverId;
-    if (!('quest_category' in p) && 'questCategory' in p) p.quest_category = p.questCategory;
-    if (!('success_definition' in p) && 'successDefinition' in p) {
-      p.success_definition = p.successDefinition;
-    }
-    if (!('failure_conditions' in p) && 'failureConditions' in p) {
-      p.failure_conditions = p.failureConditions;
-    }
-    if (!('next_action' in p) && 'nextAction' in p) p.next_action = p.nextAction;
-    if (!('progress_log' in p) && 'progressLog' in p) p.progress_log = p.progressLog;
-    if (!('progress_log_entries' in p) && 'progressLogEntries' in p) {
-      p.progress_log_entries = p.progressLogEntries;
-    }
-    if (!('related_characters' in p) && 'relatedCharacters' in p) {
-      p.related_characters = p.relatedCharacters;
-    }
-    if (!('related_factions' in p) && 'relatedFactions' in p) {
-      p.related_factions = p.relatedFactions;
-    }
-    if (!('related_locations' in p) && 'relatedLocations' in p) {
-      p.related_locations = p.relatedLocations;
-    }
-    if (!('related_items' in p) && 'relatedItems' in p) {
-      p.related_items = p.relatedItems;
-    }
-    if (!('related_entity_refs' in p) && 'relatedEntityRefs' in p) {
-      p.related_entity_refs = p.relatedEntityRefs;
-    }
-    if (!('first_session' in p) && 'firstSession' in p) p.first_session = p.firstSession;
-    if (!('last_session' in p) && 'lastSession' in p) p.last_session = p.lastSession;
+    // The API's QuestCreate/QuestUpdate schemas declare `extra="forbid"`, so
+    // any key they don't recognize rejects the whole request with a 422. Build
+    // a strict whitelist of writable fields only — read-only response fields
+    // (questGiverId, progressLogEntries, firstSession, lastSession, counts,
+    // orderIndex, timestamps) must never leak into a write payload.
 
-    delete p.campaignId;
-    delete p.worldId;
-    delete p.questName;
-    delete p.questGiver;
-    delete p.questGiverId;
-    delete p.questCategory;
-    delete p.successDefinition;
-    delete p.failureConditions;
-    delete p.nextAction;
-    delete p.progressLog;
-    delete p.progressLogEntries;
-    delete p.relatedCharacters;
-    delete p.relatedFactions;
-    delete p.relatedLocations;
-    delete p.relatedItems;
-    delete p.relatedEntityRefs;
-    delete p.firstSession;
-    delete p.lastSession;
+    // campaign/world id is accepted on create only (QuestUpdate has no such
+    // field); only forward it when a caller actually supplied one.
+    const campaignId = p.campaign_id ?? p.campaignId ?? p.worldId;
+    if (campaignId !== undefined) out.campaign_id = campaignId;
 
-    return p;
+    // Scalar text / enum fields.
+    const scalars = {
+      quest_name: p.quest_name ?? p.questName,
+      quest_giver: p.quest_giver ?? p.questGiver,
+      quest_category: p.quest_category ?? p.questCategory,
+      status: p.status,
+      success_definition: p.success_definition ?? p.successDefinition,
+      failure_conditions: p.failure_conditions ?? p.failureConditions,
+      next_action: p.next_action ?? p.nextAction,
+      resolution: p.resolution,
+    };
+    for (const [key, value] of Object.entries(scalars)) {
+      if (value !== undefined) out[key] = value;
+    }
+
+    // Objectives → [{ text, status }] (drop server-managed id/order). The
+    // API requires text with min_length=1 and rejects the whole request
+    // otherwise, so drop entries with empty text.
+    const objectives = p.objectives;
+    if (Array.isArray(objectives)) {
+      out.objectives = objectives
+        .map((o) =>
+          typeof o === 'string'
+            ? { text: o.trim(), status: 'pending' }
+            : {
+                text: String(o?.text ?? '').trim(),
+                status: o?.status ?? 'pending',
+              }
+        )
+        .filter((o) => o.text.length > 0);
+    }
+
+    // Progress log → [str].
+    const progressLog = p.progress_log ?? p.progressLog;
+    if (Array.isArray(progressLog)) {
+      out.progress_log = progressLog.map((e) =>
+        typeof e === 'string' ? e : e?.text ?? ''
+      );
+    }
+
+    // Related entity name lists → [str].
+    const relatedLists = {
+      related_characters: p.related_characters ?? p.relatedCharacters,
+      related_factions: p.related_factions ?? p.relatedFactions,
+      related_locations: p.related_locations ?? p.relatedLocations,
+      related_items: p.related_items ?? p.relatedItems,
+    };
+    for (const [key, value] of Object.entries(relatedLists)) {
+      if (Array.isArray(value)) out[key] = value;
+    }
+
+    // Structured related refs pass through untouched.
+    const refs = p.related_entity_refs ?? p.relatedEntityRefs;
+    if (Array.isArray(refs)) out.related_entity_refs = refs;
+
+    return out;
   }
 
   /**
@@ -237,21 +230,24 @@ export class ArchivistApiService {
       }
     }
 
+    // keepalive lets in-flight writes survive page unload, but Chromium
+    // rejects keepalive requests whose body exceeds 64 KiB — skip it for
+    // large payloads (e.g. long journal content) so they still send.
+    const bodySize =
+      typeof options?.body === 'string'
+        ? new TextEncoder().encode(options.body).length
+        : 0;
+    const useKeepalive = isWrite && bodySize < 60000;
+
     while (attempt <= maxRetries) {
       try {
-        const method = String(options?.method || 'GET').toUpperCase();
-        const isWrite =
-          method === 'POST' ||
-          method === 'PUT' ||
-          method === 'PATCH' ||
-          method === 'DELETE';
         const fetchOptions = {
           ...options,
           headers,
           mode: 'cors',
           cache: 'no-store',
         };
-        if (isWrite) fetchOptions.keepalive = true;
+        if (useKeepalive) fetchOptions.keepalive = true;
         const response = await fetch(url, fetchOptions);
 
         // Handle successful responses (non-429)
@@ -568,7 +564,7 @@ export class ArchivistApiService {
           : Array.isArray(data.data)
             ? data.data
             : [];
-        all.push(...items.map((quest) => this._normalizeQuestResponse(quest)));
+        all.push(...items);
         const totalPages =
           typeof data.pages === 'number'
             ? data.pages
@@ -1369,7 +1365,9 @@ export class ArchivistApiService {
           : Array.isArray(data.data)
             ? data.data
             : [];
-        all.push(...items);
+        // Normalize to camelCase so quest reads are consistent with the shape
+        // returned by createQuest/updateQuest/getQuest.
+        all.push(...items.map((quest) => this._normalizeQuestResponse(quest)));
         const totalPages =
           typeof data.pages === 'number'
             ? data.pages
