@@ -30,14 +30,14 @@ export function mergeArchivistSection(existingHtml, archivistHtml) {
 }
 
 /**
- * Strip HTML down to plain text via Foundry's TextEditor if available.
+ * Strip HTML down to plain text. Foundry exposes no core strip-to-text
+ * helper (in v13 or v14), so parse into a detached element and read its
+ * text content.
  * @param {string} html
  */
 export function stripHtml(html) {
   try {
     const s = String(html ?? '');
-    const te = foundry?.utils?.TextEditor;
-    if (te?.stripHTML) return te.stripHTML(s);
     const tmp = document.createElement('div');
     tmp.innerHTML = s;
     return (tmp.textContent || '').trim();

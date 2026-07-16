@@ -898,11 +898,11 @@
                 <div style="margin:8px 0;">
                     <div
                         style="height:6px; background:var(--setup-bg-alt); position:relative; border-radius:3px; overflow:hidden;">
-                        <div
+                        <div class="ws-sync-progress-fill"
                             style="position:absolute; left:0; top:0; bottom:0; width: {{syncStatusPct}}%; background: var(--setup-primary);">
                         </div>
                     </div>
-                    <small>{{syncStatus.processed}} / {{syncStatus.total}} — {{syncStatus.current}}</small>
+                    <small class="ws-sync-progress-text">{{syncStatus.processed}} / {{syncStatus.total}} — {{syncStatus.current}}</small>
                 </div>
                 {{/if}}
                 {{#if syncStatus.logs}}

@@ -67,6 +67,9 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           this._lastToggleClick = row;
           return;
         }
+        // Range-select handles the clicked row itself; stop the event here so
+        // the root-level toggleRow action doesn't flip it back afterwards.
+        e.stopPropagation();
         const allRows = [...this.element.querySelectorAll('tr[data-id]')];
         const startIdx = allRows.indexOf(this._lastToggleClick);
         const endIdx = allRows.indexOf(row);
@@ -100,6 +103,34 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       this.model.diffs.some((d) => d.selected) ||
       this.model.imports.some((i) => i.selected);
     btn.disabled = !hasSelected;
+  }
+
+  /**
+   * Update the in-progress panel's text directly rather than re-rendering the
+   * whole dialog for every synced item. The panel is rendered once before the
+   * sync loop begins; a skipped update (panel absent) is corrected by the
+   * final render when syncProgress is cleared.
+   * @private
+   */
+  _updateProgressUI() {
+    const panel = this.element?.querySelector?.('.loading-panel');
+    if (!panel || !this.syncProgress) return;
+    const { processed, total, current } = this.syncProgress;
+    const textEl = panel.querySelector('.sync-progress-text');
+    if (textEl) {
+      textEl.textContent = `Processing ${processed} / ${total}…`;
+    }
+    let detailEl = panel.querySelector('.sync-progress-detail');
+    if (current) {
+      if (!detailEl) {
+        detailEl = document.createElement('span');
+        detailEl.className = 'sync-progress-detail';
+        panel.appendChild(detailEl);
+      }
+      detailEl.textContent = current;
+    } else if (detailEl) {
+      detailEl.remove();
+    }
   }
 
   _captureScrollPosition() {
@@ -244,7 +275,9 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       // Confirm deletions before proceeding
       const deleteDiffs = selectedDiffs.filter((d) => d.deleted);
       if (deleteDiffs.length > 0) {
-        const names = deleteDiffs.map((d) => d.name).join(', ');
+        const names = deleteDiffs
+          .map((d) => foundry.utils.escapeHTML(String(d.name ?? '')))
+          .join(', ');
         const confirmed = await foundry.applications.api.DialogV2.confirm({
           window: { title: 'Confirm Deletion' },
           content: `<p><strong>${deleteDiffs.length}</strong> journal${deleteDiffs.length > 1 ? 's' : ''} will be permanently deleted:</p><p>${names}</p><p>This cannot be undone. Continue?</p>`,
@@ -267,7 +300,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       for (const d of selectedDiffs) {
         this.syncProgress.current = `${d.type}: ${d.name}`;
         this.syncProgress.processed = processed;
-        await this.render();
+        this._updateProgressUI();
         try {
           await this._applyDiff(d);
         } catch (e) {
@@ -280,7 +313,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       for (const i of selectedImports) {
         this.syncProgress.current = `${i.type}: ${i.name}`;
         this.syncProgress.processed = processed;
-        await this.render();
+        this._updateProgressUI();
         try {
           await this._applyImport(i, campaignId, apiKey);
         } catch (e) {
@@ -289,6 +322,9 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
         processed++;
       }
+      // Reflect the final processed count before the panel is torn down.
+      this.syncProgress.processed = processed;
+      this._updateProgressUI();
 
       this.syncProgress = null;
 
@@ -677,7 +713,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           type,
           id,
           name: row.character_name || row.name || row.title || 'Untitled',
-          description: row.description || row.summary || '',
+          description: row.description || row.summary || row.content || '',
           image: row.image || '',
           selected: false,
           createCore: false,
@@ -862,7 +898,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                     : null;
     if (!sheetType) return;
     // Convert markdown from Archivist to HTML for Foundry storage (sessions use summary)
-    const markdownContent = String(row.description || row.summary || '');
+    const markdownContent = String(row.description || row.summary || row.content || '');
     const htmlContent = Utils.markdownToStoredHtml(markdownContent);
 
     // Determine folder ID based on sheet type using saved destinations
@@ -882,10 +918,16 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         folderId = destinations.location;
       } else if (sheetType === 'faction' && destinations.faction) {
         folderId = destinations.faction;
-      } else if (sheetType === 'journal' && destinations.journal) {
-        folderId = destinations.journal;
-      } else if (sheetType === 'quest' && destinations.quest) {
-        folderId = destinations.quest;
+      } else if (sheetType === 'journal') {
+        // Worlds set up before journals existed have no saved destination —
+        // fall back to ensuring the default folder like recaps do.
+        folderId =
+          destinations.journal ||
+          (await Utils.ensureJournalFolder('Archivist - Journals'));
+      } else if (sheetType === 'quest') {
+        folderId =
+          destinations.quest ||
+          (await Utils.ensureJournalFolder('Archivist - Quests'));
       } else if (sheetType === 'recap') {
         // For sessions/recaps, use Recaps folder and preserve session_date ordering
         folderId = await Utils.ensureJournalFolder('Recaps');
@@ -1162,7 +1204,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
               else if (itemId) targetDoc = game.items?.get?.(itemId) || null;
               else if (sceneId) targetDoc = game.scenes?.get?.(sceneId) || null;
 
-              const md = String(row.description || row.summary || '');
+              const md = String(row.description || row.summary || row.content || '');
               const html = Utils.markdownToStoredHtml(md);
 
               if (targetDoc) {
