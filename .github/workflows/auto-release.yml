@@ -117,8 +117,9 @@ jobs:
         if: steps.check_release.outputs.exists == 'false'
         env:
           REPO: ${{ github.repository }}
+          TAG: ${{ steps.get_version.outputs.TAG }}
         run: |
-          # Point at the moving "v13-latest" tag, not GitHub's built-in
+          # Point manifest at the moving "v13-latest" tag, not GitHub's built-in
           # "releases/latest" — now that a second stable track (release/v14)
           # also publishes non-prerelease GitHub releases to this same repo,
           # "releases/latest" would flip between the v13 and v14 tracks
@@ -126,9 +127,11 @@ jobs:
           # v13 user's stored manifest URL at v14's module.json (or vice
           # versa). "v13-latest" is a tag this workflow owns and moves itself
           # (mirroring how beta-release.yml already does this for beta-latest).
-          jq --arg repo "$REPO" \
+          # Download stays on the immutable version tag so each release's zip URL
+          # never changes when v13-latest moves.
+          jq --arg repo "$REPO" --arg tag "$TAG" \
             '.manifest = "https://github.com/\($repo)/releases/download/v13-latest/module.json" |
-             .download = "https://github.com/\($repo)/releases/download/v13-latest/module.zip"' \
+             .download = "https://github.com/\($repo)/releases/download/\($tag)/module.zip"' \
             module.json > module.json.tmp && mv module.json.tmp module.json
 
           echo "✅ Ensured production URLs in module.json"
@@ -181,6 +184,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.TAG }}
+          target_commitish: ${{ github.sha }}
           name: Release ${{ steps.get_version.outputs.VERSION }}
           body_path: release_notes.md
           draft: false
@@ -224,6 +228,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v13-latest
+          target_commitish: ${{ github.sha }}
           name: Latest v13 Stable Release
           body: |
             This is an automatically updated release that always points to the

@@ -70,11 +70,23 @@ who installed before `v13-latest` existed and still have
 it, each v14 publish would silently repoint those installs at v14.
 
 ### How to create a v14 production release:
-1. Merge tested `staging` work into `release/v14` (create the branch from
-   `staging` if it doesn't exist yet)
-2. Update version in both `module.json` and `package.json` (keep it in the `2.x` family, compat `14.x`)
-3. Add a section for the new version in `CHANGELOG.md`
-4. Push to `release/v14` — the workflow creates the release and publishes to Foundry
+1. If `release/v14` doesn't exist yet, create it from a commit that already
+   contains `.github/workflows/auto-release-v14.yml` — i.e. from `main` after
+   the dual-publish CI merged, or cherry-pick that workflow file onto the new
+   branch.
+   > ⚠️ Do **not** branch `release/v14` off `staging` alone. GitHub evaluates
+   > workflows from the ref being pushed, so a `release/v14` without
+   > `auto-release-v14.yml` accepts version bumps and silently publishes
+   > nothing.
+2. Merge/promote tested `staging` work into `release/v14`
+3. Resolve the version in both `module.json` and `package.json` (keep it in the
+   `2.x` family, compat `14.x`) — `staging` merges often carry beta or `1.x`
+   values that the workflow will reject
+4. Add a section for the new version in `CHANGELOG.md`
+5. Push to `release/v14` — the workflow creates the release and publishes to Foundry
+
+Before the *first* v14 stable release, complete the one-time
+[Pre-v14 cutover](#-pre-v14-cutover-required-once) checklist.
 
 ---
 
@@ -147,19 +159,49 @@ receives the v14 rewrite. Fixes that apply to both must be ported by hand
 
 ---
 
+## 🔀 Pre-v14 cutover (required once)
+
+Installs made before `v13-latest` existed still store
+`/releases/latest/download/module.json` as their manifest URL. That URL is
+repo-wide, so whichever release GitHub last marked "latest" owns those users.
+Run this checklist **once, before the first `release/v14` publish**:
+
+1. **Reclaim `/releases/latest` for v13.** Push a normal v13 production release
+   on `main`. Its release is created with `make_latest: true`, which moves the
+   repo-wide latest pointer back onto the v13 track.
+2. **Confirm it took.** Open the repo's Releases page (or
+   `/releases/latest`) and verify the release badged "Latest" is a `v1.x`
+   release.
+3. **Only then publish v14.** Create/push the first `release/v14` stable
+   release. Its workflow uses `make_latest: false`, so it never touches the
+   repo-wide latest pointer.
+4. **Optional user migration.** Legacy installs stay safe as long as `main`
+   keeps reclaiming latest and `release/v14` never sets `make_latest`. Users
+   who *want* the moving v13 track explicitly can reinstall with
+   `https://github.com/camrun91/archivist-sync/releases/download/v13-latest/module.json`.
+
+---
+
 ## 🔧 Version Numbering
 
 ### Production v13 (main):
 - Tag: `v1.2.0`
 - Version in module.json: `1.2.0`
 - Manifest URL: `/releases/download/v13-latest/module.json` (auto-updates)
-- Download URL in the published manifest: `/releases/download/v13-latest/module.zip` (auto-updates; each versioned release also keeps its own zip at `/releases/download/v1.2.0/module.zip`)
+- Download URL in the published manifest: `/releases/download/v1.2.0/module.zip` (immutable for that release)
 
 ### Production v14 (release/v14):
 - Tag: `v2.1.0`
 - Version in module.json: `2.1.0`
 - Manifest URL: `/releases/download/v14-latest/module.json` (auto-updates)
-- Download URL in the published manifest: `/releases/download/v14-latest/module.zip` (auto-updates; each versioned release also keeps its own zip at `/releases/download/v2.1.0/module.zip`)
+- Download URL in the published manifest: `/releases/download/v2.1.0/module.zip` (immutable for that release)
+
+**Manifest vs. download:** only the *manifest* URL moves. Each track's
+`*-latest` release also hosts copies of `module.json` and `module.zip` so
+Foundry's update check always reads the newest version for that track — but the
+`download` field inside every published `module.json` points at that release's
+own versioned zip. A given version therefore always installs the exact bits it
+was built from, even after a newer release moves the `*-latest` tag.
 
 ### Beta (staging):
 - **Versioned tag:** `v1.2.0-beta.5` (specific beta with full changelog)
@@ -199,11 +241,15 @@ receives the v14 rewrite. Fixes that apply to both must be ported by hand
   "manifest": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.json",
   "download": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.zip"
   ```
-- You do **not** need to fix these by hand: both stable workflows rewrite the
-  `manifest`/`download` fields to their own track's moving tag (`v13-latest` or
-  `v14-latest`) before packaging, precisely so leaked beta URLs can't ship.
-- Do **not** point any manifest at `releases/latest/download/` — that URL is
-  repo-wide and no longer belongs to either track.
+- You do **not** need to fix these by hand: both stable workflows rewrite these
+  fields before packaging, precisely so leaked beta URLs can't ship — `manifest`
+  becomes their own track's moving tag (`v13-latest` or `v14-latest`), and
+  `download` becomes that release's versioned zip (`/releases/download/v2.1.0/module.zip`).
+- Do **not** point any manifest at `releases/latest/download/`, and do **not**
+  hand-edit which release GitHub marks "latest". That pointer is repo-wide and is
+  managed by the workflows: `main` claims it (`make_latest: true`), `release/v14`
+  leaves it alone (`make_latest: false`). See
+  [Pre-v14 cutover](#-pre-v14-cutover-required-once).
 
 ---
 

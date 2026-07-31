@@ -121,17 +121,19 @@ jobs:
         if: steps.check_release.outputs.exists == 'false'
         env:
           REPO: ${{ github.repository }}
+          TAG: ${{ steps.get_version.outputs.TAG }}
         run: |
-          # Point at the moving "v14-latest" tag, not GitHub's built-in
+          # Point manifest at the moving "v14-latest" tag, not GitHub's built-in
           # "releases/latest" — main's auto-release.yml also publishes
           # non-prerelease GitHub releases to this same repo, so
           # "releases/latest" would flip between the v13 and v14 tracks.
           # "v14-latest" is a tag this workflow owns and moves itself
           # (mirroring beta-release.yml's beta-latest and auto-release.yml's
-          # new v13-latest).
-          jq --arg repo "$REPO" \
+          # new v13-latest). Download stays on the immutable version tag so
+          # each release's zip URL never changes when v14-latest moves.
+          jq --arg repo "$REPO" --arg tag "$TAG" \
             '.manifest = "https://github.com/\($repo)/releases/download/v14-latest/module.json" |
-             .download = "https://github.com/\($repo)/releases/download/v14-latest/module.zip"' \
+             .download = "https://github.com/\($repo)/releases/download/\($tag)/module.zip"' \
             module.json > module.json.tmp && mv module.json.tmp module.json
 
           echo "✅ Ensured production URLs in module.json"
@@ -184,6 +186,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.TAG }}
+          target_commitish: ${{ github.sha }}
           name: Release ${{ steps.get_version.outputs.VERSION }} (v14)
           body_path: release_notes.md
           draft: false
@@ -230,6 +233,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v14-latest
+          target_commitish: ${{ github.sha }}
           name: Latest v14 Stable Release
           body: |
             This is an automatically updated release that always points to the
