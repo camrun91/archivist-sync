@@ -43,6 +43,23 @@ jobs:
         run: |
           COMPAT_MIN=$(jq -r '.compatibility.minimum' module.json)
 
+          # Reject empty, prerelease, or non-semver stable versions before
+          # the track-family check. Bash glob `1.*`/`2.*` would otherwise
+          # accept strings like `2.0.0-beta.28` as valid for a stable publish.
+          if [[ -z "$VERSION" ]]; then
+            echo "❌ Refusing to publish: module.json version is empty."
+            exit 1
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            echo "❌ Refusing to publish: prerelease version '$VERSION' cannot be published as stable."
+            echo "   Strip any -beta/-rc/-alpha suffix from module.json before releasing."
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[12]\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Refusing to publish: version '$VERSION' is not a stable X.Y.Z semver."
+            exit 1
+          fi
+
           # main publishes the legacy Foundry v13 track (1.x / compat 13.x).
           # A v14-shaped commit landing here and auto-publishing under a v13
           # version string is exactly the incident that broke v13 users
@@ -244,8 +261,9 @@ jobs:
             For the full release notes, see [${{ steps.get_version.outputs.TAG }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.TAG }}).
           draft: false
           prerelease: false
-          # Same reason as the versioned release above: keep /releases/latest on v13.
-          make_latest: true
+          # The versioned release above already claimed /releases/latest; this
+          # moving-tag release is an alias only — do not steal the Latest badge.
+          make_latest: false
           files: |
             module.zip
             module.json

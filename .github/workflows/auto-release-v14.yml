@@ -53,6 +53,23 @@ jobs:
         run: |
           COMPAT_MIN=$(jq -r '.compatibility.minimum' module.json)
 
+          # Reject empty, prerelease, or non-semver stable versions before
+          # the track-family check. Bash glob `1.*`/`2.*` would otherwise
+          # accept strings like `2.0.0-beta.28` as valid for a stable publish.
+          if [[ -z "$VERSION" ]]; then
+            echo "❌ Refusing to publish: module.json version is empty."
+            exit 1
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            echo "❌ Refusing to publish: prerelease version '$VERSION' cannot be published as stable."
+            echo "   Strip any -beta/-rc/-alpha suffix from module.json before releasing."
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[12]\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Refusing to publish: version '$VERSION' is not a stable X.Y.Z semver."
+            exit 1
+          fi
+
           # release/v14 publishes the v14 track (2.x / compat 14.x). Refuse to
           # publish a v13-shaped build here — same mistake as main, mirrored.
           if [[ "$VERSION" != 2.* ]]; then
