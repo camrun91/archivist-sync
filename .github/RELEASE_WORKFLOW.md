@@ -7,7 +7,7 @@ package, each with its own compatibility range — the Foundry client picks
 whichever version matches the user's installed core version, so no separate
 listing/package id is needed.
 
-There are four GitHub Actions workflows involved:
+There are three GitHub Actions workflows involved:
 
 | Branch | Workflow | Publishes to Foundry? | Version family |
 |---|---|---|---|
@@ -62,6 +62,12 @@ Same steps as the v13 workflow above, but requires `module.json` version to be
 `v14-latest` tag/release instead of `v13-latest`. Publishes to the **same**
 Foundry package listing as `main` (same `FOUNDRY_ADMIN_MODULE_ID`), as a
 separate version entry with its own compatibility range.
+
+Its GitHub releases are created with `make_latest: false`, so the repo-wide
+`/releases/latest` URL always stays on the v13 track. This protects v13 users
+who installed before `v13-latest` existed and still have
+`/releases/latest/download/module.json` stored as their manifest URL — without
+it, each v14 publish would silently repoint those installs at v14.
 
 ### How to create a v14 production release:
 1. Merge tested `staging` work into `release/v14` (create the branch from
@@ -147,13 +153,13 @@ receives the v14 rewrite. Fixes that apply to both must be ported by hand
 - Tag: `v1.2.0`
 - Version in module.json: `1.2.0`
 - Manifest URL: `/releases/download/v13-latest/module.json` (auto-updates)
-- Download URL: `/releases/download/v1.2.0/module.zip` (specific version)
+- Download URL in the published manifest: `/releases/download/v13-latest/module.zip` (auto-updates; each versioned release also keeps its own zip at `/releases/download/v1.2.0/module.zip`)
 
 ### Production v14 (release/v14):
 - Tag: `v2.1.0`
 - Version in module.json: `2.1.0`
 - Manifest URL: `/releases/download/v14-latest/module.json` (auto-updates)
-- Download URL: `/releases/download/v2.1.0/module.zip` (specific version)
+- Download URL in the published manifest: `/releases/download/v14-latest/module.zip` (auto-updates; each versioned release also keeps its own zip at `/releases/download/v2.1.0/module.zip`)
 
 ### Beta (staging):
 - **Versioned tag:** `v1.2.0-beta.5` (specific beta with full changelog)
@@ -187,28 +193,26 @@ receives the v14 rewrite. Fixes that apply to both must be ported by hand
 - Make changes but don't update the version numbers
 - Or use `[skip ci]` in your commit message
 
-### Merging staging to main
+### Promoting staging to release/v14
 - The `staging` branch's `module.json` will have beta URLs:
   ```json
   "manifest": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.json",
   "download": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.zip"
   ```
-- Before merging to main, update these to production URLs:
-  ```json
-  "manifest": "https://github.com/camrun91/archivist-sync/releases/latest/download/module.json",
-  "download": "https://github.com/camrun91/archivist-sync/releases/download/v1.2.0/module.zip"
-  ```
-- The main branch should use `releases/latest/download/` for manifest (auto-updates)
-- Update the download URL to match the version you're releasing
+- You do **not** need to fix these by hand: both stable workflows rewrite the
+  `manifest`/`download` fields to their own track's moving tag (`v13-latest` or
+  `v14-latest`) before packaging, precisely so leaked beta URLs can't ship.
+- Do **not** point any manifest at `releases/latest/download/` — that URL is
+  repo-wide and no longer belongs to either track.
 
 ---
 
 ## 🎯 Best Practices
 
 1. **Always update CHANGELOG.md** before releasing (production)
-2. **Test on staging** before merging to main
+2. **Test on staging** before promoting to `release/v14`
 3. **Keep versions in sync** between `module.json` and `package.json`
 4. **Use semantic versioning**: `MAJOR.MINOR.PATCH`
 5. **Beta testing**: Share the beta manifest URL with trusted testers
-6. **Production release**: Only merge to main when ready for public release
+6. **Production release**: Only push to `main` (v13) or `release/v14` (v14) when ready for public release
 
