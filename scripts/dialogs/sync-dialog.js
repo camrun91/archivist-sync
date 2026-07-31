@@ -443,6 +443,112 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     );
   }
 
+  /** Normalize quest objectives for stable JSON comparison. */
+  _normalizeQuestObjectives(arr) {
+    return JSON.stringify(
+      (Array.isArray(arr) ? arr : []).map((o) => ({
+        text: String(o?.text ?? '').trim(),
+        status: String(o?.status ?? 'pending'),
+      }))
+    );
+  }
+
+  /** Normalize quest progress log entries for stable JSON comparison. */
+  _normalizeQuestProgress(arr) {
+    return JSON.stringify(
+      (Array.isArray(arr) ? arr : [])
+        .map((e) =>
+          typeof e === 'string' ? e.trim() : String(e?.text ?? '').trim()
+        )
+        .filter(Boolean)
+    );
+  }
+
+  /** Normalize quest relatedEntityRefs for stable JSON comparison. */
+  _normalizeQuestRefs(arr) {
+    return JSON.stringify(
+      (Array.isArray(arr) ? arr : [])
+        .map((r) => ({
+          entityType: String(r?.entityType ?? '').toLowerCase(),
+          entityId: String(r?.entityId ?? ''),
+          label: String(r?.label ?? r?.entityNameSnapshot ?? '').trim(),
+        }))
+        .sort((a, b) =>
+          `${a.entityType}:${a.entityId}`.localeCompare(
+            `${b.entityType}:${b.entityId}`
+          )
+        )
+    );
+  }
+
+  /** Diff local questData flags against Archivist quest payload. */
+  _diffQuestData(localQd, arch) {
+    const archNorm = archivistApi._normalizeQuestResponse(arch);
+    const archQd = {
+      status: archNorm.status || 'planned',
+      questGiver: archNorm.questGiver || '',
+      questCategory: archNorm.questCategory || 'n/a',
+      successDefinition: archNorm.successDefinition || '',
+      failureConditions: archNorm.failureConditions || '',
+      nextAction: archNorm.nextAction || '',
+      resolution: archNorm.resolution || '',
+      objectives: Array.isArray(archNorm.objectives) ? archNorm.objectives : [],
+      progressLog: Array.isArray(archNorm.progressLog)
+        ? archNorm.progressLog
+        : Array.isArray(archNorm.progress_log)
+          ? archNorm.progress_log
+          : [],
+      relatedEntityRefs: Array.isArray(archNorm.relatedEntityRefs)
+        ? archNorm.relatedEntityRefs
+        : [],
+    };
+    const local = localQd || {};
+    const questChanges = {};
+    for (const field of [
+      'status',
+      'questGiver',
+      'questCategory',
+      'successDefinition',
+      'failureConditions',
+      'nextAction',
+      'resolution',
+    ]) {
+      if (
+        String(local[field] ?? '').trim() !== String(archQd[field] ?? '').trim()
+      ) {
+        questChanges[field] = { from: local[field], to: archQd[field] };
+      }
+    }
+    if (
+      this._normalizeQuestObjectives(local.objectives) !==
+      this._normalizeQuestObjectives(archQd.objectives)
+    ) {
+      questChanges.objectives = {
+        from: local.objectives || [],
+        to: archQd.objectives,
+      };
+    }
+    if (
+      this._normalizeQuestProgress(local.progressLog) !==
+      this._normalizeQuestProgress(archQd.progressLog)
+    ) {
+      questChanges.progressLog = {
+        from: local.progressLog || [],
+        to: archQd.progressLog,
+      };
+    }
+    if (
+      this._normalizeQuestRefs(local.relatedEntityRefs) !==
+      this._normalizeQuestRefs(archQd.relatedEntityRefs)
+    ) {
+      questChanges.relatedEntityRefs = {
+        from: local.relatedEntityRefs || [],
+        to: archQd.relatedEntityRefs,
+      };
+    }
+    return questChanges;
+  }
+
   // Build model: diffs and imports
   async _loadModel(force = false) {
     if (this.isLoading && !force) return;
@@ -496,7 +602,12 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         Faction: new Map(A.factions.map((f) => [String(f.id), f])),
         Session: new Map(A.sessions.map((s) => [String(s.id), s])),
         Journal: new Map(A.journals.map((j) => [String(j.id), j])),
-        Quest: new Map(A.quests.map((q) => [String(q.id), q])),
+        Quest: new Map(
+          (quests?.success ? quests.data : []).map((q) => [
+            String(q.id),
+            archivistApi._normalizeQuestResponse(q),
+          ])
+        ),
       };
 
       // Compute outgoing links (from_id => [{ id: to_id, type: to_type }])
@@ -561,29 +672,43 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           changes.name = { from: j.name, to: archName };
         }
         // Description mapping: compare normalized plain text (Foundry HTML vs Archivist Markdown)
-        try {
-          const textPage =
-            (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
-          const stored = Utils.extractPageHtml(textPage) || '';
-          const foundryPlain = Utils.toMarkdownIfHtml(stored);
-          const archMd = String((arch.description ?? arch.summary ?? arch.content) || '');
-          const archHtml = Utils.markdownToStoredHtml(archMd);
-          const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
-
-          // Normalize both sides for comparison to handle newline/whitespace differences
-          const foundryNormalized =
-            this._normalizeTextForComparison(foundryPlain);
-          const archivistNormalized =
-            this._normalizeTextForComparison(archivistPlain);
-
-          if (
-            archivistNormalized &&
-            foundryNormalized !== archivistNormalized
-          ) {
-            changes.description = { from: stored, to: archMd };
+        // Quest sheets store structured data in questData, not page body text.
+        if (type === 'Quest') {
+          try {
+            const questChanges = this._diffQuestData(f.questData, arch);
+            if (Object.keys(questChanges).length) {
+              changes.questData = questChanges;
+            }
+          } catch (_) {
+            /* ignore */
           }
-        } catch (_) {
-          /* ignore */
+        } else {
+          try {
+            const textPage =
+              (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
+            const stored = Utils.extractPageHtml(textPage) || '';
+            const foundryPlain = Utils.toMarkdownIfHtml(stored);
+            const archMd = String(
+              (arch.description ?? arch.summary ?? arch.content) || ''
+            );
+            const archHtml = Utils.markdownToStoredHtml(archMd);
+            const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
+
+            // Normalize both sides for comparison to handle newline/whitespace differences
+            const foundryNormalized =
+              this._normalizeTextForComparison(foundryPlain);
+            const archivistNormalized =
+              this._normalizeTextForComparison(archivistPlain);
+
+            if (
+              archivistNormalized &&
+              foundryNormalized !== archivistNormalized
+            ) {
+              changes.description = { from: stored, to: archMd };
+            }
+          } catch (_) {
+            /* ignore */
+          }
         }
         // Image diff: compare against custom sheet's flag image, not journal.img
         const archImg = String(arch.image || '').trim();
@@ -608,34 +733,37 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           }
         }
         // Links diff: only outgoing links (from_id == this sheet's archivistId), ignore alias
-        try {
-          const wantList = outgoing.get(archId) || [];
-          const wantIds = new Set(wantList.map((x) => String(x.id)));
-          // Additions: API wants a link that isn't in our local refs (any bucket)
-          const localRefs = new Set();
-          const refs = f.archivistRefs || {};
-          Object.values(refs).forEach((arr) => {
-            if (Array.isArray(arr))
-              for (const x of arr) localRefs.add(String(x));
-          });
-          const toAdd = wantList.filter((x) => !localRefs.has(String(x.id)));
+        // Quest relationships live in relatedEntityRefs, not the generic links table.
+        if (type !== 'Quest') {
+          try {
+            const wantList = outgoing.get(archId) || [];
+            const wantIds = new Set(wantList.map((x) => String(x.id)));
+            // Additions: API wants a link that isn't in our local refs (any bucket)
+            const localRefs = new Set();
+            const refs = f.archivistRefs || {};
+            Object.values(refs).forEach((arr) => {
+              if (Array.isArray(arr))
+                for (const x of arr) localRefs.add(String(x));
+            });
+            const toAdd = wantList.filter((x) => !localRefs.has(String(x.id)));
 
-          // Removals: only consider links that this sheet believes are outbound
-          const outbound = f.archivistOutbound || {};
-          const haveOutbound = new Set();
-          Object.values(outbound).forEach((arr) => {
-            if (Array.isArray(arr))
-              for (const x of arr) haveOutbound.add(String(x));
-          });
-          const toRemove =
-            haveOutbound.size > 0
-              ? [...haveOutbound].filter((x) => !wantIds.has(String(x)))
-              : [];
+            // Removals: only consider links that this sheet believes are outbound
+            const outbound = f.archivistOutbound || {};
+            const haveOutbound = new Set();
+            Object.values(outbound).forEach((arr) => {
+              if (Array.isArray(arr))
+                for (const x of arr) haveOutbound.add(String(x));
+            });
+            const toRemove =
+              haveOutbound.size > 0
+                ? [...haveOutbound].filter((x) => !wantIds.has(String(x)))
+                : [];
 
-          if (toAdd.length || toRemove.length)
-            changes.links = { add: toAdd, remove: toRemove };
-        } catch (_) {
-          /* ignore */
+            if (toAdd.length || toRemove.length)
+              changes.links = { add: toAdd, remove: toRemove };
+          } catch (_) {
+            /* ignore */
+          }
         }
         if (Object.keys(changes).length > 0) {
           diffs.push({
@@ -807,6 +935,15 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           /* ignore */
         }
       }
+    }
+    if (changes.questData) {
+      const nextFlags = { ...(f || {}) };
+      const qd = { ...(nextFlags.questData || {}) };
+      for (const [key, diff] of Object.entries(changes.questData)) {
+        qd[key] = diff.to;
+      }
+      nextFlags.questData = qd;
+      await j.setFlag(CONFIG.MODULE_ID, 'archivist', nextFlags);
     }
     if (changes.links) {
       const buckets = {

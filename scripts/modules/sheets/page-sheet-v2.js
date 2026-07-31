@@ -715,6 +715,11 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       quests = [];
     }
     if (this._rqSeq !== seq) return; // superseded by a later render
+    const hideByOwnership = settingsManager.getHideByOwnership?.();
+    const canSee = (doc) =>
+      !hideByOwnership ||
+      game.user?.isGM ||
+      doc?.testUserPermission?.(game.user, 'OBSERVED');
     const matches = quests.filter((q) =>
       (Array.isArray(q.relatedEntityRefs) ? q.relatedEntityRefs : []).some(
         (r) =>
@@ -729,6 +734,13 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     }
     for (const q of matches) {
       const questJournal = this._findPageOrEntryByArchivistId(String(q.id));
+      if (questJournal) {
+        const doc =
+          questJournal.documentName === 'JournalEntryPage'
+            ? questJournal.parent
+            : questJournal;
+        if (!canSee(doc)) continue;
+      }
       const name = q.questName || 'Quest';
       const card = document.createElement('div');
       card.className = 'archivist-card';
@@ -1052,6 +1064,46 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           resolution: readVal('.quest-resolution-input'),
         };
         result = await archivistApi.updateQuest(apiKey, archivistId, payload);
+        if (result?.success !== false) {
+          const data = result?.data || {};
+          const readObjectives = () => {
+            const items = [];
+            root.querySelectorAll('[data-obj-index]').forEach((li) => {
+              const text = String(
+                li.querySelector('.quest-objective-text-input')?.value ?? ''
+              ).trim();
+              const status = String(
+                li.querySelector('.quest-objective-status-select')?.value ??
+                  'pending'
+              );
+              items.push({ text, status });
+            });
+            return items;
+          };
+          const objectivesFromForm = readObjectives();
+          const nextQuestData = {
+            ...(flags.questData || {}),
+            questName: data.questName || payload.questName || nameNow,
+            questGiver: data.questGiver ?? payload.questGiver ?? '',
+            questCategory: data.questCategory ?? payload.questCategory ?? 'n/a',
+            status: data.status ?? payload.status ?? 'planned',
+            successDefinition:
+              data.successDefinition ?? payload.successDefinition ?? '',
+            failureConditions:
+              data.failureConditions ?? payload.failureConditions ?? '',
+            nextAction: data.nextAction ?? payload.nextAction ?? '',
+            resolution: data.resolution ?? payload.resolution ?? '',
+            objectives: objectivesFromForm.length
+              ? objectivesFromForm
+              : Array.isArray(data.objectives)
+                ? data.objectives
+                : flags.questData?.objectives || [],
+          };
+          await entry.setFlag(CONFIG.MODULE_ID, 'archivist', {
+            ...flags,
+            questData: nextQuestData,
+          });
+        }
       } else if (sheetType === 'journal') {
         console.log('[Archivist V2 Sheet] Syncing Journal to API');
         const payload = {
@@ -2367,7 +2419,9 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
     await super._onRender(context, options);
     try {
       const root = this.element;
-      this._renderQuestObjectives(root, context);
+      if (!context.setup?.editingInfo) {
+        this._renderQuestObjectives(root, context);
+      }
       this._renderQuestProgress(root, context);
       this._renderQuestLinks(root, context);
       this._wireQuestEditActions(root, context);
@@ -2475,7 +2529,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
         const card = document.createElement('div');
         card.className = 'archivist-card';
         card.dataset.archivistId = entityId;
-        card.innerHTML = `<img src="${img}" alt=""/><span class="name">${foundry.utils.escapeHTML(name)}</span><div class="actions"><button type="button" data-action="unlink-quest-entity" data-entity-type="${type}" data-entity-id="${foundry.utils.escapeHTML(entityId)}" title="Unlink"><i class="fas fa-unlink"></i></button></div>`;
+        card.innerHTML = `<img src="${img}" alt=""/><span class="name">${foundry.utils.escapeHTML(name)}</span>${game.user?.isGM ? `<div class="actions"><button type="button" data-action="unlink-quest-entity" data-entity-type="${type}" data-entity-id="${foundry.utils.escapeHTML(entityId)}" title="Unlink"><i class="fas fa-unlink"></i></button></div>` : ''}`;
         if (targetDoc) {
           card.addEventListener('click', (ev) => {
             if (ev.target?.closest?.('.actions')) return;
@@ -2521,6 +2575,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
         btn.addEventListener('click', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
+          if (!game.user?.isGM) return;
           const { entityType, entityId } = ev.currentTarget.dataset;
           if (entityType && entityId)
             this._unlinkQuestEntity(entityType, entityId);
@@ -2654,6 +2709,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
 
   /** Unlink an entity from this Quest's relatedEntityRefs. */
   async _unlinkQuestEntity(entityType, entityId) {
+    if (!game.user?.isGM) return;
     const flags =
       this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
     const qd = flags.questData || {};
