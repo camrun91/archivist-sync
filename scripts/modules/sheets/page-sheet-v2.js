@@ -2529,7 +2529,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
         const card = document.createElement('div');
         card.className = 'archivist-card';
         card.dataset.archivistId = entityId;
-        card.innerHTML = `<img src="${img}" alt=""/><span class="name">${foundry.utils.escapeHTML(name)}</span>${game.user?.isGM ? `<div class="actions"><button type="button" data-action="unlink-quest-entity" data-entity-type="${type}" data-entity-id="${foundry.utils.escapeHTML(entityId)}" title="Unlink"><i class="fas fa-unlink"></i></button></div>` : ''}`;
+        card.innerHTML = `<img src="${foundry.utils.escapeHTML(img)}" alt=""/><span class="name">${foundry.utils.escapeHTML(name)}</span>${game.user?.isGM ? `<div class="actions"><button type="button" data-action="unlink-quest-entity" data-entity-type="${type}" data-entity-id="${foundry.utils.escapeHTML(entityId)}" title="Unlink"><i class="fas fa-unlink"></i></button></div>` : ''}`;
         if (targetDoc) {
           card.addEventListener('click', (ev) => {
             if (ev.target?.closest?.('.actions')) return;
