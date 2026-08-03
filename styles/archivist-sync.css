@@ -73,6 +73,11 @@
   border-color: var(--color-border-highlight-hover, #ff8020);
 }
 
+/* Upload-image button sits to the left of the edit toggle, not on top of it */
+.archivist-edit-toggle.archivist-upload-toggle {
+  right: 48px;
+}
+
 /* When editing, move button down to not overlap with ProseMirror controls */
 .archivist-sheet prose-mirror[toggled]~.archivist-edit-toggle,
 .archivist-info prose-mirror[toggled]~.archivist-edit-toggle,
@@ -2690,6 +2695,44 @@ img.archivist-icon {
 .quest-field-group span {
   font-size: 0.85rem;
   line-height: 1.4;
+}
+
+.quest-field-group input[type='text'],
+.quest-field-group select,
+.quest-field-group textarea {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  padding: 0.3rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: inherit;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.quest-objective {
+  flex-wrap: wrap;
+}
+
+.quest-objective-text-input {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: inherit;
+}
+
+.quest-objective-status-select {
+  font-size: 0.78rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: inherit;
 }
 
 /* Quest section headings */

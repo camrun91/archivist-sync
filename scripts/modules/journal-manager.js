@@ -14,6 +14,8 @@ export class JournalManager {
       location: 'Archivist - Locations',
       faction: 'Archivist - Factions',
       recap: 'Recaps',
+      quest: 'Archivist - Quests',
+      journal: 'Archivist - Journals',
       entry: null,
     };
   }

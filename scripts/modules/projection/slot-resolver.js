@@ -1,5 +1,5 @@
 import { AdapterRegistry } from './adapter-registry.js';
-import { mergeArchivistSection, stripHtml } from './merge.js';
+import { mergeArchivistSection, mergeArchivistPlainSection } from './merge.js';
 import { CONFIG } from '../config.js';
 
 function defaultHeuristics(doc) {
@@ -100,7 +100,7 @@ export async function projectDescription(doc, archivistHtml) {
   const current = String(foundry.utils.getProperty(doc, slot.path) ?? '');
   const next = slot.html
     ? mergeArchivistSection(current, String(archivistHtml ?? ''))
-    : stripHtml(archivistHtml);
+    : mergeArchivistPlainSection(current, archivistHtml);
   const update = {
     [slot.path]: next,
     [`flags.${CONFIG.MODULE_ID}.op`]: op,
