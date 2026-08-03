@@ -767,6 +767,11 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     }
   }
 
+  /** Drop cached quest list after any local quest mutation. */
+  static _invalidateQuestsCache() {
+    ArchivistBasePageSheetV2._questsCache = null;
+  }
+
   /** Short-lived cache so opening several sheets at once doesn't re-fetch listQuests repeatedly. */
   static async _loadQuestsCached() {
     const now = Date.now();
@@ -1049,6 +1054,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         }
         await archivistApi.updateSession(apiKey, archivistId, payload);
       } else if (sheetType === 'quest') {
+        ArchivistBasePageSheetV2._invalidateQuestsCache();
         console.log('[Archivist V2 Sheet] Syncing Quest to API');
         const root = this.element;
         const readVal = (sel) =>
@@ -2612,6 +2618,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
 
   /** Persist the current objectives array (local flags + remote PATCH). */
   async _syncObjectives(objectives) {
+    ArchivistBasePageSheetV2._invalidateQuestsCache();
     const flags =
       this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
     const qd = { ...(flags.questData || {}), objectives };
@@ -2726,6 +2733,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
   }
 
   async _commitQuestLinks(relatedEntityRefs) {
+    ArchivistBasePageSheetV2._invalidateQuestsCache();
     const flags =
       this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
     const qd = { ...(flags.questData || {}), relatedEntityRefs };

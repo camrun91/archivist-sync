@@ -182,8 +182,10 @@ IMPORTANT — casing differs from every other entity above: Quest's Pydantic sch
 declare fields in **camelCase** (`questName`, `successDefinition`, `relatedEntityRefs`,
 …) as the primary name, with snake_case accepted only as an alias
 (`populate_by_name=True` + an alias_generator). Every other entity in this doc uses
-snake_case as canonical. Sending camelCase quest field names is correct and is what
-`archivist-sync`'s `_normalizeQuestPayload`/`_normalizeQuestResponse` already assume.
+snake_case as canonical. In `archivist-sync`, callers may use camelCase quest fields
+locally; `_normalizeQuestResponse` normalizes API responses to camelCase for internal
+use, and `_normalizeQuestPayload` converts outgoing writes to snake_case for the wire
+(`quest_name`, `related_entity_refs`, …). Both casings are accepted by the API.
 
 `objectives`: `[{ text, status }]` where status is one of
 `pending | in-progress | completed | failed | blocked`.
