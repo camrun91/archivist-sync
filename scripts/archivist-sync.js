@@ -1136,7 +1136,7 @@ function installRealtimeSyncListeners() {
       }
 
       if (res.success && res.data?.id) {
-        await entry.setFlag(CONFIG.MODULE_ID, 'archivist', {
+        const flagBlock = {
           sheetType,
           archivistId: res.data.id,
           archivistWorldId: worldId,
@@ -1148,7 +1148,13 @@ function installRealtimeSyncListeners() {
             locationsAssociative: [],
           },
           foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
-        });
+        };
+        // Seed questData from the create response so the sheet shows API
+        // defaults (e.g. status: 'planned') without waiting for reconcile.
+        if (sheetType === 'quest') {
+          flagBlock.questData = Utils.buildQuestDataFromApi(res.data, {});
+        }
+        await entry.setFlag(CONFIG.MODULE_ID, 'archivist', flagBlock);
       }
     } catch (e) {
       console.warn('[RTS] createJournalEntry (flags) failed', e);

@@ -1474,6 +1474,9 @@ export class ArchivistApiService {
    */
   async updateQuest(apiKey, questId, payload) {
     const normalized = this._normalizeQuestPayload(payload);
+    // QuestUpdate forbids campaign_id (additionalProperties: false) — strip
+    // it even if a caller passed worldId/campaignId into the shared normalizer.
+    delete normalized.campaign_id;
     const entityName =
       normalized?.quest_name || payload?.questName || 'Unknown Quest';
     try {
