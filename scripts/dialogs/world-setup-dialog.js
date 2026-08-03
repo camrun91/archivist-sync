@@ -2143,7 +2143,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for this character with the custom sheet
         try {
           const name = c.character_name || c.name || actor.name || 'Character';
-          const html = Utils.toMarkdownIfHtml(String(c.description || ''));
+          const html = Utils.markdownToStoredHtml(String(c.description || ''));
           const imageUrl = c.image || undefined;
           const targetFolderId =
             archivistType === 'NPC'
@@ -2271,7 +2271,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for this item with the custom sheet
         try {
           const name = i.name || item.name || 'Item';
-          const html = Utils.toMarkdownIfHtml(String(i.description || ''));
+          const html = Utils.markdownToStoredHtml(String(i.description || ''));
           const imageUrl = i.image || undefined;
           const targetFolderId = this.setupData.destinations.item;
 
@@ -2325,7 +2325,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for location/faction
         try {
           const name = `${e.name || e.title || kind}`;
-          const html = Utils.toMarkdownIfHtml(String(e.description || ''));
+          const html = Utils.markdownToStoredHtml(String(e.description || ''));
           const imageUrl =
             typeof e.image === 'string' && e.image.trim().length
               ? e.image.trim()
@@ -2484,7 +2484,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             const folderId = j.folder_id
               ? folderIdMap.get(String(j.folder_id)) || journalRootFolderId
               : journalRootFolderId;
-            const html = Utils.toMarkdownIfHtml(String(j.content || j.summary || ''));
+            const html = Utils.markdownToStoredHtml(
+              String(j.content || j.summary || '')
+            );
             const imageUrl =
               typeof j.cover_image === 'string' && j.cover_image.trim()
                 ? j.cover_image.trim()
