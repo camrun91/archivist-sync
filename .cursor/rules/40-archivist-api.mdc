@@ -12,6 +12,8 @@ alwaysApply: true
 
 > The agent MUST use the shapes and behaviors below. Do not invent fields. Prefer small helper wrappers instead of inlining fetch logic repeatedly.
 
+> **Source of truth:** the live OpenAPI schema at `https://api.myarchivist.ai/openapi.json`. When this rule file conflicts with the live schema, the schema wins — fetch it and verify before asserting that code is wrong. Do not demand a payload shape or HTTP verb from this file alone.
+
 ---
 
 ## Global Guidance
@@ -20,9 +22,11 @@ alwaysApply: true
 - Prefer **cursor-safe helpers** (see “Client Helpers”) so auth and error handling are consistent.
 - Respect query params and pagination (`page`, `size`). Never assume full dumps.
 - Some endpoints support **wikilink preservation** via `with_links=true`.
-- **Beats PATCH** uses **JSON Merge Patch** (`Content-Type: application/merge-patch+json`).
+- **Beats PATCH** takes plain `application/json` (`BeatUpdate`, all fields optional). Omitted fields are left alone — there is no special merge-patch content type.
 - Use **streaming** on `/v1/ask` when `stream=true` is requested; otherwise expect a standard JSON response.
 - Treat `404` and `422` bodies as informative JSON; do not discard.
+- **Verbs are not uniform.** Most entities update with `PATCH /v1/<entity>/{id}`; **Journals update with `PUT /v1/journals`** and carry `id` in the body. Check the section for the entity you are touching.
+- **Field casing is not uniform.** Journals use camelCase (`worldId`, `folderId`, `contentRich`); every other entity — Quests included — uses snake_case.
 
 ---
 
@@ -87,7 +91,7 @@ PATCH /v1/campaigns/{campaign_id} (title?, description?) → 200
 DELETE /v1/campaigns/{campaign_id} → 204
 GET /v1/campaigns/{campaign_id}/stats → counts
 GET /v1/campaigns/{campaign_id}/links (+filters: from_id, from_type, to_id, to_type, alias, pagination)
-POST /v1/campaigns/{campaign_id}/links (from_id*, from_type*, to_id*, to_type*, alias?) → 201
+POST /v1/campaigns/{campaign_id}/links (from_id*, from_type*, to_id*, to_type*, alias*, campaign_id* in body too) → 201 — LinkCreate requires all six; alias is NOT optional on create (it is optional only on PATCH)
 PATCH /v1/campaigns/{campaign_id}/links/{link_id} (alias?) → 200
 DELETE /v1/campaigns/{campaign_id}/links/{link_id} → 204
 
@@ -109,9 +113,12 @@ DELETE /v1/characters/{character_id} → 204
 
 Sessions
 
-GET /v1/sessions?campaign_id=...&session_type=&public_only=&with_links=
+GET /v1/sessions?campaign_id=...&session_type=&public_only=&with_links=&review_stage=&page=&size=
 GET /v1/sessions/{session_id}?include_beats=&include_moments=&with_links=
-PATCH /v1/sessions/{session_id} (title?, summary?, session_date?) → 200
+POST /v1/sessions (campaign_id*, title?, summary?, notes?, type?, public?) → 201
+PATCH /v1/sessions/{session_id} (title?, summary?, session_date?, image?) → 200
+PUT /v1/sessions/{session_id} (title?, summary?, session_date?, notes?, type?, public?, image?) → 200
+DELETE /v1/sessions/{session_id} → 204
 
 ⸻
 
@@ -119,13 +126,14 @@ Beats
 
 GET /v1/beats?campaign_id=...&page=&size=&with_links= (ordered by index)
 GET /v1/beats/{beat_id}?with_links=
-POST /v1/beats (label*, type*=major|minor|step, campaign_id*, game_session_id?, description?, index?, parent_id?) → 201
-PATCH /v1/beats/{beat_id} — JSON Merge Patch, header must be application/merge-patch+json
+POST /v1/beats (label*, campaign_id*, type?=major|minor|step, game_session_id?, game_session_ids?, description?, index?, parent_id?, metadata?) → 201
+PATCH /v1/beats/{beat_id} (BeatUpdate — all fields optional, plain application/json) → 200
 DELETE /v1/beats/{beat_id} → 204
 
-Important: When PATCHing beats, only include fields that should change. The server merges.
+Important: When PATCHing beats, only include fields that should change; absent fields are
+left alone. `type` is optional on create — the server defaults it.
 
-await api.patch(`/v1/beats/${id}`, { index: 2 }, { mergePatch: true });
+await api(`/v1/beats/${id}`, { method: "PATCH", body: { index: 2 } });
 
 
 ⸻
@@ -172,38 +180,69 @@ DELETE /v1/items/{item_id} → 204
 
 Quests
 
-GET /v1/quests?campaign_id=&page=&size=&search=&status=&quest_category= → paginated list
-GET /v1/quests/{quest_id}
-POST /v1/quests (worldId*/campaign_id*, questName*, questGiver?, questCategory?, status?, successDefinition?, failureConditions?, nextAction?, resolution?, objectives?, progressLog?, relatedCharacters?, relatedFactions?, relatedLocations?, relatedItems?, relatedEntityRefs?) → 201
-PATCH /v1/quests/{quest_id} — same fields as POST, all optional (partial update)
+GET /v1/quests?campaign_id=*&page=&size=&search=&status=&quest_category= → paginated list
+GET /v1/quests/{quest_id} → 200
+POST /v1/quests (campaign_id*, quest_name*, quest_giver?, quest_category?, status?, success_definition?, failure_conditions?, next_action?, resolution?, objectives?, progress_log?, related_characters?, related_factions?, related_locations?, related_items?, related_entity_refs?) → 201
+PATCH /v1/quests/{quest_id} — same fields as POST minus campaign_id, all optional (partial update) → 200
 DELETE /v1/quests/{quest_id} → 204
 
-IMPORTANT — casing differs from every other entity above: Quest's Pydantic schemas
-declare fields in **camelCase** (`questName`, `successDefinition`, `relatedEntityRefs`,
-…) as the primary name, with snake_case accepted only as an alias
-(`populate_by_name=True` + an alias_generator). Every other entity in this doc uses
-snake_case as canonical. Sending camelCase quest field names is correct and is what
-`archivist-sync`'s `_normalizeQuestPayload`/`_normalizeQuestResponse` already assume.
+IMPORTANT — Quest write payloads are **snake_case** (`quest_name`, `success_definition`,
+`related_entity_refs`, …), matching every other entity in this doc except Journals.
+Both `QuestCreate` and `QuestUpdate` declare `additionalProperties: false`, so an unknown
+key — including a camelCase spelling of a real field — is a hard `422`, not a silently
+ignored extra. Send only the documented snake_case names.
 
-`objectives`: `[{ text, status }]` where status is one of
+`campaign_id` is required on create and is **not accepted on update** — a quest cannot be
+moved between campaigns, and including it in a PATCH body earns a `422`. Strip it before
+patching.
+
+`quest_category`: `main | side | faction | personal | n/a` (default `n/a`).
+`status`: `planned | in-progress | blocked | failed | done | n/a` (default `planned`).
+`objectives`: `[{ text*, status? }]` where status is one of
 `pending | in-progress | completed | failed | blocked`.
-`relatedEntityRefs`: `[{ entityType, entityId, entityNameSnapshot?, label? }]` where
-entityType is one of `character | faction | location | item` — **Quest has no generic
+`related_entity_refs`: `[{ entity_type*, entity_id?, entity_name_snapshot?, label? }]` where
+entity_type is one of `character | faction | location | item` — **Quest has no generic
 `description` field**, and **Quest cannot appear in `/v1/campaigns/{id}/links`** (no
 `ENTITY_CONFIG` entry on the backend for it, in either direction). Quest relationships
-only ever persist via `relatedEntityRefs` on the quest itself — treat Quest as the
+only ever persist via `related_entity_refs` on the quest itself — treat Quest as the
 single source of truth for its own relationships, not the generic links system.
+
+Read-only extras on `QuestRead` (do not send them on write): `order_index`,
+`quest_giver_id`, `objective_count`, `completed_objective_count`, `progress_entry_count`,
+`progress_log_entries`, `first_session`, `last_session`.
+
+GET /v1/campaigns/{campaign_id}/quest-log → campaign-scoped quest log view.
 
 ⸻
 
 Journals
 
-GET /v1/journals?campaign_id=&page=&size=
-GET /v1/journals/{journal_id}
-POST /v1/journals (id?, title*, content?, campaign_id*) → 201
-PATCH /v1/journals (id*, title?, content?) → 200 — note: PATCH takes `id` in the body,
-not as a path param, unlike every other entity in this doc.
-DELETE /v1/journals/{journal_id} → 204
+Journals are the one entity that does **not** follow the `/{id}` + PATCH convention, and the
+one entity whose payload fields are camelCase. Every write targets the collection path
+`/v1/journals` and identifies the entry inside the request (body for PUT, query for DELETE).
+
+GET /v1/journals?campaign_id=*&page=&size=&with_links=&fields= → paginated list
+GET /v1/journals/{entry_id}?with_links= → 200 — this path is **GET-only**
+POST /v1/journals (worldId*, title*, summary?, content?, contentRich?, contentMetadata?, tags?, coverImage?, isPinned?, isPublic?, status?, publishedAt?, archivedAt?, folderId?) → 201
+PUT /v1/journals (id*, plus any create field except worldId; also permissions?, authorId?) → 200
+DELETE /v1/journals?id={entry_id} → 200
+
+IMPORTANT — three things reviewers get wrong here:
+	1.	**There is no journal PATCH.** Update via `PUT /v1/journals` with `id` in the body.
+Absent fields are left alone, so PUT behaves as a partial update in practice.
+	2.	**`JournalEntryCreate` requires `worldId`, not `campaign_id`.** The list endpoint
+takes `campaign_id` as a query param, but the create body does not accept it at all.
+	3.	**DELETE is a query param on the collection**, `DELETE /v1/journals?id=…`, and it
+returns **200** with a body — not the `204` used by other entities.
+
+`status`: `draft | published | archived`.
+`permissions` (PUT only): `{ add?: [{ userId*, level? }], remove?: [{ userId* }] }` where
+level is one of `view | comment | edit | manage` (default `view`).
+
+Journal folders mirror the same shape: `GET|POST|PUT|DELETE /v1/journal-folders`
+(create requires `worldId*`, `name*`, `path*`; PUT takes `id*` in the body; DELETE takes
+`id` as a query param), with `GET /v1/journal-folders/{folder_id}` for a single folder and
+`GET /v1/campaigns/{campaign_id}/journal-tree` for the nested view.
 
 ⸻
 
@@ -225,10 +264,10 @@ const BASE = "https://api.myarchivist.ai";
 const API_KEY = game.settings.get("archivist-sync", "apiKey") as string; // stored securely in Foundry settings
 
 type FetchOpts = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; // PUT is required for Journals
   headers?: Record<string, string>;
   body?: any;
-  mergePatch?: boolean; // for Beats PATCH
+  mergePatch?: boolean; // sets application/merge-patch+json; no current endpoint requires it
   signal?: AbortSignal;
 };
 
@@ -273,11 +312,31 @@ const newBeat = await api(`/v1/beats`, {
   body: { label: "The Final Battle", type: "major", campaign_id }
 });
 
-// Merge-patch a beat (index only)
+// Patch a beat (index only; absent fields are left alone)
 await api(`/v1/beats/${beatId}`, {
   method: "PATCH",
-  mergePatch: true,
   body: { index: 2 }
+});
+
+// Create a journal entry (worldId, camelCase — no campaign_id)
+const entry = await api(`/v1/journals`, {
+  method: "POST",
+  body: { worldId, title: "Session 12 Recap", content: html }
+});
+
+// Update that entry (PUT on the collection, id in the body — there is no journal PATCH)
+await api(`/v1/journals`, {
+  method: "PUT",
+  body: { id: entry.id, title: "Session 12 – The Vault" }
+});
+
+// Delete it (id as a query param; responds 200, not 204)
+await api(`/v1/journals?id=${entry.id}`, { method: "DELETE" });
+
+// Create a quest (snake_case; unknown keys are rejected with 422)
+await api(`/v1/quests`, {
+  method: "POST",
+  body: { campaign_id, quest_name: "Recover the Sunken Crown", quest_category: "main" }
 });
 
 
@@ -286,14 +345,24 @@ await api(`/v1/beats/${beatId}`, {
 Common Pitfalls (and the correct approach)
 	•	Missing x-api-key → 401 {"detail":"Invalid API key"}.
 Fix: Always include the header via the helper.
-	•	Wrong content type on Beats PATCH → 415/422.
-Fix: Use mergePatch: true which sets application/merge-patch+json.
+	•	Assuming Beats PATCH needs application/merge-patch+json.
+Fix: It does not. The schema declares plain application/json with BeatUpdate; send only the
+fields that change.
 	•	Forgetting campaign_id for list/create → 422 {"detail":"campaign_id is required"}.
-Fix: Pass it explicitly.
+Fix: Pass it explicitly. Exception: journal creation takes worldId, not campaign_id.
 	•	Assuming deletions return JSON → 204 has no body.
-Fix: Treat 204 as success and skip parsing.
+Fix: Treat 204 as success and skip parsing. Exception: DELETE /v1/journals and
+DELETE /v1/journal-folders return 200 with a body.
+	•	Reaching for PATCH /v1/journals/{id} → that route does not exist.
+Fix: PUT /v1/journals with id in the body. /v1/journals/{entry_id} is GET-only.
+	•	Sending camelCase quest fields (questName, relatedEntityRefs) → 422, because
+QuestCreate/QuestUpdate set additionalProperties: false.
+Fix: Use snake_case (quest_name, related_entity_refs) and drop campaign_id on update.
 	•	Dropping wikilinks when rendering in Foundry.
 Fix: Use with_links=true when you need raw [[Link]] markup preserved.
+	•	Asserting a shape from this file alone when it conflicts with working code.
+Fix: Fetch https://api.myarchivist.ai/openapi.json and check the schema before filing a
+review comment or "fixing" a call site.
 
 ⸻
 
@@ -302,4 +371,6 @@ Foundry Integration Notes
 	•	For streaming from /v1/ask, pipe chunks into your ApplicationV2 instance to update the UI progressively (avoid blocking the UI thread).
 	•	Respect pagination in UI lists (campaigns, beats, moments, etc.); provide “Load more” or page controls.
 
-If an endpoint here conflicts with ad-hoc code, the rule is: the reference above wins. Prefer the shared api() helper and these shapes for all calls.
+If an endpoint here conflicts with ad-hoc code, the reference above wins — unless the live
+OpenAPI at https://api.myarchivist.ai/openapi.json says otherwise, in which case the schema
+wins and this file needs updating. Prefer the shared api() helper and these shapes for all calls.

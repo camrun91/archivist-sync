@@ -443,6 +443,36 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     );
   }
 
+  /** Compare local questData flags against Archivist quest fields. */
+  _diffQuestData(local, arch) {
+    const scalarFields = [
+      'questGiver',
+      'questCategory',
+      'status',
+      'successDefinition',
+      'failureConditions',
+      'nextAction',
+      'resolution',
+    ];
+    const partial = {};
+    let hasChanges = false;
+    for (const field of scalarFields) {
+      if (String(local[field] ?? '') !== String(arch[field] ?? '')) {
+        partial[field] = { from: local[field], to: arch[field] };
+        hasChanges = true;
+      }
+    }
+    for (const field of ['objectives', 'progressLog', 'relatedEntityRefs']) {
+      const localJson = JSON.stringify(local[field] ?? []);
+      const archJson = JSON.stringify(arch[field] ?? []);
+      if (localJson !== archJson) {
+        partial[field] = { from: local[field] ?? [], to: arch[field] ?? [] };
+        hasChanges = true;
+      }
+    }
+    return hasChanges ? partial : null;
+  }
+
   // Build model: diffs and imports
   async _loadModel(force = false) {
     if (this.isLoading && !force) return;
@@ -560,30 +590,45 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         if (String(j.name || '').trim() !== String(archName || '').trim()) {
           changes.name = { from: j.name, to: archName };
         }
-        // Description mapping: compare normalized plain text (Foundry HTML vs Archivist Markdown)
-        try {
-          const textPage =
-            (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
-          const stored = Utils.extractPageHtml(textPage) || '';
-          const foundryPlain = Utils.toMarkdownIfHtml(stored);
-          const archMd = String((arch.description ?? arch.summary ?? arch.content) || '');
-          const archHtml = Utils.markdownToStoredHtml(archMd);
-          const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
-
-          // Normalize both sides for comparison to handle newline/whitespace differences
-          const foundryNormalized =
-            this._normalizeTextForComparison(foundryPlain);
-          const archivistNormalized =
-            this._normalizeTextForComparison(archivistPlain);
-
-          if (
-            archivistNormalized &&
-            foundryNormalized !== archivistNormalized
-          ) {
-            changes.description = { from: stored, to: archMd };
+        if (type === 'Quest') {
+          let archQuest = arch;
+          if (!arch.objectives && arch.id) {
+            try {
+              const resp = await archivistApi.getQuest(apiKey, arch.id);
+              if (resp.success && resp.data) archQuest = resp.data;
+            } catch (_) {}
           }
-        } catch (_) {
-          /* ignore */
+          const localQd = f.questData || {};
+          const archQd = Utils.buildQuestDataFromApi(archQuest);
+          const questChanges = this._diffQuestData(localQd, archQd);
+          if (questChanges) changes.questData = questChanges;
+        } else {
+          // Description mapping: compare normalized plain text (Foundry HTML vs Archivist Markdown)
+          try {
+            const textPage =
+              (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
+            const stored = Utils.extractPageHtml(textPage) || '';
+            const foundryPlain = Utils.toMarkdownIfHtml(stored);
+            const archMd = String(
+              (arch.description ?? arch.summary ?? arch.content) || ''
+            );
+            const archHtml = Utils.markdownToStoredHtml(archMd);
+            const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
+
+            const foundryNormalized =
+              this._normalizeTextForComparison(foundryPlain);
+            const archivistNormalized =
+              this._normalizeTextForComparison(archivistPlain);
+
+            if (
+              archivistNormalized &&
+              foundryNormalized !== archivistNormalized
+            ) {
+              changes.description = { from: stored, to: archMd };
+            }
+          } catch (_) {
+            /* ignore */
+          }
         }
         // Image diff: compare against custom sheet's flag image, not journal.img
         const archImg = String(arch.image || '').trim();
@@ -808,6 +853,17 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
       }
     }
+    if (changes.questData) {
+      const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+      const next = { ...(flags.questData || {}) };
+      for (const [field, change] of Object.entries(changes.questData)) {
+        next[field] = change.to;
+      }
+      await j.setFlag(CONFIG.MODULE_ID, 'archivist', {
+        ...flags,
+        questData: next,
+      });
+    }
     if (changes.links) {
       const buckets = {
         character: 'characters',
@@ -976,45 +1032,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           if (resp.success && resp.data) fullQuest = resp.data;
         } catch (_) {}
         const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-        flags.questData = {
-          questName: fullQuest.questName || fullQuest.quest_name || '',
-          questGiver: fullQuest.questGiver || fullQuest.quest_giver || '',
-          questCategory:
-            fullQuest.questCategory || fullQuest.quest_category || 'n/a',
-          status: fullQuest.status || 'planned',
-          successDefinition:
-            fullQuest.successDefinition || fullQuest.success_definition || '',
-          failureConditions:
-            fullQuest.failureConditions || fullQuest.failure_conditions || '',
-          nextAction: fullQuest.nextAction || fullQuest.next_action || '',
-          resolution: fullQuest.resolution || '',
-          objectives: Array.isArray(fullQuest.objectives) ? fullQuest.objectives : [],
-          progressLog: Array.isArray(fullQuest.progressLog)
-            ? fullQuest.progressLog
-            : Array.isArray(fullQuest.progress_log)
-              ? fullQuest.progress_log
-            : Array.isArray(fullQuest.progressLogEntries)
-              ? fullQuest.progressLogEntries.map((e) =>
-                  typeof e === 'string' ? e : e.text || ''
-                )
-              : Array.isArray(fullQuest.progress_log_entries)
-                ? fullQuest.progress_log_entries.map((e) =>
-                    typeof e === 'string' ? e : e.text || ''
-                  )
-              : [],
-          relatedCharacters:
-            fullQuest.relatedCharacters || fullQuest.related_characters || [],
-          relatedFactions:
-            fullQuest.relatedFactions || fullQuest.related_factions || [],
-          relatedLocations:
-            fullQuest.relatedLocations || fullQuest.related_locations || [],
-          relatedItems:
-            fullQuest.relatedItems || fullQuest.related_items || [],
-          relatedEntityRefs:
-            fullQuest.relatedEntityRefs || fullQuest.related_entity_refs || [],
-          firstSession: fullQuest.firstSession || fullQuest.first_session || null,
-          lastSession: fullQuest.lastSession || fullQuest.last_session || null,
-        };
+        flags.questData = Utils.buildQuestDataFromApi(fullQuest);
         await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
       } catch (_) {}
     }

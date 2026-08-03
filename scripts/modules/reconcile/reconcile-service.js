@@ -36,11 +36,7 @@ export class ReconcileService {
     const factions = facs.success ? facs.data || [] : [];
     const sessionsData = sessions.success ? sessions.data || [] : [];
     const linksData = links.success ? links.data || [] : [];
-    // listQuests() rows aren't normalized server-side consistently; route through
-    // the same camelCase/snake_case-tolerant normalizer used elsewhere for quests.
-    const questsData = (quests.success ? quests.data || [] : []).map((q) =>
-      archivistApi._normalizeQuestResponse(q)
-    );
+    const questsData = quests.success ? quests.data || [] : [];
     const journalsData = journalsList.success ? journalsList.data || [] : [];
 
     // Ensure default folders, index existing journals by archivistId
@@ -55,7 +51,7 @@ export class ReconcileService {
     }
 
     // Upsert helper for a sheet journal
-    const ensureSheet = async (entity, sheetType) => {
+    const ensureSheet = async (entity, sheetType, options = {}) => {
       const id = entity.id;
       let j = byArchId.get(id);
       if (!j) {
@@ -64,7 +60,7 @@ export class ReconcileService {
           sheetType,
           archivistId: id,
           worldId: campaignId,
-          text: '',
+          text: options.text ?? '',
         });
         // If Archivist entity has an image, mirror it to the journal
         try {
@@ -105,42 +101,42 @@ export class ReconcileService {
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
-    for (const j of journalsData) await ensureSheet(j, 'journal');
+    for (const j of journalsData) {
+      let content = j.content ?? j.summary ?? '';
+      if (!content && j.id) {
+        try {
+          const resp = await archivistApi.getJournal(apiKey, j.id);
+          if (resp.success && resp.data) {
+            content = resp.data.content ?? resp.data.summary ?? '';
+          }
+        } catch (_) {}
+      }
+      const html = Utils.markdownToStoredHtml(String(content || ''));
+      await ensureSheet(
+        { ...j, name: j.title || j.name || 'Journal' },
+        'journal',
+        { text: html }
+      );
+    }
 
     // Quests: ensure a sheet exists, then refresh its full questData from Archivist
     // (title/image handled generically by ensureSheet; the rest is quest-specific).
     for (const q of questsData) {
-      const entity = { ...q, name: q.questName || 'Quest' };
+      let fullQuest = q;
+      if (!q.objectives && q.id) {
+        try {
+          const resp = await archivistApi.getQuest(apiKey, q.id);
+          if (resp.success && resp.data) fullQuest = resp.data;
+        } catch (_) {}
+      }
+      const entity = { ...fullQuest, name: fullQuest.questName || 'Quest' };
       const j = await ensureSheet(entity, 'quest');
       try {
         const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-        flags.questData = {
-          questName: q.questName || '',
-          questGiver: q.questGiver || '',
-          questCategory: q.questCategory || 'n/a',
-          status: q.status || 'planned',
-          successDefinition: q.successDefinition || '',
-          failureConditions: q.failureConditions || '',
-          nextAction: q.nextAction || '',
-          resolution: q.resolution || '',
-          objectives: Array.isArray(q.objectives) ? q.objectives : [],
-          progressLog: Array.isArray(q.progressLog) ? q.progressLog : [],
-          relatedCharacters: Array.isArray(q.relatedCharacters)
-            ? q.relatedCharacters
-            : [],
-          relatedFactions: Array.isArray(q.relatedFactions)
-            ? q.relatedFactions
-            : [],
-          relatedLocations: Array.isArray(q.relatedLocations)
-            ? q.relatedLocations
-            : [],
-          relatedItems: Array.isArray(q.relatedItems) ? q.relatedItems : [],
-          relatedEntityRefs: Array.isArray(q.relatedEntityRefs)
-            ? q.relatedEntityRefs
-            : [],
-          firstSession: q.firstSession || null,
-          lastSession: q.lastSession || null,
-        };
+        flags.questData = Utils.buildQuestDataFromApi(
+          fullQuest,
+          flags.questData || {}
+        );
         await j.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
       } catch (_) {}
     }

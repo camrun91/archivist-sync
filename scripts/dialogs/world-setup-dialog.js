@@ -459,14 +459,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       case 5:
         return true; // create choices step
       case 6:
-        // Disable completion until sync has started and finished
-        // If syncStatus.total is 0, sync hasn't begun yet, so allow "Begin Sync" but not "Complete"
-        // Once sync starts (total > 0), only allow completion when processed >= total
-        if (this.syncStatus.total === 0) {
-          // Sync hasn't begun, can't complete yet
-          return false;
-        }
-        // Sync has started, can complete only when finished
+        if (!this._syncStarted) return false;
+        if (this.syncStatus.total === 0) return true;
         return this.syncStatus.processed >= this.syncStatus.total;
       default:
         return false;
@@ -2559,45 +2553,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
           if (journal) {
             const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-            flags.questData = {
-              questName: fullQuest.questName || fullQuest.quest_name || '',
-              questGiver: fullQuest.questGiver || fullQuest.quest_giver || '',
-              questCategory:
-                fullQuest.questCategory || fullQuest.quest_category || 'n/a',
-              status: fullQuest.status || 'planned',
-              successDefinition:
-                fullQuest.successDefinition || fullQuest.success_definition || '',
-              failureConditions:
-                fullQuest.failureConditions || fullQuest.failure_conditions || '',
-              nextAction: fullQuest.nextAction || fullQuest.next_action || '',
-              resolution: fullQuest.resolution || '',
-              objectives: Array.isArray(fullQuest.objectives) ? fullQuest.objectives : [],
-              progressLog: Array.isArray(fullQuest.progressLog)
-                ? fullQuest.progressLog
-                : Array.isArray(fullQuest.progress_log)
-                  ? fullQuest.progress_log
-                : Array.isArray(fullQuest.progressLogEntries)
-                  ? fullQuest.progressLogEntries.map((e) =>
-                      typeof e === 'string' ? e : e.text || ''
-                    )
-                  : Array.isArray(fullQuest.progress_log_entries)
-                    ? fullQuest.progress_log_entries.map((e) =>
-                        typeof e === 'string' ? e : e.text || ''
-                      )
-                  : [],
-              relatedCharacters:
-                fullQuest.relatedCharacters || fullQuest.related_characters || [],
-              relatedFactions:
-                fullQuest.relatedFactions || fullQuest.related_factions || [],
-              relatedLocations:
-                fullQuest.relatedLocations || fullQuest.related_locations || [],
-              relatedItems:
-                fullQuest.relatedItems || fullQuest.related_items || [],
-              relatedEntityRefs:
-                fullQuest.relatedEntityRefs || fullQuest.related_entity_refs || [],
-              firstSession: fullQuest.firstSession || fullQuest.first_session || null,
-              lastSession: fullQuest.lastSession || fullQuest.last_session || null,
-            };
+            flags.questData = Utils.buildQuestDataFromApi(fullQuest);
             await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
           }
         } catch (e) {

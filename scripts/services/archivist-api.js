@@ -584,7 +584,7 @@ export class ArchivistApiService {
           : Array.isArray(data.data)
             ? data.data
             : [];
-        all.push(...items.map((quest) => this._normalizeQuestResponse(quest)));
+        all.push(...items);
         const totalPages =
           typeof data.pages === 'number'
             ? data.pages
@@ -621,7 +621,7 @@ export class ArchivistApiService {
         method: 'POST',
         body: JSON.stringify(norm),
       });
-      return { success: true, data: this._normalizeQuestResponse(data) };
+      return { success: true, data };
     } catch (error) {
       const isRateLimited =
         error.message?.includes('429') ||
@@ -1245,7 +1245,7 @@ export class ArchivistApiService {
   /**
    * Create a journal entry
    * @param {string} apiKey
-   * @param {object} payload - { world_id, title, content?, ... }
+   * @param {object} payload - { worldId, title, content?, ... }
    */
   async createJournal(apiKey, payload) {
     const entityName = payload?.title || 'Unknown Journal';
@@ -1385,7 +1385,7 @@ export class ArchivistApiService {
           : Array.isArray(data.data)
             ? data.data
             : [];
-        all.push(...items);
+        all.push(...items.map((q) => this._normalizeQuestResponse(q)));
         const totalPages =
           typeof data.pages === 'number'
             ? data.pages
@@ -1418,7 +1418,7 @@ export class ArchivistApiService {
         `/quests/${encodeURIComponent(questId)}`,
         { method: 'GET' }
       );
-      return { success: true, data };
+      return { success: true, data: this._normalizeQuestResponse(data) };
     } catch (error) {
       console.error(`${CONFIG.MODULE_TITLE} | Failed to get quest:`, error);
       return {

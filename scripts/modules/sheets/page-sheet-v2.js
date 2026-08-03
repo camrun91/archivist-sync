@@ -764,11 +764,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     const campaignId = settingsManager.getSelectedWorldId?.();
     if (!apiKey || !campaignId) return [];
     const result = await archivistApi.listQuests(apiKey, campaignId);
-    const raw = result?.success ? result.data || [] : [];
-    // listQuests() doesn't normalize each row; the API's casing for quest
-    // fields is inconsistent between endpoints, so route through the same
-    // camelCase/snake_case-tolerant normalizer used by get/create/updateQuest.
-    const data = raw.map((q) => archivistApi._normalizeQuestResponse(q));
+    const data = result?.success ? result.data || [] : [];
     ArchivistBasePageSheetV2._questsCache = { at: now, data };
     return data;
   }
@@ -1052,6 +1048,25 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           resolution: readVal('.quest-resolution-input'),
         };
         result = await archivistApi.updateQuest(apiKey, archivistId, payload);
+        try {
+          const flags =
+            entry?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+          const src =
+            result?.success && result.data ? result.data : payload;
+          const questData = Utils.buildQuestDataFromApi(
+            src,
+            flags.questData || {}
+          );
+          await entry.setFlag(CONFIG.MODULE_ID, 'archivist', {
+            ...flags,
+            questData,
+          });
+        } catch (flagErr) {
+          console.warn(
+            '[Archivist Sync][V2] commit: failed updating local quest flags',
+            flagErr
+          );
+        }
       } else if (sheetType === 'journal') {
         console.log('[Archivist V2 Sheet] Syncing Journal to API');
         const payload = {
@@ -1060,6 +1075,19 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         };
         if (htmlRead) {
           payload.content = Utils.toMarkdownIfHtml(String(html || ''));
+        } else {
+          try {
+            const resp = await archivistApi.getJournal(apiKey, archivistId);
+            if (resp.success && resp.data) {
+              payload.content =
+                resp.data.content ?? resp.data.summary ?? '';
+            }
+          } catch (getErr) {
+            console.warn(
+              '[Archivist Sync][V2] commit: failed fetching journal for title-only PUT',
+              getErr
+            );
+          }
         }
         result = await archivistApi.updateJournal(apiKey, payload);
         if (result && !result.success && result.isDescriptionTooLong) {
@@ -2377,6 +2405,7 @@ export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
   }
 
   _renderQuestObjectives(root, context) {
+    if (context.setup?.editingInfo) return;
     const list = root.querySelector('.quest-objectives-list');
     if (!list) return;
     const objectives = context.quest?.objectives || [];

@@ -1129,7 +1129,7 @@ function installRealtimeSyncListeners() {
         });
       } else if (sheetType === 'journal') {
         res = await archivistApi.createJournal(apiKey, {
-          world_id: worldId,
+          worldId,
           title: entry.name || 'Journal',
           content: description,
         });
@@ -1344,7 +1344,18 @@ function installRealtimeSyncListeners() {
       } else if (st === 'quest') {
         await archivistApi.updateQuest(apiKey, id, { questName: name });
       } else if (st === 'journal') {
-        await archivistApi.updateJournal(apiKey, { id, title: name });
+        let content;
+        try {
+          const resp = await archivistApi.getJournal(apiKey, id);
+          if (resp.success && resp.data) {
+            content = resp.data.content ?? resp.data.summary ?? '';
+          }
+        } catch (_) {}
+        await archivistApi.updateJournal(apiKey, {
+          id,
+          title: name,
+          ...(content !== undefined ? { content } : {}),
+        });
       }
     } catch (e) {
       console.warn('[RTS] updateJournalEntry (title sync) failed', e);
