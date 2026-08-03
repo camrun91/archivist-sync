@@ -1059,6 +1059,21 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         const root = this.element;
         const readVal = (sel) =>
           String(root?.querySelector?.(sel)?.value ?? '').trim();
+        const readObjectives = () => {
+          const items = [];
+          root.querySelectorAll('[data-obj-index]').forEach((li) => {
+            const text = String(
+              li.querySelector('.quest-objective-text-input')?.value ?? ''
+            ).trim();
+            const status = String(
+              li.querySelector('.quest-objective-status-select')?.value ??
+                'pending'
+            );
+            items.push({ text, status });
+          });
+          return items;
+        };
+        const objectivesFromForm = readObjectives();
         const payload = {
           questName: nameNow,
           questGiver: readVal('.quest-giver-input'),
@@ -1068,25 +1083,11 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           failureConditions: readVal('.quest-failure-input'),
           nextAction: readVal('.quest-next-action-input'),
           resolution: readVal('.quest-resolution-input'),
+          objectives: objectivesFromForm,
         };
         result = await archivistApi.updateQuest(apiKey, archivistId, payload);
         if (result?.success !== false) {
           const data = result?.data || {};
-          const readObjectives = () => {
-            const items = [];
-            root.querySelectorAll('[data-obj-index]').forEach((li) => {
-              const text = String(
-                li.querySelector('.quest-objective-text-input')?.value ?? ''
-              ).trim();
-              const status = String(
-                li.querySelector('.quest-objective-status-select')?.value ??
-                  'pending'
-              );
-              items.push({ text, status });
-            });
-            return items;
-          };
-          const objectivesFromForm = readObjectives();
           const nextQuestData = {
             ...(flags.questData || {}),
             questName: data.questName || payload.questName || nameNow,
