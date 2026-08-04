@@ -85,7 +85,7 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: Object,
-    default: { pc: '', npc: '', item: '', location: '', faction: '' },
+    default: { pc: '', npc: '', item: '', location: '', faction: '', journal: '', quest: '' },
   },
 
   CHAT_HISTORY: {

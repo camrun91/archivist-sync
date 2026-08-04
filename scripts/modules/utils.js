@@ -463,28 +463,52 @@ export class Utils {
   static markdownToStoredHtml(markdown) {
     const md = String(markdown ?? '');
     try {
+      const trimmed = md.trim();
+      const isProbablyHtml =
+        !!trimmed &&
+        ((trimmed.startsWith('<') && trimmed.includes('>')) ||
+          /<\/?[a-z][\s\S]*>/i.test(trimmed) ||
+          /&(?:lt|gt|amp|quot|#39);/i.test(trimmed));
+
+      if (isProbablyHtml) {
+        return foundry?.utils?.TextEditor?.cleanHTML
+          ? foundry.utils.TextEditor.cleanHTML(md)
+          : md;
+      }
+
       let rawHtml = '';
-      if (window?.MarkdownIt) {
-        const mdIt = new window.MarkdownIt({
+      const MarkdownItCtor = globalThis.MarkdownIt || window?.MarkdownIt;
+      if (MarkdownItCtor) {
+        const mdIt = new MarkdownItCtor({
+          html: false,
+          linkify: true,
+          breaks: true,
+        });
+        rawHtml = mdIt.render(md);
+      } else if (typeof globalThis.markdownit === 'function') {
+        const mdIt = globalThis.markdownit({
           html: false,
           linkify: true,
           breaks: true,
         });
         rawHtml = mdIt.render(md);
       } else {
-        // Minimal fallback: paragraphs + bold/italic with HTML escaping for security
+        // Minimal fallback: escape first, then apply lightweight markdown formatting
+        // so generated tags are not re-escaped into visible literal text.
+        const renderInline = (text) =>
+          foundry.utils
+            .escapeHTML(String(text ?? ''))
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/_(.+?)_/g, '<em>$1</em>')
+            .replace(/`(.+?)`/g, '<code>$1</code>')
+            .replace(/\n/g, '<br>');
+
         rawHtml = md
           .replace(/\r\n/g, '\n')
-          .replace(
-            /\*\*(.*?)\*\*/g,
-            (match, p1) => `<strong>${foundry.utils.escapeHTML(p1)}</strong>`
-          )
-          .replace(
-            /_(.*?)_/g,
-            (match, p1) => `<em>${foundry.utils.escapeHTML(p1)}</em>`
-          )
           .split(/\n{2,}/)
-          .map((p) => `<p>${foundry.utils.escapeHTML(p.trim())}</p>`)
+          .map((p) => p.trim())
+          .filter(Boolean)
+          .map((p) => `<p>${renderInline(p)}</p>`)
           .join('');
       }
       return foundry?.utils?.TextEditor?.cleanHTML
@@ -1013,6 +1037,8 @@ export class Utils {
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
+        journal: 'Archivist - Journals',
+        quest: 'Archivist - Quests',
       };
 
       console.log(
@@ -1040,6 +1066,8 @@ export class Utils {
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
+        journal: 'Archivist - Journals',
+        quest: 'Archivist - Quests',
       };
       const name = map[String(type || '').toLowerCase()];
 
@@ -1081,6 +1109,94 @@ export class Utils {
     }
   }
 
+  /** Registered ApplicationV2 sheet classes by Archivist sheet type */
+  static ARCHIVIST_SHEET_CLASS_MAP = {
+    pc: 'archivist-sync.PCPageSheetV2',
+    npc: 'archivist-sync.NPCPageSheetV2',
+    item: 'archivist-sync.ItemPageSheetV2',
+    location: 'archivist-sync.LocationPageSheetV2',
+    faction: 'archivist-sync.FactionPageSheetV2',
+    recap: 'archivist-sync.RecapPageSheetV2',
+    journal: 'archivist-sync.JournalPageSheetV2',
+    quest: 'archivist-sync.QuestPageSheetV2',
+  };
+
+  /**
+   * Normalize quest progress log arrays from API response shapes.
+   * @param {object} q
+   * @returns {Array|null} null when the source row omitted progress log fields
+   */
+  static _normalizeQuestProgressLog(q) {
+    if (!q) return null;
+    if (Array.isArray(q.progressLog)) return q.progressLog;
+    if (Array.isArray(q.progress_log)) return q.progress_log;
+    if (Array.isArray(q.progressLogEntries)) {
+      return q.progressLogEntries.map((e) =>
+        typeof e === 'string' ? e : e.text || ''
+      );
+    }
+    if (Array.isArray(q.progress_log_entries)) {
+      return q.progress_log_entries.map((e) =>
+        typeof e === 'string' ? e : e.text || ''
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Build the flags.archivist.questData shape from an Archivist quest row.
+   * Array fields are only overwritten when the source row actually provides them.
+   * @param {object} fullQuest
+   * @param {object} [existing={}]
+   * @returns {object}
+   */
+  static buildQuestDataFromApi(fullQuest, existing = {}) {
+    const q = fullQuest || {};
+    const data = { ...(existing || {}) };
+
+    data.questName = q.questName ?? q.quest_name ?? data.questName ?? '';
+    data.questGiver = q.questGiver ?? q.quest_giver ?? data.questGiver ?? '';
+    data.questCategory =
+      q.questCategory ?? q.quest_category ?? data.questCategory ?? 'n/a';
+    data.status = q.status ?? data.status ?? 'planned';
+    data.successDefinition =
+      q.successDefinition ?? q.success_definition ?? data.successDefinition ?? '';
+    data.failureConditions =
+      q.failureConditions ?? q.failure_conditions ?? data.failureConditions ?? '';
+    data.nextAction = q.nextAction ?? q.next_action ?? data.nextAction ?? '';
+    data.resolution = q.resolution ?? data.resolution ?? '';
+
+    const progressLog = Utils._normalizeQuestProgressLog(q);
+    if (progressLog !== null) data.progressLog = progressLog;
+
+    const arrayFields = [
+      ['objectives', 'objectives'],
+      ['relatedCharacters', 'related_characters'],
+      ['relatedFactions', 'related_factions'],
+      ['relatedLocations', 'related_locations'],
+      ['relatedItems', 'related_items'],
+      ['relatedEntityRefs', 'related_entity_refs'],
+    ];
+    for (const [camel, snake] of arrayFields) {
+      const src = q[camel] ?? q[snake];
+      if (Array.isArray(src)) data[camel] = src;
+      else if (!(camel in data)) data[camel] = [];
+    }
+
+    if (q.firstSession !== undefined || q.first_session !== undefined) {
+      data.firstSession = q.firstSession ?? q.first_session ?? null;
+    } else if (!('firstSession' in data)) {
+      data.firstSession = null;
+    }
+    if (q.lastSession !== undefined || q.last_session !== undefined) {
+      data.lastSession = q.lastSession ?? q.last_session ?? null;
+    } else if (!('lastSession' in data)) {
+      data.lastSession = null;
+    }
+
+    return data;
+  }
+
   /** Create a custom sheet JournalEntry for an imported Archivist entity */
   static async createCustomJournalForImport({
     name,
@@ -1103,16 +1219,8 @@ export class Utils {
 
       await this.ensureArchivistFolders();
       const folder = this.getArchivistFolder(sheetType);
-      const sheetClassMap = {
-        pc: 'archivist-sync.PCPageSheetV2',
-        npc: 'archivist-sync.NPCPageSheetV2',
-        item: 'archivist-sync.ItemPageSheetV2',
-        location: 'archivist-sync.LocationPageSheetV2',
-        faction: 'archivist-sync.FactionPageSheetV2',
-        recap: 'archivist-sync.RecapPageSheetV2',
-      };
       const normalizedType = String(sheetType || '').toLowerCase();
-      const sheetClass = sheetClassMap[normalizedType] || '';
+      const sheetClass = Utils.ARCHIVIST_SHEET_CLASS_MAP[normalizedType] || '';
 
       console.log(`[Archivist Sync] Folder lookup results:`, {
         sheetType,
@@ -1189,17 +1297,8 @@ export class Utils {
     const folder = folderName
       ? await this.ensureJournalFolder(folderName)
       : null;
-    // Map Archivist sheet types to our registered V2 sheet classes
-    const sheetClassMap = {
-      pc: 'archivist-sync.PCPageSheetV2',
-      npc: 'archivist-sync.NPCPageSheetV2',
-      item: 'archivist-sync.ItemPageSheetV2',
-      location: 'archivist-sync.LocationPageSheetV2',
-      faction: 'archivist-sync.FactionPageSheetV2',
-      recap: 'archivist-sync.RecapPageSheetV2',
-    };
     const normalizedType = String(sheetType || '').toLowerCase();
-    const sheetClass = sheetClassMap[normalizedType] || '';
+    const sheetClass = Utils.ARCHIVIST_SHEET_CLASS_MAP[normalizedType] || '';
     // Provide our archivist flags at creation so createJournalEntry hook can POST immediately
     const initialArchivistFlags = {
       sheetType: normalizedType,

@@ -14,9 +14,10 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
   constructor(options = {}) {
     super(options);
     this.isLoading = false;
+    this.syncProgress = null;
     this.model = {
-      diffs: [], // { type, id, name, journalId, changes: { name?, description?, image?, links? }, deleted?:boolean, selected:boolean }
-      imports: [], // { type, id, name, image, description, selected:boolean, createCore:boolean, coreType:'actor'|'item'|'scene'|null }
+      diffs: [],
+      imports: [],
       stats: { diffs: 0, imports: 0 },
     };
     this._scrollPosition = 0;
@@ -48,10 +49,87 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
 
   async _onRender(context, options) {
     await super._onRender?.(context, options);
-    // Restore scroll position after render
     const content = this.element?.querySelector?.('.sync-dialog-content');
     if (content && this._scrollPosition !== undefined) {
       content.scrollTop = this._scrollPosition;
+    }
+    this._updateSyncButtonState();
+
+    // Shift+click multi-select for checkboxes
+    this._lastToggleClick = null;
+    const rows = this.element?.querySelectorAll?.('tr[data-id]') || [];
+    for (const row of rows) {
+      const cb = row.querySelector('input[data-action="toggleRow"]');
+      if (!cb) continue;
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="toggleCore"]')) return;
+        if (!e.shiftKey || !this._lastToggleClick) {
+          this._lastToggleClick = row;
+          return;
+        }
+        // Range-select handles the clicked row itself; stop the event here so
+        // the root-level toggleRow action doesn't flip it back afterwards.
+        e.stopPropagation();
+        const allRows = [...this.element.querySelectorAll('tr[data-id]')];
+        const startIdx = allRows.indexOf(this._lastToggleClick);
+        const endIdx = allRows.indexOf(row);
+        if (startIdx < 0 || endIdx < 0) return;
+        const [lo, hi] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+        const targetState = cb.checked;
+        for (let i = lo; i <= hi; i++) {
+          const r = allRows[i];
+          const kind = r.dataset.kind;
+          const id = String(r.dataset.id || '');
+          let modelRow;
+          if (kind === 'diff') modelRow = this.model.diffs.find((x) => String(x.id) === id);
+          else if (kind === 'import') modelRow = this.model.imports.find((x) => String(x.id) === id);
+          if (modelRow) {
+            modelRow.selected = targetState;
+            const rCb = r.querySelector('input[data-action="toggleRow"]');
+            if (rCb) rCb.checked = targetState;
+            r.classList.toggle('selected', targetState);
+          }
+        }
+        this._lastToggleClick = row;
+        this._updateSyncButtonState();
+      });
+    }
+  }
+
+  _updateSyncButtonState() {
+    const btn = this.element?.querySelector?.('[data-action="sync"]');
+    if (!btn) return;
+    const hasSelected =
+      this.model.diffs.some((d) => d.selected) ||
+      this.model.imports.some((i) => i.selected);
+    btn.disabled = !hasSelected;
+  }
+
+  /**
+   * Update the in-progress panel's text directly rather than re-rendering the
+   * whole dialog for every synced item. The panel is rendered once before the
+   * sync loop begins; a skipped update (panel absent) is corrected by the
+   * final render when syncProgress is cleared.
+   * @private
+   */
+  _updateProgressUI() {
+    const panel = this.element?.querySelector?.('.loading-panel');
+    if (!panel || !this.syncProgress) return;
+    const { processed, total, current } = this.syncProgress;
+    const textEl = panel.querySelector('.sync-progress-text');
+    if (textEl) {
+      textEl.textContent = `Processing ${processed} / ${total}…`;
+    }
+    let detailEl = panel.querySelector('.sync-progress-detail');
+    if (current) {
+      if (!detailEl) {
+        detailEl = document.createElement('span');
+        detailEl.className = 'sync-progress-detail';
+        panel.appendChild(detailEl);
+      }
+      detailEl.textContent = current;
+    } else if (detailEl) {
+      detailEl.remove();
     }
   }
 
@@ -63,30 +141,30 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
   }
 
   async _prepareContext() {
-    // If not initialized, show loading and trigger background fetch
     if (!this._initialized) {
-      // Trigger data load in background (don't await here)
       this._loadModel().then(() => {
         this._initialized = true;
         this.render({ force: true });
       });
-      // Return loading state immediately
       return {
         isLoading: true,
         diffs: [],
         imports: [],
         stats: { diffs: 0, imports: 0 },
-        isGM: game.user?.isGM,
+        syncProgress: null,
       };
     }
-    const ctx = {
+    const hasSelected =
+      this.model.diffs.some((d) => d.selected) ||
+      this.model.imports.some((i) => i.selected);
+    return {
       isLoading: this.isLoading,
       diffs: this.model.diffs,
       imports: this.model.imports,
       stats: this.model.stats,
-      isGM: game.user?.isGM,
+      syncProgress: this.syncProgress || null,
+      hasSelected,
     };
-    return ctx;
   }
 
   async _onSelectAll(event) {
@@ -117,15 +195,18 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     if (!row) return;
     const kind = row?.dataset?.kind;
     const id = String(row?.dataset?.id || '');
+    let modelRow;
     if (kind === 'diff') {
-      const diffRow = this.model.diffs.find((x) => String(x.id) === id);
-      if (diffRow) diffRow.selected = !diffRow.selected;
+      modelRow = this.model.diffs.find((x) => String(x.id) === id);
     } else if (kind === 'import') {
-      const importRow = this.model.imports.find((x) => String(x.id) === id);
-      if (importRow) importRow.selected = !importRow.selected;
+      modelRow = this.model.imports.find((x) => String(x.id) === id);
     }
-    this._captureScrollPosition();
-    await this.render();
+    if (!modelRow) return;
+    modelRow.selected = !modelRow.selected;
+    const cb = row.querySelector('input[type="checkbox"]');
+    if (cb) cb.checked = modelRow.selected;
+    row.classList.toggle('selected', modelRow.selected);
+    this._updateSyncButtonState();
   }
 
   async _onToggleCreateCore(event) {
@@ -135,19 +216,14 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     const row = this.model.imports.find((x) => String(x.id) === id);
     if (!row || !row.coreType) return;
     row.createCore = !row.createCore;
-    this._captureScrollPosition();
-    await this.render();
   }
 
   async _onRefresh(event) {
     event?.preventDefault?.();
-    // Set loading state to show the spinner
     this.isLoading = true;
-    await this.render();
     try {
       await this._loadModel(true);
     } finally {
-      // Loading state will be set to false by _loadModel
       await this.render();
     }
   }
@@ -193,28 +269,65 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       await this.render();
       return;
     }
-    console.log('[SyncDialog] ✓ Real-time sync successfully suppressed');
+    console.debug('[SyncDialog] Real-time sync successfully suppressed');
 
     try {
-      // Apply diffs
+      // Confirm deletions before proceeding
+      const deleteDiffs = selectedDiffs.filter((d) => d.deleted);
+      if (deleteDiffs.length > 0) {
+        const names = deleteDiffs
+          .map((d) => foundry.utils.escapeHTML(String(d.name ?? '')))
+          .join(', ');
+        const confirmed = await foundry.applications.api.DialogV2.confirm({
+          window: { title: 'Confirm Deletion' },
+          content: `<p><strong>${deleteDiffs.length}</strong> journal${deleteDiffs.length > 1 ? 's' : ''} will be permanently deleted:</p><p>${names}</p><p>This cannot be undone. Continue?</p>`,
+          yes: { label: 'Delete', icon: 'fas fa-trash' },
+          no: { label: 'Cancel' },
+        });
+        if (!confirmed) {
+          this.isLoading = false;
+          await this.render();
+          return;
+        }
+      }
+
+      const total = selectedDiffs.length + selectedImports.length;
+      let processed = 0;
+      let failCount = 0;
+      this.syncProgress = { total, processed, current: '' };
+      await this.render();
+
       for (const d of selectedDiffs) {
+        this.syncProgress.current = `${d.type}: ${d.name}`;
+        this.syncProgress.processed = processed;
+        this._updateProgressUI();
         try {
           await this._applyDiff(d);
         } catch (e) {
-          console.warn('[SyncDialog] applyDiff failed', e);
+          failCount++;
+          console.warn('[SyncDialog] applyDiff failed', d.name, e);
         }
+        processed++;
       }
 
-      // Apply imports
       for (const i of selectedImports) {
+        this.syncProgress.current = `${i.type}: ${i.name}`;
+        this.syncProgress.processed = processed;
+        this._updateProgressUI();
         try {
           await this._applyImport(i, campaignId, apiKey);
         } catch (e) {
-          console.warn('[SyncDialog] applyImport failed', e);
+          failCount++;
+          console.warn('[SyncDialog] applyImport failed', i.name, e);
         }
+        processed++;
       }
+      // Reflect the final processed count before the panel is torn down.
+      this.syncProgress.processed = processed;
+      this._updateProgressUI();
 
-      // Reorder all recaps after any sessionDate changes (from diffs or imports)
+      this.syncProgress = null;
+
       const hasRecapDiffs = selectedDiffs.some(
         (d) => d.type === 'Session' && d.changes?.sessionDate
       );
@@ -237,7 +350,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                 j.getFlag(CONFIG.MODULE_ID, 'sessionDate') || ''
               ).trim();
               const t = iso ? new Date(iso).getTime() : NaN;
-              return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY; // undated go to end
+              return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
             })(),
           }));
           withDates.sort((a, b) => a.dateMs - b.dateMs);
@@ -258,25 +371,27 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
       }
 
-      ui.notifications?.info?.('Archivist sync applied.');
-      // Force-refresh core directories and any open Archivist windows so UI reflects new docs
+      const successCount = total - failCount;
+      if (failCount === 0) {
+        ui.notifications?.info?.(`Sync complete: ${successCount} item${successCount !== 1 ? 's' : ''} applied.`);
+      } else {
+        ui.notifications?.warn?.(
+          `Sync finished: ${successCount} succeeded, ${failCount} failed. See console for details.`
+        );
+      }
       await this._refreshUIAfterSync?.();
-      // Close the dialog after successful sync
-      this.close();
+      await this._loadModel(true);
     } catch (error) {
       console.error('[SyncDialog] Sync failed:', error);
       ui.notifications?.error?.('Sync failed. See console for details.');
-      // On error, reload model and stay open so user can retry
       await this._loadModel(true);
-      await this.render();
     } finally {
-      // Resume real-time sync after apply
+      this.syncProgress = null;
       try {
         settingsManager.resumeRealtimeSync?.();
-        console.log(
-          '[SyncDialog] ✓ Real-time sync resumed after sync operation'
-        );
+        console.debug('[SyncDialog] Real-time sync resumed after sync operation');
       } catch (_) {}
+      await this.render();
     }
   }
 
@@ -328,6 +443,36 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     );
   }
 
+  /** Compare local questData flags against Archivist quest fields. */
+  _diffQuestData(local, arch) {
+    const scalarFields = [
+      'questGiver',
+      'questCategory',
+      'status',
+      'successDefinition',
+      'failureConditions',
+      'nextAction',
+      'resolution',
+    ];
+    const partial = {};
+    let hasChanges = false;
+    for (const field of scalarFields) {
+      if (String(local[field] ?? '') !== String(arch[field] ?? '')) {
+        partial[field] = { from: local[field], to: arch[field] };
+        hasChanges = true;
+      }
+    }
+    for (const field of ['objectives', 'progressLog', 'relatedEntityRefs']) {
+      const localJson = JSON.stringify(local[field] ?? []);
+      const archJson = JSON.stringify(arch[field] ?? []);
+      if (localJson !== archJson) {
+        partial[field] = { from: local[field] ?? [], to: arch[field] ?? [] };
+        hasChanges = true;
+      }
+    }
+    return hasChanges ? partial : null;
+  }
+
   // Build model: diffs and imports
   async _loadModel(force = false) {
     if (this.isLoading && !force) return;
@@ -344,13 +489,15 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         return;
       }
 
-      const [chars, items, locs, facs, sessions, links] = await Promise.all([
+      const [chars, items, locs, facs, sessions, links, journals, quests] = await Promise.all([
         archivistApi.listCharacters(apiKey, campaignId),
         archivistApi.listItems(apiKey, campaignId),
         archivistApi.listLocations(apiKey, campaignId),
         archivistApi.listFactions(apiKey, campaignId),
         archivistApi.listSessions(apiKey, campaignId),
         archivistApi.listLinks(apiKey, campaignId),
+        archivistApi.listJournals(apiKey, campaignId),
+        archivistApi.listQuests(apiKey, campaignId),
       ]);
       const A = {
         characters: (chars?.success ? chars.data : []) || [],
@@ -359,14 +506,18 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         factions: (facs?.success ? facs.data : []) || [],
         sessions: (sessions?.success ? sessions.data : []) || [],
         links: (links?.success ? links.data : []) || [],
+        journals: (journals?.success ? journals.data : []) || [],
+        quests: (quests?.success ? quests.data : []) || [],
       };
-      console.log('[SyncDialog] Fetched Archivist data:', {
+      console.debug('[SyncDialog] Fetched Archivist data:', {
         characters: A.characters.length,
         items: A.items.length,
         locations: A.locations.length,
         factions: A.factions.length,
         sessions: A.sessions.length,
         links: A.links.length,
+        journals: A.journals.length,
+        quests: A.quests.length,
       });
       const byId = {
         Character: new Map(A.characters.map((c) => [String(c.id), c])),
@@ -374,6 +525,8 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         Location: new Map(A.locations.map((l) => [String(l.id), l])),
         Faction: new Map(A.factions.map((f) => [String(f.id), f])),
         Session: new Map(A.sessions.map((s) => [String(s.id), s])),
+        Journal: new Map(A.journals.map((j) => [String(j.id), j])),
+        Quest: new Map(A.quests.map((q) => [String(q.id), q])),
       };
 
       // Compute outgoing links (from_id => [{ id: to_id, type: to_type }])
@@ -405,7 +558,11 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                   ? 'Faction'
                   : st === 'recap' || st === 'session'
                     ? 'Session'
-                    : null;
+                    : st === 'journal'
+                      ? 'Journal'
+                      : st === 'quest'
+                        ? 'Quest'
+                        : null;
         if (!type) continue;
         const arch = byId[type].get(archId) || null;
         if (!arch) {
@@ -425,36 +582,53 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         const archName =
           type === 'Character'
             ? arch.character_name || arch.name
-            : type === 'Session'
+            : type === 'Session' || type === 'Journal'
               ? arch.title || arch.name || ''
-              : arch.name || arch.title || '';
+              : type === 'Quest'
+                ? arch.questName || arch.quest_name || arch.name || ''
+                : arch.name || arch.title || '';
         if (String(j.name || '').trim() !== String(archName || '').trim()) {
           changes.name = { from: j.name, to: archName };
         }
-        // Description mapping: compare normalized plain text (Foundry HTML vs Archivist Markdown)
-        try {
-          const textPage =
-            (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
-          const stored = Utils.extractPageHtml(textPage) || '';
-          const foundryPlain = Utils.toMarkdownIfHtml(stored);
-          const archMd = String((arch.description ?? arch.summary) || '');
-          const archHtml = Utils.markdownToStoredHtml(archMd);
-          const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
-
-          // Normalize both sides for comparison to handle newline/whitespace differences
-          const foundryNormalized =
-            this._normalizeTextForComparison(foundryPlain);
-          const archivistNormalized =
-            this._normalizeTextForComparison(archivistPlain);
-
-          if (
-            archivistNormalized &&
-            foundryNormalized !== archivistNormalized
-          ) {
-            changes.description = { from: stored, to: archMd };
+        if (type === 'Quest') {
+          let archQuest = arch;
+          if (!arch.objectives && arch.id) {
+            try {
+              const resp = await archivistApi.getQuest(apiKey, arch.id);
+              if (resp.success && resp.data) archQuest = resp.data;
+            } catch (_) {}
           }
-        } catch (_) {
-          /* ignore */
+          const localQd = f.questData || {};
+          const archQd = Utils.buildQuestDataFromApi(archQuest);
+          const questChanges = this._diffQuestData(localQd, archQd);
+          if (questChanges) changes.questData = questChanges;
+        } else {
+          // Description mapping: compare normalized plain text (Foundry HTML vs Archivist Markdown)
+          try {
+            const textPage =
+              (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
+            const stored = Utils.extractPageHtml(textPage) || '';
+            const foundryPlain = Utils.toMarkdownIfHtml(stored);
+            const archMd = String(
+              (arch.description ?? arch.summary ?? arch.content) || ''
+            );
+            const archHtml = Utils.markdownToStoredHtml(archMd);
+            const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
+
+            const foundryNormalized =
+              this._normalizeTextForComparison(foundryPlain);
+            const archivistNormalized =
+              this._normalizeTextForComparison(archivistPlain);
+
+            if (
+              archivistNormalized &&
+              foundryNormalized !== archivistNormalized
+            ) {
+              changes.description = { from: stored, to: archMd };
+            }
+          } catch (_) {
+            /* ignore */
+          }
         }
         // Image diff: compare against custom sheet's flag image, not journal.img
         const archImg = String(arch.image || '').trim();
@@ -545,7 +719,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           /* ignore */
         }
       }
-      console.log('[SyncDialog] Linked Archivist IDs found in Foundry:', {
+      console.debug('[SyncDialog] Linked Archivist IDs found in Foundry:', {
         count: linkedIds.size,
         ids: Array.from(linkedIds).slice(0, 10),
         sample: Array.from(foundryJournalMap.entries()).slice(0, 5),
@@ -584,7 +758,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           type,
           id,
           name: row.character_name || row.name || row.title || 'Untitled',
-          description: row.description || row.summary || '',
+          description: row.description || row.summary || row.content || '',
           image: row.image || '',
           selected: false,
           createCore: false,
@@ -597,8 +771,14 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       for (const l of A.locations) pushImport('Location', l);
       for (const f of A.factions) pushImport('Faction', f);
       for (const s of A.sessions) pushImport('Session', s);
+      for (const j of A.journals) pushImport('Journal', { ...j, name: j.title || 'Untitled' });
+      for (const q of A.quests)
+        pushImport('Quest', {
+          ...q,
+          name: q.questName || q.quest_name || 'Quest',
+        });
 
-      console.log('[SyncDialog] Import candidates:', {
+      console.debug('[SyncDialog] Import candidates:', {
         imports: imports.length,
         skipped: skipped.length,
         importSample: imports
@@ -672,6 +852,17 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           /* ignore */
         }
       }
+    }
+    if (changes.questData) {
+      const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+      const next = { ...(flags.questData || {}) };
+      for (const [field, change] of Object.entries(changes.questData)) {
+        next[field] = change.to;
+      }
+      await j.setFlag(CONFIG.MODULE_ID, 'archivist', {
+        ...flags,
+        questData: next,
+      });
     }
     if (changes.links) {
       const buckets = {
@@ -756,10 +947,14 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
               ? 'faction'
               : row.type === 'Session'
                 ? 'recap'
-                : null;
+                : row.type === 'Journal'
+                  ? 'journal'
+                  : row.type === 'Quest'
+                    ? 'quest'
+                    : null;
     if (!sheetType) return;
     // Convert markdown from Archivist to HTML for Foundry storage (sessions use summary)
-    const markdownContent = String(row.description || row.summary || '');
+    const markdownContent = String(row.description || row.summary || row.content || '');
     const htmlContent = Utils.markdownToStoredHtml(markdownContent);
 
     // Determine folder ID based on sheet type using saved destinations
@@ -779,6 +974,16 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         folderId = destinations.location;
       } else if (sheetType === 'faction' && destinations.faction) {
         folderId = destinations.faction;
+      } else if (sheetType === 'journal') {
+        // Worlds set up before journals existed have no saved destination —
+        // fall back to ensuring the default folder like recaps do.
+        folderId =
+          destinations.journal ||
+          (await Utils.ensureJournalFolder('Archivist - Journals'));
+      } else if (sheetType === 'quest') {
+        folderId =
+          destinations.quest ||
+          (await Utils.ensureJournalFolder('Archivist - Quests'));
       } else if (sheetType === 'recap') {
         // For sessions/recaps, use Recaps folder and preserve session_date ordering
         folderId = await Utils.ensureJournalFolder('Recaps');
@@ -789,7 +994,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
       }
 
-      console.log('[Sync Dialog] Importing to folder:', {
+      console.debug('[SyncDialog] Importing to folder:', {
         sheetType,
         folderId: folderId || 'root',
         name: row.name,
@@ -809,6 +1014,28 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       sort,
     });
     if (!journal) return;
+    // For journals, set GM-only default permissions
+    if (sheetType === 'journal') {
+      try {
+        await journal.update(
+          { ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE } },
+          { render: false }
+        );
+      } catch (_) {}
+    }
+    // For quests, fetch full quest data and store in flags
+    if (sheetType === 'quest' && apiKey && row.id) {
+      try {
+        let fullQuest = row;
+        try {
+          const resp = await archivistApi.getQuest(apiKey, row.id);
+          if (resp.success && resp.data) fullQuest = resp.data;
+        } catch (_) {}
+        const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+        flags.questData = Utils.buildQuestDataFromApi(fullQuest);
+        await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+      } catch (_) {}
+    }
     // For locations, set parent relation from Archivist's parent_id
     if (sheetType === 'location' && row.parent_id) {
       try {
@@ -995,7 +1222,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
               else if (itemId) targetDoc = game.items?.get?.(itemId) || null;
               else if (sceneId) targetDoc = game.scenes?.get?.(sceneId) || null;
 
-              const md = String(row.description || row.summary || '');
+              const md = String(row.description || row.summary || row.content || '');
               const html = Utils.markdownToStoredHtml(md);
 
               if (targetDoc) {
@@ -1014,5 +1241,3 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     } catch (_) {}
   }
 }
-
-export const ArchivistSyncDialog = SyncDialog;

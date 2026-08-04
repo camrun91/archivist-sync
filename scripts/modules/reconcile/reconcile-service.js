@@ -18,14 +18,17 @@ export class ReconcileService {
     if (!apiKey || !campaignId) throw new Error('Archivist not configured');
 
     // Fetch entities in parallel
-    const [chars, items, locs, facs, sessions, links] = await Promise.all([
-      archivistApi.listCharacters(apiKey, campaignId),
-      archivistApi.listItems(apiKey, campaignId),
-      archivistApi.listLocations(apiKey, campaignId),
-      archivistApi.listFactions(apiKey, campaignId),
-      archivistApi.listSessions(apiKey, campaignId),
-      archivistApi.listLinks(apiKey, campaignId),
-    ]);
+    const [chars, items, locs, facs, sessions, links, quests, journalsList] =
+      await Promise.all([
+        archivistApi.listCharacters(apiKey, campaignId),
+        archivistApi.listItems(apiKey, campaignId),
+        archivistApi.listLocations(apiKey, campaignId),
+        archivistApi.listFactions(apiKey, campaignId),
+        archivistApi.listSessions(apiKey, campaignId),
+        archivistApi.listLinks(apiKey, campaignId),
+        archivistApi.listQuests(apiKey, campaignId),
+        archivistApi.listJournals(apiKey, campaignId),
+      ]);
 
     const characters = chars.success ? chars.data || [] : [];
     const itemsData = items.success ? items.data || [] : [];
@@ -33,6 +36,8 @@ export class ReconcileService {
     const factions = facs.success ? facs.data || [] : [];
     const sessionsData = sessions.success ? sessions.data || [] : [];
     const linksData = links.success ? links.data || [] : [];
+    const questsData = quests.success ? quests.data || [] : [];
+    const journalsData = journalsList.success ? journalsList.data || [] : [];
 
     // Ensure default folders, index existing journals by archivistId
     try {
@@ -46,7 +51,7 @@ export class ReconcileService {
     }
 
     // Upsert helper for a sheet journal
-    const ensureSheet = async (entity, sheetType) => {
+    const ensureSheet = async (entity, sheetType, options = {}) => {
       const id = entity.id;
       let j = byArchId.get(id);
       if (!j) {
@@ -55,7 +60,7 @@ export class ReconcileService {
           sheetType,
           archivistId: id,
           worldId: campaignId,
-          text: '',
+          text: options.text ?? '',
         });
         // If Archivist entity has an image, mirror it to the journal
         try {
@@ -96,6 +101,45 @@ export class ReconcileService {
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
+    for (const j of journalsData) {
+      let content = j.content ?? j.summary ?? '';
+      if (!content && j.id) {
+        try {
+          const resp = await archivistApi.getJournal(apiKey, j.id);
+          if (resp.success && resp.data) {
+            content = resp.data.content ?? resp.data.summary ?? '';
+          }
+        } catch (_) {}
+      }
+      const html = Utils.markdownToStoredHtml(String(content || ''));
+      await ensureSheet(
+        { ...j, name: j.title || j.name || 'Journal' },
+        'journal',
+        { text: html }
+      );
+    }
+
+    // Quests: ensure a sheet exists, then refresh its full questData from Archivist
+    // (title/image handled generically by ensureSheet; the rest is quest-specific).
+    for (const q of questsData) {
+      let fullQuest = q;
+      if (!q.objectives && q.id) {
+        try {
+          const resp = await archivistApi.getQuest(apiKey, q.id);
+          if (resp.success && resp.data) fullQuest = resp.data;
+        } catch (_) {}
+      }
+      const entity = { ...fullQuest, name: fullQuest.questName || 'Quest' };
+      const j = await ensureSheet(entity, 'quest');
+      try {
+        const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+        flags.questData = Utils.buildQuestDataFromApi(
+          fullQuest,
+          flags.questData || {}
+        );
+        await j.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
+      } catch (_) {}
+    }
 
     // Recaps: ensure a single Recaps container exists with pages ordered by session_date
     try {
@@ -106,7 +150,7 @@ export class ReconcileService {
       );
       for (const s of sessionsData) {
         const title = s.title || 'Session';
-        const html = String(s.summary || '').trim();
+        const html = Utils.markdownToStoredHtml(String(s.summary || '').trim());
         const sessionDate = s.session_date || null;
         if (bySessionId.has(s.id)) {
           const p = bySessionId.get(s.id);
@@ -121,7 +165,7 @@ export class ReconcileService {
             {
               name: title,
               type: 'text',
-              text: { content: html, markdown: html, format: 2 },
+              text: { content: html, format: 1 },
             },
           ]);
           const last = (container.pages?.contents || []).at(-1);

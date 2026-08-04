@@ -1,0 +1,212 @@
+<section class="archivist-sheet archivist-sheet-quest">
+    <aside class="archivist-sidebar">
+        <header class="archivist-header">
+            {{#if setup.image}}
+            <img class="archivist-avatar" src="{{setup.image}}" alt="" />
+            {{else}}
+            <div class="archivist-avatar archivist-avatar-placeholder">
+                <i class="fa-solid fa-scroll"></i>
+            </div>
+            {{/if}}
+            {{#if setup.editingInfo}}
+            <input class="archivist-title-input" type="text" value="{{setup.name}}" />
+            {{else}}
+            <h2 class="archivist-title">{{setup.name}}</h2>
+            {{/if}}
+            <small class="archivist-subtitle">Quest</small>
+            <div class="quest-badges">
+                <span class="quest-status-badge quest-status-{{quest.status}}">
+                    <i class="fa-solid {{quest.statusIcon}}"></i> {{quest.statusLabel}}
+                </span>
+                {{#if quest.categoryLabel}}
+                <span class="quest-category-badge">{{quest.categoryLabel}}</span>
+                {{/if}}
+            </div>
+            {{#if setup.isGM}}
+            <button type="button" class="archivist-edit-toggle" data-action="toggle-edit-mode"
+                title="{{#if setup.editingInfo}}Save Changes{{else}}Edit Sheet{{/if}}">
+                {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
+                    class="fa-solid fa-lock"></i>{{/if}}
+            </button>
+            {{/if}}
+        </header>
+        <nav class="archivist-nav tabs" data-group="archivist">
+            <a class="item" data-tab="info">Info</a>
+            <a class="item" data-tab="objectives">Objectives</a>
+            <a class="item" data-tab="progress">Progress</a>
+            <a class="item" data-tab="links">Links</a>
+            <a class="item" data-tab="notes">GM Notes</a>
+        </nav>
+    </aside>
+    <main class="archivist-content">
+        <section class="tab" data-tab="info">
+            <div class="quest-metadata">
+                <div class="quest-field-group">
+                    <label>Quest Giver</label>
+                    {{#if setup.editingInfo}}
+                    <input type="text" class="quest-giver-input" value="{{quest.questGiver}}" />
+                    {{else}}
+                    <span>{{#if quest.questGiver}}{{quest.questGiver}}{{else}}<span
+                            class="quest-empty-state">Unknown</span>{{/if}}</span>
+                    {{/if}}
+                </div>
+                <div class="quest-field-group">
+                    <label>Category</label>
+                    {{#if setup.editingInfo}}
+                    <select class="quest-category-select">
+                        <option value="main">Main</option>
+                        <option value="side">Side</option>
+                        <option value="faction">Faction</option>
+                        <option value="personal">Personal</option>
+                        <option value="n/a">N/A</option>
+                    </select>
+                    {{else}}
+                    <span>{{#if quest.categoryLabel}}{{quest.categoryLabel}}{{else}}<span
+                            class="quest-empty-state">—</span>{{/if}}</span>
+                    {{/if}}
+                </div>
+                <div class="quest-field-group">
+                    <label>Status</label>
+                    {{#if setup.editingInfo}}
+                    <select class="quest-status-select">
+                        <option value="planned">Planned</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="failed">Failed</option>
+                        <option value="done">Done</option>
+                        <option value="n/a">N/A</option>
+                    </select>
+                    {{else}}
+                    <span><i class="fa-solid {{quest.statusIcon}}"></i> {{quest.statusLabel}}</span>
+                    {{/if}}
+                </div>
+                <div class="quest-field-group">
+                    <label>Success Definition</label>
+                    {{#if setup.editingInfo}}
+                    <textarea class="quest-success-input" rows="2">{{quest.successDefinition}}</textarea>
+                    {{else}}
+                    <span>{{#if quest.successDefinition}}{{quest.successDefinition}}{{else}}<span
+                            class="quest-empty-state">Not set</span>{{/if}}</span>
+                    {{/if}}
+                </div>
+                <div class="quest-field-group">
+                    <label>Failure Conditions</label>
+                    {{#if setup.editingInfo}}
+                    <textarea class="quest-failure-input" rows="2">{{quest.failureConditions}}</textarea>
+                    {{else}}
+                    <span>{{#if quest.failureConditions}}{{quest.failureConditions}}{{else}}<span
+                            class="quest-empty-state">Not set</span>{{/if}}</span>
+                    {{/if}}
+                </div>
+                <div class="quest-field-group">
+                    <label>Next Action</label>
+                    {{#if setup.editingInfo}}
+                    <textarea class="quest-next-action-input" rows="2">{{quest.nextAction}}</textarea>
+                    {{else}}
+                    <span>{{#if quest.nextAction}}{{quest.nextAction}}{{else}}<span
+                            class="quest-empty-state">Not set</span>{{/if}}</span>
+                    {{/if}}
+                </div>
+                <div class="quest-field-group">
+                    <label>Resolution</label>
+                    {{#if setup.editingInfo}}
+                    <textarea class="quest-resolution-input" rows="2">{{quest.resolution}}</textarea>
+                    {{else}}
+                    <span>{{#if quest.resolution}}{{quest.resolution}}{{else}}<span
+                            class="quest-empty-state">Not set</span>{{/if}}</span>
+                    {{/if}}
+                </div>
+                {{#if quest.firstSession}}
+                <div class="quest-field-group">
+                    <label>First Session</label>
+                    <span>{{quest.firstSession.title}}</span>
+                </div>
+                {{/if}}
+                {{#if quest.lastSession}}
+                <div class="quest-field-group">
+                    <label>Last Session</label>
+                    <span>{{quest.lastSession.title}}</span>
+                </div>
+                {{/if}}
+            </div>
+        </section>
+        <section class="tab" data-tab="objectives">
+            <h3 class="quest-section-heading">Objectives</h3>
+            {{#if setup.editingInfo}}
+            <button type="button" class="quest-add-btn" data-action="add-objective">
+                <i class="fa-solid fa-plus"></i> Add Objective
+            </button>
+            {{/if}}
+            <ol class="quest-objectives-list">
+                {{#each quest.objectives}}
+                <li class="quest-objective quest-objective-{{this.status}}" data-obj-index="{{@index}}">
+                    {{#if ../setup.editingInfo}}
+                    <input type="text" class="quest-objective-text-input" value="{{this.text}}" />
+                    <select class="quest-objective-status-select">
+                        <option value="pending">Pending</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                        <option value="blocked">Blocked</option>
+                    </select>
+                    <button type="button" class="quest-remove-btn" data-action="remove-objective" title="Remove">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                    {{else}}
+                    <span class="quest-objective-text">{{this.text}}</span>
+                    {{/if}}
+                </li>
+                {{/each}}
+            </ol>
+            {{#unless quest.objectives.length}}
+            {{#unless setup.editingInfo}}
+            <p class="quest-empty-state">No objectives</p>
+            {{/unless}}
+            {{/unless}}
+        </section>
+        <section class="tab" data-tab="progress">
+            <h3 class="quest-section-heading">Progress Log</h3>
+            <ul class="quest-progress-log">
+                {{#each quest.progressLog}}
+                <li class="quest-progress-entry">{{this}}</li>
+                {{/each}}
+            </ul>
+        </section>
+        <section class="tab" data-tab="links">
+            <h3 class="quest-section-heading">Related Entities</h3>
+            {{#if setup.isGM}}
+            <p class="hint">Drag Characters, Factions, Locations, or Items onto this sheet to link them. Unlink from
+                here — related entities show this quest under their own "Quests" tab.</p>
+            {{/if}}
+            <div class="quest-related-section">
+                <h4>Characters</h4>
+                <div class="archivist-grid quest-related-characters"></div>
+            </div>
+            <div class="quest-related-section">
+                <h4>Factions</h4>
+                <div class="archivist-grid quest-related-factions"></div>
+            </div>
+            <div class="quest-related-section">
+                <h4>Locations</h4>
+                <div class="archivist-grid quest-related-locations"></div>
+            </div>
+            <div class="quest-related-section">
+                <h4>Items</h4>
+                <div class="archivist-grid quest-related-items"></div>
+            </div>
+        </section>
+        <section class="tab" data-tab="notes">
+            {{#if setup.isGM}}
+            <div class="archivist-notes">
+                <prose-mirror name="gmNotes" value="{{setup.gmNotes}}" compact="true" toggled>
+                    {{{setup.gmNotes}}}
+                </prose-mirror>
+            </div>
+            {{else}}
+            <div class="archivist-notes">
+                <p class="hint"><i class="fas fa-lock"></i> GM-only notes are not visible to players.</p>
+            </div>
+            {{/if}}
+        </section>
+    </main>
+</section>
