@@ -150,7 +150,7 @@ export class ReconcileService {
       );
       for (const s of sessionsData) {
         const title = s.title || 'Session';
-        const html = String(s.summary || '').trim();
+        const html = Utils.markdownToStoredHtml(String(s.summary || '').trim());
         const sessionDate = s.session_date || null;
         if (bySessionId.has(s.id)) {
           const p = bySessionId.get(s.id);
@@ -165,7 +165,7 @@ export class ReconcileService {
             {
               name: title,
               type: 'text',
-              text: { content: html, markdown: html, format: 2 },
+              text: { content: html, format: 1 },
             },
           ]);
           const last = (container.pages?.contents || []).at(-1);
