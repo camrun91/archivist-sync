@@ -1,7 +1,7 @@
 name: Auto Release v14 on Version Bump
 
 # Stable release channel for the Foundry v14 line, parallel to auto-release.yml
-# (which handles the legacy v13 line on `main`). Both publish to the SAME
+# (which handles the legacy v13 line on `release/v13`). Both publish to the SAME
 # Foundry package listing (same FOUNDRY_ADMIN_MODULE_ID) as separate versions
 # with independent compatibility ranges — Foundry's client picks whichever
 # version matches the user's installed core version. `staging` remains the
@@ -11,7 +11,7 @@ name: Auto Release v14 on Version Bump
 on:
   push:
     branches:
-      - release/v14
+      - main
     paths:
       - "module.json"
       - "package.json"
@@ -70,15 +70,15 @@ jobs:
             exit 1
           fi
 
-          # release/v14 publishes the v14 track (2.x / compat 14.x). Refuse to
-          # publish a v13-shaped build here — same mistake as main, mirrored.
+          # main publishes the v14 track (2.x / compat 14.x). Refuse to
+          # publish a v13-shaped build here — same mistake as release/v13, mirrored.
           if [[ "$VERSION" != 2.* ]]; then
-            echo "❌ Refusing to publish: module.json version '$VERSION' is not in the 2.x (v14) family expected on release/v14."
-            echo "   If this is intentionally a v13 release, it belongs on main, not release/v14."
+            echo "❌ Refusing to publish: module.json version '$VERSION' is not in the 2.x (v14) family expected on main."
+            echo "   If this is intentionally a v13 release, it belongs on release/v13, not main."
             exit 1
           fi
           if [[ "$COMPAT_MIN" != 14.* ]]; then
-            echo "❌ Refusing to publish: compatibility.minimum '$COMPAT_MIN' is not in the 14.x range expected on release/v14."
+            echo "❌ Refusing to publish: compatibility.minimum '$COMPAT_MIN' is not in the 14.x range expected on main."
             exit 1
           fi
           echo "✅ Version $VERSION / compatibility.minimum $COMPAT_MIN match the v14 track."
@@ -141,7 +141,7 @@ jobs:
           TAG: ${{ steps.get_version.outputs.TAG }}
         run: |
           # Point manifest at the moving "v14-latest" tag, not GitHub's built-in
-          # "releases/latest" — main's auto-release.yml also publishes
+          # "releases/latest" — release/v13's auto-release-v13.yml also publishes
           # non-prerelease GitHub releases to this same repo, so
           # "releases/latest" would flip between the v13 and v14 tracks.
           # "v14-latest" is a tag this workflow owns and moves itself
