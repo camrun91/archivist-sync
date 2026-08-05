@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-08-05
+
+### Added
+- Quest sync parity with the v13 line: full Quests feature, local image upload, and related API augments.
+- Dual-track release infrastructure: v14 stable publishes from `main`; manifest URL uses `v14-latest`.
+
+### Changed
+- Dual-track release model: v14 stable publishes from `main`; manifest URL uses `v14-latest`.
+
+### Fixed
+- Quest ownership leak (F1): related quests filtered by ownership for tab count and empty state.
+- Fail closed when a related quest has no local journal (security hardening).
+- Release workflow guards and beta CI version detection for Foundry update checks.
+
 ## [2.0.0] - 2026-04-05
 
 ### Changed
