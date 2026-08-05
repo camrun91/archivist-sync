@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.14] - 2026-08-05
+
+### Added
+- Quest sync parity with v14 line (from #48).
+- Dual-track release infrastructure: `v13-latest` moving manifest URL.
+
+### Changed
+- Release workflow now publishes from `release/v13` with version-family guards.
+- Manifest URL in published builds points at `v13-latest` (not `/releases/latest`).
+
+### Fixed
+- Stable release guards and Latest-badge ownership hardened.
+- Beta version written into `module.json` for Foundry update detection (CI).
+
 ## [1.3.13] - 2026-04-13
 
 ### Added
