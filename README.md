@@ -22,9 +22,19 @@ Foundry VTT v14 module to connect your world to the Archivist service. It provid
 3. Restart Foundry and enable the module in your world’s Module Settings.
 
 ### Manifest URL
-Use the stable production manifest URL:
 
-`https://github.com/camrun91/archivist-sync/releases/latest/download/module.json`
+Foundry v14 (current line):
+
+`https://github.com/camrun91/archivist-sync/releases/download/v14-latest/module.json`
+
+Foundry v13 (legacy line, maintained on `release/v13`):
+
+`https://github.com/camrun91/archivist-sync/releases/download/v13-latest/module.json`
+
+> Each `*-latest` URL becomes live with the first stable release on its track. Until
+> then, existing v13 installs continue to work through
+> `https://github.com/camrun91/archivist-sync/releases/latest/download/module.json`,
+> which stays pinned to the v13 line.
 
 ### Beta Releases (Testing)
 
