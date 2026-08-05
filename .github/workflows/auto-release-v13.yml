@@ -1,9 +1,9 @@
-name: Auto Release on Version Bump
+name: Auto Release v13 on Version Bump
 
 on:
   push:
     branches:
-      - main
+      - release/v13
     paths:
       - "module.json"
       - "package.json"
@@ -60,17 +60,17 @@ jobs:
             exit 1
           fi
 
-          # main publishes the legacy Foundry v13 track (1.x / compat 13.x).
+          # release/v13 publishes the legacy Foundry v13 track (1.x / compat 13.x).
           # A v14-shaped commit landing here and auto-publishing under a v13
           # version string is exactly the incident that broke v13 users
           # previously — refuse instead of repeating it.
           if [[ "$VERSION" != 1.* ]]; then
-            echo "❌ Refusing to publish: module.json version '$VERSION' is not in the 1.x (v13) family expected on main."
-            echo "   If this is intentionally a v14 release, it belongs on the release/v14 branch, not main."
+            echo "❌ Refusing to publish: module.json version '$VERSION' is not in the 1.x (v13) family expected on release/v13."
+            echo "   If this is intentionally a v14 release, it belongs on main, not release/v13."
             exit 1
           fi
           if [[ "$COMPAT_MIN" != 13.* ]]; then
-            echo "❌ Refusing to publish: compatibility.minimum '$COMPAT_MIN' is not in the 13.x range expected on main."
+            echo "❌ Refusing to publish: compatibility.minimum '$COMPAT_MIN' is not in the 13.x range expected on release/v13."
             exit 1
           fi
           echo "✅ Version $VERSION / compatibility.minimum $COMPAT_MIN match the v13 track."
@@ -137,7 +137,7 @@ jobs:
           TAG: ${{ steps.get_version.outputs.TAG }}
         run: |
           # Point manifest at the moving "v13-latest" tag, not GitHub's built-in
-          # "releases/latest" — now that a second stable track (release/v14)
+          # "releases/latest" — now that a second stable track (main, v14)
           # also publishes non-prerelease GitHub releases to this same repo,
           # "releases/latest" would flip between the v13 and v14 tracks
           # depending on which published most recently, silently pointing a
