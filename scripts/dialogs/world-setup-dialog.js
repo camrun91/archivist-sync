@@ -459,8 +459,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       case 5:
         return true; // create choices step
       case 6:
-        if (!this._syncStarted) return false;
-        if (this.syncStatus.total === 0) return true;
+        // Disable completion until sync has started and finished
+        // If syncStatus.total is 0, sync hasn't begun yet, so allow "Begin Sync" but not "Complete"
+        // Once sync starts (total > 0), only allow completion when processed >= total
+        if (this.syncStatus.total === 0) {
+          // Sync hasn't begun, can't complete yet
+          return false;
+        }
+        // Sync has started, can complete only when finished
         return this.syncStatus.processed >= this.syncStatus.total;
       default:
         return false;
@@ -2143,7 +2149,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for this character with the custom sheet
         try {
           const name = c.character_name || c.name || actor.name || 'Character';
-          const html = Utils.markdownToStoredHtml(String(c.description || ''));
+          const html = Utils.toMarkdownIfHtml(String(c.description || ''));
           const imageUrl = c.image || undefined;
           const targetFolderId =
             archivistType === 'NPC'
@@ -2271,7 +2277,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for this item with the custom sheet
         try {
           const name = i.name || item.name || 'Item';
-          const html = Utils.markdownToStoredHtml(String(i.description || ''));
+          const html = Utils.toMarkdownIfHtml(String(i.description || ''));
           const imageUrl = i.image || undefined;
           const targetFolderId = this.setupData.destinations.item;
 
@@ -2325,7 +2331,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // Create a standalone JournalEntry for location/faction
         try {
           const name = `${e.name || e.title || kind}`;
-          const html = Utils.markdownToStoredHtml(String(e.description || ''));
+          const html = Utils.toMarkdownIfHtml(String(e.description || ''));
           const imageUrl =
             typeof e.image === 'string' && e.image.trim().length
               ? e.image.trim()
@@ -2484,9 +2490,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             const folderId = j.folder_id
               ? folderIdMap.get(String(j.folder_id)) || journalRootFolderId
               : journalRootFolderId;
-            const html = Utils.markdownToStoredHtml(
-              String(j.content || j.summary || '')
-            );
+            const html = Utils.toMarkdownIfHtml(String(j.content || j.summary || ''));
             const imageUrl =
               typeof j.cover_image === 'string' && j.cover_image.trim()
                 ? j.cover_image.trim()
@@ -2555,7 +2559,45 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
           if (journal) {
             const flags = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-            flags.questData = Utils.buildQuestDataFromApi(fullQuest);
+            flags.questData = {
+              questName: fullQuest.questName || fullQuest.quest_name || '',
+              questGiver: fullQuest.questGiver || fullQuest.quest_giver || '',
+              questCategory:
+                fullQuest.questCategory || fullQuest.quest_category || 'n/a',
+              status: fullQuest.status || 'planned',
+              successDefinition:
+                fullQuest.successDefinition || fullQuest.success_definition || '',
+              failureConditions:
+                fullQuest.failureConditions || fullQuest.failure_conditions || '',
+              nextAction: fullQuest.nextAction || fullQuest.next_action || '',
+              resolution: fullQuest.resolution || '',
+              objectives: Array.isArray(fullQuest.objectives) ? fullQuest.objectives : [],
+              progressLog: Array.isArray(fullQuest.progressLog)
+                ? fullQuest.progressLog
+                : Array.isArray(fullQuest.progress_log)
+                  ? fullQuest.progress_log
+                : Array.isArray(fullQuest.progressLogEntries)
+                  ? fullQuest.progressLogEntries.map((e) =>
+                      typeof e === 'string' ? e : e.text || ''
+                    )
+                  : Array.isArray(fullQuest.progress_log_entries)
+                    ? fullQuest.progress_log_entries.map((e) =>
+                        typeof e === 'string' ? e : e.text || ''
+                      )
+                  : [],
+              relatedCharacters:
+                fullQuest.relatedCharacters || fullQuest.related_characters || [],
+              relatedFactions:
+                fullQuest.relatedFactions || fullQuest.related_factions || [],
+              relatedLocations:
+                fullQuest.relatedLocations || fullQuest.related_locations || [],
+              relatedItems:
+                fullQuest.relatedItems || fullQuest.related_items || [],
+              relatedEntityRefs:
+                fullQuest.relatedEntityRefs || fullQuest.related_entity_refs || [],
+              firstSession: fullQuest.firstSession || fullQuest.first_session || null,
+              lastSession: fullQuest.lastSession || fullQuest.last_session || null,
+            };
             await journal.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
           }
         } catch (e) {

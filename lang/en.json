@@ -170,10 +170,10 @@
       "locations": "Locations",
       "items": "Items",
       "recaps": "Recaps",
-      "mappingOverride": "Mapping Override (JSON)",
-      "importProgress": "Import Progress",
       "journals": "Journals",
-      "quests": "Quests"
+      "quests": "Quests",
+      "mappingOverride": "Mapping Override (JSON)",
+      "importProgress": "Import Progress"
     },
     "status": {
       "connected": "Connected",
@@ -318,12 +318,6 @@
         "beginSync": "Begin Sync"
       }
     },
-    "settings": {
-      "realtimeSync": {
-        "name": "Real‑Time Sync (auto‑update Archivist)",
-        "hint": "When enabled, changes you make in Foundry (create, edit, or delete Actors, Items, and designated Faction/Location journal pages) are immediately mirrored to Archivist. Recaps are read‑only: creating a Recaps page will not create a Game Session, and deleting a Recaps page will not delete a Game Session in Archivist."
-      }
-    },
     "quest": {
       "status": {
         "planned": "Planned",
@@ -351,6 +345,12 @@
         "failureConditions": "Failure Conditions",
         "nextAction": "Next Action",
         "resolution": "Resolution"
+      }
+    },
+    "settings": {
+      "realtimeSync": {
+        "name": "Real‑Time Sync (auto‑update Archivist)",
+        "hint": "When enabled, changes you make in Foundry (create, edit, or delete Actors, Items, and designated Faction/Location journal pages) are immediately mirrored to Archivist. Recaps are read‑only: creating a Recaps page will not create a Game Session, and deleting a Recaps page will not delete a Game Session in Archivist."
       }
     }
   }

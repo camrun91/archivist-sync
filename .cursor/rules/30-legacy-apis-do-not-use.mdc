@@ -1,5 +1,5 @@
 ---
-description: Explicit anti-patterns to block V1/legacy code in v13 modules
+description: Explicit anti-patterns to block V1/legacy code in v14 modules
 globs: "**/*"
 alwaysApply: true
 ---
@@ -7,18 +7,19 @@ alwaysApply: true
 # Do NOT use these in this project
 
 ## Disallowed classes (V1)
-- `Application`, `FormApplication`, `DocumentSheet` (and any method like `getData()`, `activateListeners(html)`, `_updateObject(event, formData)` that expects jQuery/HTML args).  [oai_citation:1‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.DocumentSheetV2.html)
+- `Application`, `FormApplication`, `DocumentSheet` (V1 base classes).
+- Any method signature from V1: `getData()`, `activateListeners(html)`, `_updateObject(event, formData)`.
 
 ## Disallowed idioms
 - jQuery-specific patterns: `$(...)`, `html.find(...)`, passing `html` objects into lifecycle hooks.
-- V1 render signature assumptions (boolean `force` without V2 options).
-- Manual tab widgets when `ApplicationV2` tabs exist.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+- V1 render signature assumptions (boolean `force` without V2 options object).
+- Manual tab widgets when `ApplicationV2.TABS` exists.
+- Manual `renderTemplate` + `innerHTML` mounting instead of using `HandlebarsApplicationMixin` with `PARTS`.
+- Calling `@private` or `@internal` Foundry methods (see v14 Public API guidance).
 
 ## Required alternatives
 - Use `ApplicationV2` / `DocumentSheetV2` lifecycle methods.
-- Use `addEventListener` on `this.element` or specific elements.
+- Use `addEventListener` on `this.element` or specific elements inside `_onRender` / `_onFirstRender`.
 - Use `submit()` and `_prepareSubmitData` for forms.
-- For context, compute in `_prepareContext`; for markup, use `_renderHTML`.
----
-alwaysApply: true
----
+- For context, compute in `_prepareContext`; for markup, define `PARTS` templates.
+- For sidebar tabs, extend `AbstractSidebarTab` using V2 lifecycle (`_prepareContext`, `_renderHTML`, `_onActivate`, `_onDeactivate`).

@@ -13,7 +13,6 @@ import { archivistApi } from './services/archivist-api.js';
 import { Utils } from './modules/utils.js';
 import { linkIndexer } from './modules/links/indexer.js';
 import { AskChatWindow } from './dialogs/ask-chat-window.js';
-import AskChatSidebarTab from './sidebar/ask-chat-sidebar-tab.js';
 import { ensureChatSlot } from './sidebar/ask-chat-tab.js';
 import { SyncDialog } from './dialogs/sync-dialog.js';
 import { WorldSetupDialog } from './dialogs/world-setup-dialog.js';
@@ -117,61 +116,13 @@ Hooks.once('init', async function () {
       e
     );
   }
-  // Register the Archivist Chat tab with the core Sidebar early so it renders its
-  // nav button and panel using the Application V2 TabGroup. Availability will be
-  // handled at runtime by showing/hiding the button and panel.
-  // NOTE: this Sidebar.TABS registration mechanism works on v13 but was found
-  // to not support dynamic tab addition on v14 — do not port this removal
-  // back here; v14 instead injects the chat button at runtime via
-  // updateArchivistChatAvailability() in the ready hook, which this branch
-  // also has as a fallback (see below).
-  try {
-    const Sidebar = foundry.applications.sidebar?.Sidebar;
-    if (Sidebar) {
-      const label =
-        game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ||
-        'Archivist Chat';
-      Sidebar.TABS = Sidebar.TABS || {};
-      Sidebar.TABS['archivist-chat'] = {
-        id: 'archivist-chat',
-        title: label,
-        icon: 'fa-solid fa-sparkles',
-        group: 'primary',
-        tooltip: label,
-        tab: AskChatSidebarTab,
-        app: AskChatSidebarTab,
-      };
-    }
-  } catch (_) {
-    /* no-op */
-  }
+  // Sidebar.TABS registration removed — v14 does not support dynamic tab
+  // addition via this API.  The chat button is injected at runtime by
+  // updateArchivistChatAvailability() in the ready hook.
 });
 
 Hooks.once('setup', function () {
-  try {
-    console.log('[Archivist Sync] setup');
-  } catch (_) {}
-  // Ensure registration also occurs here in case Sidebar wasn't ready during init
-  try {
-    const Sidebar = foundry.applications.sidebar?.Sidebar;
-    if (Sidebar) {
-      const label =
-        game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ||
-        'Archivist Chat';
-      Sidebar.TABS = Sidebar.TABS || {};
-      Sidebar.TABS['archivist-chat'] = Sidebar.TABS['archivist-chat'] || {
-        id: 'archivist-chat',
-        title: label,
-        icon: 'fa-solid fa-sparkles',
-        group: 'primary',
-        tooltip: label,
-        tab: AskChatSidebarTab,
-        app: AskChatSidebarTab,
-      };
-    }
-  } catch (_) {
-    /* no-op */
-  }
+  console.debug('[Archivist Sync] setup');
 });
 
 // Register Scene Controls immediately (outside ready) so it's available on reloads
@@ -1129,14 +1080,14 @@ function installRealtimeSyncListeners() {
         });
       } else if (sheetType === 'journal') {
         res = await archivistApi.createJournal(apiKey, {
-          worldId,
+          world_id: worldId,
           title: entry.name || 'Journal',
           content: description,
         });
       }
 
       if (res.success && res.data?.id) {
-        const flagBlock = {
+        await entry.setFlag(CONFIG.MODULE_ID, 'archivist', {
           sheetType,
           archivistId: res.data.id,
           archivistWorldId: worldId,
@@ -1148,13 +1099,7 @@ function installRealtimeSyncListeners() {
             locationsAssociative: [],
           },
           foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
-        };
-        // Seed questData from the create response so the sheet shows API
-        // defaults (e.g. status: 'planned') without waiting for reconcile.
-        if (sheetType === 'quest') {
-          flagBlock.questData = Utils.buildQuestDataFromApi(res.data, {});
-        }
-        await entry.setFlag(CONFIG.MODULE_ID, 'archivist', flagBlock);
+        });
       }
     } catch (e) {
       console.warn('[RTS] createJournalEntry (flags) failed', e);
@@ -1350,18 +1295,7 @@ function installRealtimeSyncListeners() {
       } else if (st === 'quest') {
         await archivistApi.updateQuest(apiKey, id, { questName: name });
       } else if (st === 'journal') {
-        let content;
-        try {
-          const resp = await archivistApi.getJournal(apiKey, id);
-          if (resp.success && resp.data) {
-            content = resp.data.content ?? resp.data.summary ?? '';
-          }
-        } catch (_) {}
-        await archivistApi.updateJournal(apiKey, {
-          id,
-          title: name,
-          ...(content !== undefined ? { content } : {}),
-        });
+        await archivistApi.updateJournal(apiKey, { id, title: name });
       }
     } catch (e) {
       console.warn('[RTS] updateJournalEntry (title sync) failed', e);

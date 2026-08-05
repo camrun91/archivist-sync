@@ -1,0 +1,71 @@
+---
+description: How to build sidebar tabs and pop-out windows with V14 App V2 hooks
+globs: "scripts/sidebar/**"
+alwaysApply: false
+---
+
+# V14 Sidebar Tabs & Pop-outs
+
+## Sidebar tab implementation
+
+Custom sidebar tabs must extend `foundry.applications.sidebar.AbstractSidebarTab`, which is an `ApplicationV2` subclass. Use V2 lifecycle methods only:
+
+```js
+export class AskChatSidebarTab extends foundry.applications.sidebar.AbstractSidebarTab {
+  static DEFAULT_OPTIONS = foundry.utils.mergeObject(
+    foundry.utils.deepClone(super.DEFAULT_OPTIONS),
+    {
+      id: "archivist-chat",
+      classes: ["archivist-chat-sidebar"],
+    }
+  );
+
+  async _prepareContext(_options) {
+    return { messages: this._getMessages() };
+  }
+
+  async _renderHTML(context, _options) {
+    return await foundry.applications.handlebars.renderTemplate(
+      "modules/archivist-sync/templates/ask-chat-window.hbs",
+      context
+    );
+  }
+
+  _onRender(context, options) {
+    super._onRender(context, options);
+    const root = this.element;
+    root.querySelector(".ask-form")
+      ?.addEventListener("submit", (e) => this._onSubmit(e));
+  }
+
+  _onActivate() { /* called when this tab becomes active */ }
+  _onDeactivate() { /* called when switching away from this tab */ }
+}
+```
+
+## Registering the tab
+
+Register during `init` by adding to `Sidebar.TABS`:
+
+```js
+Hooks.once("init", () => {
+  const Sidebar = foundry.applications.sidebar?.Sidebar;
+  if (Sidebar) {
+    Sidebar.TABS["archivist-chat"] = {
+      id: "archivist-chat",
+      title: "Archivist Chat",
+      icon: "fa-solid fa-sparkles",
+      tab: AskChatSidebarTab,
+      app: AskChatSidebarTab,
+    };
+  }
+});
+```
+
+## Do NOT use
+- `getData()` or `activateListeners()` on sidebar tabs — these are V1 patterns.
+- Manual `innerHTML` replacement inside sidebar panels.
+
+## Pop-out windows (v14 native)
+
+Any `ApplicationV2` can pop out. Sidebar tabs can use `renderPopout()` to create a detached copy. The framework handles window management. Override `_onDetach` / `_onAttach` if you need custom behavior when popping out or reattaching.
