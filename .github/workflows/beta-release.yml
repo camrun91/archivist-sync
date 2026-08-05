@@ -59,13 +59,15 @@ jobs:
         run: |
           REPO="${{ github.repository }}"
 
-          # Update manifest and download URLs to point to beta-latest (stable tag for updates)
-          jq --arg repo "$REPO" \
-            '.manifest = "https://github.com/\($repo)/releases/download/beta-latest/module.json" |
+          # Write beta version and point manifest/download at beta-latest (stable tag for updates)
+          jq --arg repo "$REPO" --arg beta "${{ steps.get_version.outputs.BETA_VERSION }}" \
+            '.version = $beta |
+             .manifest = "https://github.com/\($repo)/releases/download/beta-latest/module.json" |
              .download = "https://github.com/\($repo)/releases/download/beta-latest/module.zip"' \
             module.json > module.json.tmp && mv module.json.tmp module.json
 
-          echo "✅ Updated module.json with beta-latest URLs (for automatic updates)"
+          echo "✅ Updated module.json with beta version and beta-latest URLs (for automatic updates)"
+          echo "   Version: $(jq -r '.version' module.json)"
           echo "   Manifest: $(jq -r '.manifest' module.json)"
           echo "   Download: $(jq -r '.download' module.json)"
 
