@@ -729,7 +729,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     );
     const visibleMatches = matches.filter((q) => {
       const questJournal = this._findPageOrEntryByArchivistId(String(q.id));
-      if (!questJournal) return true;
+      if (!questJournal) return !hideByOwnership || game.user?.isGM;
       const doc =
         questJournal.documentName === 'JournalEntryPage'
           ? questJournal.parent
