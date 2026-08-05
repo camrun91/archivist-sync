@@ -1,14 +1,16 @@
 ---
-description: Consistent UX conventions for Archivist Foundry modules (v13)
-globs: "src/**"
+description: Consistent UX conventions for Archivist Foundry modules (v14)
+globs: "scripts/**"
 alwaysApply: true
 ---
 
-# UX / Style Conventions (v13)
+# UX / Style Conventions
 
-- **Window frame**: prefer standard V2 window with header controls; expose “Help” linking to module docs.
-- **Tabs**: use `TABS` configuration; initial tab is “overview”.
+- **Window frame**: prefer standard V2 window with header controls; expose "Help" linking to module docs.
+- **Tabs**: use `TABS` configuration; initial tab is "overview" or "info" depending on context.
 - **Accessibility**: label form controls, use buttons with `type="button"` vs `type="submit"` intentionally.
-- **Positioning**: Use `setPosition` updates rather than direct style mutations.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
-- **Context menus**: use `_createContextMenu(...)` when needed, not custom right-click handlers.  [oai_citation:12‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+- **Positioning**: Use `setPosition` updates rather than direct style mutations.
+- **Context menus**: use `_createContextMenu(...)` when needed, not custom right-click handlers.
 - **Performance**: keep `_prepareContext` lean; defer heavy fetches to `_onFirstRender` with a loading state.
+- **Pop-outs**: V14 supports native pop-out windows for `ApplicationV2`. Test that custom apps work when popped out.
+- **Font Awesome**: V14 ships FA 7.2. Verify icon class names when adding new icons.

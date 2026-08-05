@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/camrun91/archivist-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/camrun91/archivist-sync/actions/workflows/ci.yml)
 
-Foundry VTT v13 module to connect your world to the Archivist service. It provides a guided setup wizard, an Archivist Hub for managing campaign content, real‑time bidirectional sync for entities and links, and an in‑client "Ask Archivist" sidebar chat with RAG support.
+Foundry VTT v14 module to connect your world to the Archivist service. It provides a guided setup wizard, real‑time bidirectional sync for entities and links, and an in‑client "Ask Archivist" sidebar chat with RAG support.
 
 ## Features
 
@@ -22,11 +22,9 @@ Foundry VTT v13 module to connect your world to the Archivist service. It provid
 3. Restart Foundry and enable the module in your world’s Module Settings.
 
 ### Manifest URL
-Use your repository’s release manifest URL (update the placeholder in `module.json`):
+Use the stable production manifest URL:
 
-`https://github.com/yourusername/archivist-sync/releases/latest/download/module.json`
-
-Tip: Also update the `url`, `manifest`, `download`, and `bugs` fields in `module.json` to point to your repo.
+`https://github.com/camrun91/archivist-sync/releases/latest/download/module.json`
 
 ### Beta Releases (Testing)
 
@@ -161,7 +159,7 @@ Examples (representative; bodies vary by type):
 
 ## Compatibility
 
-- **Foundry VTT**: v13 (minimum 13.341; verified 13.346)
+- **Foundry VTT**: v14 (minimum 14.359; verified 14.359)
 - **Game Systems**: System-agnostic with built-in adapters for common systems
 
 ## Security & Permissions

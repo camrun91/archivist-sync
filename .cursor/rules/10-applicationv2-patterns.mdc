@@ -1,6 +1,6 @@
 ---
-description: Patterns and snippets for ApplicationV2 windows (v13)
-globs: "src/**"
+description: Patterns and snippets for ApplicationV2 windows (v14)
+globs: "scripts/**"
 alwaysApply: true
 ---
 
@@ -9,29 +9,29 @@ alwaysApply: true
 ## Skeleton
 Use `DEFAULT_OPTIONS`, implement `_prepareContext` and `_renderHTML`, and wire events with `addEventListener`:
 
-```ts
-import { HandlebarsApplicationMixin } from "foundry/applications/api.mjs"; // if using HBS
-
-export class SyncManager extends HandlebarsApplicationMixin(ApplicationV2) {
-  static override DEFAULT_OPTIONS = {
+```js
+export class SyncManager extends foundry.applications.api.HandlebarsApplicationMixin(
+  foundry.applications.api.ApplicationV2
+) {
+  static DEFAULT_OPTIONS = {
     id: "archivist-sync-manager",
     window: { title: "Archivist: Sync Manager", resizable: true },
     classes: ["archivist", "sync"],
     position: { width: 640, height: "auto" },
   };
 
-  override async _prepareContext(_options) {
+  static PARTS = {
+    form: { template: "modules/archivist-sync/templates/sync-manager.hbs" },
+  };
+
+  async _prepareContext(_options) {
     return {
       sessions: await game.modules.get("archivist-sync")?.api?.listSessions?.() ?? [],
     };
   }
 
-  override async _renderHTML(context, _options) {
-    // Return a string or Node for HandlebarsApplicationMixin, or mount your own DOM.
-    return await renderTemplate("modules/archivist-sync/templates/sync-manager.hbs", context);
-  }
-
-  override async _onFirstRender(_context, _options) {
+  _onRender(context, options) {
+    super._onRender(context, options);
     this.element.querySelector("[data-action='refresh']")
       ?.addEventListener("click", () => this.render({ force: true }));
   }
@@ -39,22 +39,21 @@ export class SyncManager extends HandlebarsApplicationMixin(ApplicationV2) {
 ```
 
 ## Tabs (built-in)
-Configure with `TABS` + `_getTabsConfig` instead of custom tab libs:
+Configure with `TABS` + `_getTabsConfig`:
 
-```ts
+```js
 static TABS = {
   main: { group: "main", navSelector: ".tabs", contentSelector: ".content", initial: "overview" }
 };
-protected override _getTabsConfig(group: string) { return (SyncManager as any).TABS[group] ?? null; }
 ```
 
-See `ApplicationV2` tab APIs.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+See ApplicationV2 tab APIs: https://foundryvtt.com/api/v14/classes/foundry.applications.api.ApplicationV2.html
 
 ## Header controls
-Use `_getHeaderControls()` to add window buttons (gear, help, etc.):
+Use `_getHeaderControls()` to add window buttons:
 
-```ts
-protected override _getHeaderControls() {
+```js
+_getHeaderControls() {
   return [
     ...super._getHeaderControls(),
     {
@@ -68,42 +67,7 @@ protected override _getHeaderControls() {
 ```
 
 ## Drag & Drop
-Instantiate `DragDrop` in the constructor and wire targets via modern listeners—do not use V1 helpers. Keep handlers on `this.element` with `addEventListener` and translate drops into V2 updates.
----
-description: Patterns and snippets for ApplicationV2 windows (v13)
-globs: "src/**"
-alwaysApply: true
----
+Wire drag/drop handlers on `this.element` with `addEventListener` inside `_onRender`. Do not use V1 helpers.
 
-# ApplicationV2 – How to structure windows
-
-## Skeleton
-Use `DEFAULT_OPTIONS`, implement `_prepareContext` and `_renderHTML`, and wire events with `addEventListener`:
-
-```ts
-import { HandlebarsApplicationMixin } from "foundry/applications/api.mjs"; // if using HBS
-
-export class SyncManager extends HandlebarsApplicationMixin(ApplicationV2) {
-  static override DEFAULT_OPTIONS = {
-    id: "archivist-sync-manager",
-    window: { title: "Archivist: Sync Manager", resizable: true },
-    classes: ["archivist", "sync"],
-    position: { width: 640, height: "auto" },
-  };
-
-  override async _prepareContext(_options) {
-    return {
-      sessions: await game.modules.get("myarchivist")?.api?.listSessions?.() ?? [],
-    };
-  }
-
-  override async _renderHTML(context, _options) {
-    // Return a string or Node for HandlebarsApplicationMixin, or mount your own DOM.
-    return await renderTemplate("modules/myarchivist/templates/sync-manager.hbs", context);
-  }
-
-  override async _onFirstRender(context, options) {
-    this.element.querySelector("[data-action='refresh']")
-      ?.addEventListener("click", () => this.render({ force: true }));
-  }
-}
+## Pop-out windows (v14)
+V14 adds native pop-out support. Any `ApplicationV2` can call `attachWindow()` / `detachWindow()` to render in a separate browser window. No special code needed unless you need to customize the pop-out behavior.

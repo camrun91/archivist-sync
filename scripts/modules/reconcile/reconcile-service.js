@@ -4,6 +4,47 @@ import { CONFIG } from '../config.js';
 import { Utils } from '../utils.js';
 import { journalManager } from '../journal-manager.js';
 
+/** Build questData flags from a normalized Archivist quest row. */
+function questDataFromApi(q) {
+  return {
+    questName: q.questName || '',
+    questGiver: q.questGiver || '',
+    questCategory: q.questCategory || 'n/a',
+    status: q.status || 'planned',
+    successDefinition: q.successDefinition || '',
+    failureConditions: q.failureConditions || '',
+    nextAction: q.nextAction || '',
+    resolution: q.resolution || '',
+    objectives: Array.isArray(q.objectives) ? q.objectives : [],
+    progressLog: Array.isArray(q.progressLog)
+      ? q.progressLog
+      : Array.isArray(q.progress_log)
+        ? q.progress_log
+        : Array.isArray(q.progressLogEntries)
+          ? q.progressLogEntries.map((e) =>
+              typeof e === 'string' ? e : e.text || ''
+            )
+          : Array.isArray(q.progress_log_entries)
+            ? q.progress_log_entries.map((e) =>
+                typeof e === 'string' ? e : e.text || ''
+              )
+            : [],
+    relatedCharacters: Array.isArray(q.relatedCharacters)
+      ? q.relatedCharacters
+      : [],
+    relatedFactions: Array.isArray(q.relatedFactions) ? q.relatedFactions : [],
+    relatedLocations: Array.isArray(q.relatedLocations)
+      ? q.relatedLocations
+      : [],
+    relatedItems: Array.isArray(q.relatedItems) ? q.relatedItems : [],
+    relatedEntityRefs: Array.isArray(q.relatedEntityRefs)
+      ? q.relatedEntityRefs
+      : [],
+    firstSession: q.firstSession || null,
+    lastSession: q.lastSession || null,
+  };
+}
+
 /**
  * ReconcileService performs a one-shot alignment of Foundry sheets with Archivist data.
  * - Creates missing sheets for Characters/Items/Locations/Factions/Sessions(Recaps)
@@ -36,7 +77,11 @@ export class ReconcileService {
     const factions = facs.success ? facs.data || [] : [];
     const sessionsData = sessions.success ? sessions.data || [] : [];
     const linksData = links.success ? links.data || [] : [];
-    const questsData = quests.success ? quests.data || [] : [];
+    // listQuests() rows aren't normalized server-side consistently; route through
+    // the same camelCase/snake_case-tolerant normalizer used elsewhere for quests.
+    const questsData = (quests.success ? quests.data || [] : []).map((q) =>
+      archivistApi._normalizeQuestResponse(q)
+    );
     const journalsData = journalsList.success ? journalsList.data || [] : [];
 
     // Ensure default folders, index existing journals by archivistId
@@ -51,26 +96,59 @@ export class ReconcileService {
     }
 
     // Upsert helper for a sheet journal
-    const ensureSheet = async (entity, sheetType, options = {}) => {
+    const ensureSheet = async (entity, sheetType) => {
       const id = entity.id;
       let j = byArchId.get(id);
       if (!j) {
-        j = await journalManager.create({
-          name: entity.name || entity.title || sheetType,
-          sheetType,
-          archivistId: id,
-          worldId: campaignId,
-          text: options.text ?? '',
-        });
-        // If Archivist entity has an image, mirror it to the journal
-        try {
-          const raw = String(entity?.image || '').trim();
-          if (raw) {
-            try {
-              await j.update({ img: raw }, { render: false });
-            } catch (_) {}
+        if (sheetType === 'journal' || sheetType === 'quest') {
+          const folderName = journalManager.folderNames[sheetType] || null;
+          let folderId = null;
+          try {
+            if (folderName) folderId = await Utils.ensureJournalFolder(folderName);
+          } catch (_) {}
+          const imageUrl =
+            String(entity?.image || entity?.cover_image || '').trim() || null;
+          if (sheetType === 'journal') {
+            const markdown = String(entity.content || entity.summary || '');
+            const html = Utils.markdownToStoredHtml(markdown);
+            j = await Utils.createCustomJournalForImport({
+              name: entity.title || entity.name || 'Untitled',
+              html,
+              imageUrl,
+              sheetType: 'journal',
+              archivistId: id,
+              worldId: campaignId,
+              folderId,
+            });
+          } else {
+            j = await Utils.createCustomJournalForImport({
+              name: entity.questName || entity.name || 'Quest',
+              html: '',
+              imageUrl,
+              sheetType: 'quest',
+              archivistId: id,
+              worldId: campaignId,
+              folderId,
+            });
           }
-        } catch (_) {}
+        } else {
+          j = await journalManager.create({
+            name: entity.name || entity.title || sheetType,
+            sheetType,
+            archivistId: id,
+            worldId: campaignId,
+            text: '',
+          });
+          // If Archivist entity has an image, mirror it to the journal
+          try {
+            const raw = String(entity?.image || '').trim();
+            if (raw) {
+              try {
+                await j.update({ img: raw }, { render: false });
+              } catch (_) {}
+            }
+          } catch (_) {}
+        }
         if (sheetType === 'location' && entity.parent_id) {
           const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
           f.parentLocationId = entity.parent_id;
@@ -101,42 +179,27 @@ export class ReconcileService {
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
-    for (const j of journalsData) {
-      let content = j.content ?? j.summary ?? '';
-      if (!content && j.id) {
-        try {
-          const resp = await archivistApi.getJournal(apiKey, j.id);
-          if (resp.success && resp.data) {
-            content = resp.data.content ?? resp.data.summary ?? '';
-          }
-        } catch (_) {}
-      }
-      const html = Utils.markdownToStoredHtml(String(content || ''));
-      await ensureSheet(
-        { ...j, name: j.title || j.name || 'Journal' },
-        'journal',
-        { text: html }
-      );
-    }
+    for (const j of journalsData) await ensureSheet(j, 'journal');
 
     // Quests: ensure a sheet exists, then refresh its full questData from Archivist
     // (title/image handled generically by ensureSheet; the rest is quest-specific).
     for (const q of questsData) {
       let fullQuest = q;
-      if (!q.objectives && q.id) {
+      // List rows may omit nested fields; _normalizeQuestResponse defaults
+      // relatedEntityRefs to [] so always fetch the full quest before writing flags.
+      if (q.id) {
         try {
           const resp = await archivistApi.getQuest(apiKey, q.id);
-          if (resp.success && resp.data) fullQuest = resp.data;
+          if (resp.success && resp.data) {
+            fullQuest = archivistApi._normalizeQuestResponse(resp.data);
+          }
         } catch (_) {}
       }
       const entity = { ...fullQuest, name: fullQuest.questName || 'Quest' };
       const j = await ensureSheet(entity, 'quest');
       try {
         const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-        flags.questData = Utils.buildQuestDataFromApi(
-          fullQuest,
-          flags.questData || {}
-        );
+        flags.questData = questDataFromApi(fullQuest);
         await j.setFlag(CONFIG.MODULE_ID, 'archivist', flags);
       } catch (_) {}
     }
@@ -150,7 +213,7 @@ export class ReconcileService {
       );
       for (const s of sessionsData) {
         const title = s.title || 'Session';
-        const html = Utils.markdownToStoredHtml(String(s.summary || '').trim());
+        const html = String(s.summary || '').trim();
         const sessionDate = s.session_date || null;
         if (bySessionId.has(s.id)) {
           const p = bySessionId.get(s.id);
@@ -165,7 +228,7 @@ export class ReconcileService {
             {
               name: title,
               type: 'text',
-              text: { content: html, format: 1 },
+              text: { content: html, markdown: html, format: 2 },
             },
           ]);
           const last = (container.pages?.contents || []).at(-1);
