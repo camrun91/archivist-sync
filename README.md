@@ -4,6 +4,8 @@
 
 Foundry VTT v13 module to connect your world to the Archivist service. It provides a guided setup wizard, an Archivist Hub for managing campaign content, real‑time bidirectional sync for entities and links, and an in‑client "Ask Archivist" sidebar chat with RAG support.
 
+> This branch maintains the **Foundry v13** line (`1.x`). The Foundry v14 line lives on [`main`](https://github.com/camrun91/archivist-sync/tree/main).
+
 ## Features
 
 - **Guided World Setup (Wizard)**: Validate API key, select an Archivist campaign, and import existing Archivist content (Characters, Items, Locations, Factions, and Recaps).
