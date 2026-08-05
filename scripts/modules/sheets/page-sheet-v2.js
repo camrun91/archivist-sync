@@ -727,20 +727,22 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           String(r.entityId) === archivistId
       )
     );
+    const visibleMatches = matches.filter((q) => {
+      const questJournal = this._findPageOrEntryByArchivistId(String(q.id));
+      if (!questJournal) return true;
+      const doc =
+        questJournal.documentName === 'JournalEntryPage'
+          ? questJournal.parent
+          : questJournal;
+      return canSee(doc);
+    });
     grid.innerHTML = '';
-    if (!matches.length) {
+    if (!visibleMatches.length) {
       grid.innerHTML = '<span class="quest-empty-state">None</span>';
       return;
     }
-    for (const q of matches) {
+    for (const q of visibleMatches) {
       const questJournal = this._findPageOrEntryByArchivistId(String(q.id));
-      if (questJournal) {
-        const doc =
-          questJournal.documentName === 'JournalEntryPage'
-            ? questJournal.parent
-            : questJournal;
-        if (!canSee(doc)) continue;
-      }
       const name = q.questName || 'Quest';
       const card = document.createElement('div');
       card.className = 'archivist-card';
@@ -763,7 +765,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     if (nav) {
       const base = nav.dataset._label || nav.textContent || 'Quests';
       if (!nav.dataset._label) nav.dataset._label = base;
-      nav.textContent = matches.length > 0 ? `${base} (${matches.length})` : base;
+      nav.textContent =
+        visibleMatches.length > 0 ? `${base} (${visibleMatches.length})` : base;
     }
   }
 
