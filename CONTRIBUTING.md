@@ -69,7 +69,7 @@ GitHub Actions automatically runs linting checks on all pull requests and pushes
 
 This project uses automated releases for both production and beta versions:
 
-- **Production releases** (`main` branch): Automatically published to Foundry VTT when version is bumped
+- **Production releases** (`main` for v14, `release/v13` for v13): Automatically published to Foundry VTT when version is bumped on the respective branch
 - **Beta releases** (`staging` branch): Creates GitHub pre-releases for testing, manual install only
 
 See [.github/RELEASE_WORKFLOW.md](.github/RELEASE_WORKFLOW.md) for detailed documentation on:
@@ -87,9 +87,10 @@ See [.github/RELEASE_WORKFLOW.md](.github/RELEASE_WORKFLOW.md) for detailed docu
 
 **For Production Release:**
 1. Update `CHANGELOG.md` with release notes
-2. Merge `staging` to `main`
-3. Update `module.json` back to production URLs and make sure its version matches `package.json`
-4. Push to `main` → automatic release + Foundry VTT publication
+2. For v14: merge `staging` to `main` (`2.x`, compat `14.x`)
+3. For v13 maintenance: push directly to `release/v13` (`1.x`, compat `13.x`)
+4. Update `module.json` back to production URLs and make sure its version matches `package.json`
+5. Push to the target branch → automatic release + Foundry VTT publication
 
 ## Questions?
 
