@@ -95,7 +95,7 @@ Before the *first* v14 stable release, complete the one-time
 
 ### What it does:
 1. ✅ Takes the version from `module.json` and appends `-beta.{BUILD_NUMBER}`
-2. ✅ Updates `module.json` URLs to point to the beta release
+2. ✅ Writes the beta version into `module.json` and updates manifest/download URLs to `beta-latest`
 3. ✅ Creates a GitHub **pre-release** (marked as beta) with tag `vX.Y.Z-beta.N`
 4. ✅ Uploads `module.zip` and `module.json` as release assets
 5. ✅ Commits the updated `module.json` back to `staging` branch
@@ -108,7 +108,7 @@ Before the *first* v14 stable release, complete the one-time
 4. The workflow **automatically runs** and:
    - Reads the version from `module.json` (e.g., `1.3.0`)
    - Creates a release tagged `v1.3.0-beta.{BUILD_NUMBER}` (auto-incrementing)
-   - Updates `module.json` to point to `beta-latest`
+   - Writes the beta version into `module.json` and points manifest/download at `beta-latest`
    - Commits the changes back to `staging`
 
 **Note:** You do NOT need to bump the version for each beta! The workflow uses the GitHub run number to auto-increment beta builds. Only update the version when you're ready to target a new release number.
@@ -218,7 +218,7 @@ was built from, even after a newer release moves the `*-latest` tag.
 ### Beta (staging):
 - **Versioned tag:** `v1.2.0-beta.5` (specific beta with full changelog)
 - **Auto-update tag:** `beta-latest` (always points to newest beta)
-- Version in module.json: `1.2.0` (base version)
+- Version in module.json: `1.2.0-beta.5` (beta version written before upload)
 - Manifest URL: `/releases/download/beta-latest/module.json` (auto-updates!)
 - Download URL: `/releases/download/beta-latest/module.zip` (auto-updates!)
 
