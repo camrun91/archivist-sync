@@ -17,14 +17,13 @@
 │  STAGING BRANCH                                                          │
 │  ────────────────────────────────────────────────────────────────────── │
 │                                                                          │
-│  Push non-Markdown change to staging                                    │
+│  Push with version bump in module.json/package.json                     │
 │         ↓                                                                │
 │  🤖 BETA-RELEASE.YML WORKFLOW                                            │
 │         │                                                                │
 │         ├─→ Create versioned release: v1.3.0-beta.5                     │
 │         │   └─→ Contains full changelog                                 │
 │         │   └─→ Tagged with specific version                            │
-│         │   └─→ Release assets advertise version 1.3.0-beta.5           │
 │         │                                                                │
 │         ├─→ Update beta-latest tag (force push)                         │
 │         │   └─→ Points to latest beta commit                            │
@@ -33,8 +32,8 @@
 │         │   └─→ Stable URL for auto-updates                             │
 │         │   └─→ Contains module.zip + module.json                       │
 │         │                                                                │
-│         └─→ Restore module.json in staging                              │
-│             └─→ Base version + URLs point to beta-latest                │
+│         └─→ Update module.json in staging                               │
+│             └─→ URLs point to beta-latest                               │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
                        │
@@ -170,7 +169,6 @@
 - **Staging branch** for beta testing
 - **Main branch** for production
 - **Automatic versioning** and tagging
-- **Base version stays on `staging`** while release assets use `-beta.N`
 - **Dual releases** keep history while enabling auto-updates
 
 ### 🎯 For Production Users
@@ -195,3 +193,4 @@
 4. **Prompts user** if newer version detected
 
 Because `beta-latest` points to the newest beta's `module.json` with an incremented version number, Foundry automatically detects updates!
+

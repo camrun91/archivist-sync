@@ -1,0 +1,298 @@
+name: Auto Release v14 on Version Bump
+
+# Stable release channel for the Foundry v14 line, parallel to auto-release.yml
+# (which handles the legacy v13 line on `release/v13`). Both publish to the SAME
+# Foundry package listing (same FOUNDRY_ADMIN_MODULE_ID) as separate versions
+# with independent compatibility ranges — Foundry's client picks whichever
+# version matches the user's installed core version. `staging` remains the
+# beta/dev channel and does not publish to Foundry; this workflow is what
+# actually ships a tested v14 build to the live registry.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "module.json"
+      - "package.json"
+
+# Serialize v14 stable releases. This job force-moves the shared `v14-latest`
+# tag; two overlapping runs would race on delete/recreate and could leave the
+# tag pointing at the older release. Queue instead of cancelling — cancelling
+# mid-publish could leave a GitHub release without its Foundry registry entry.
+# Separate group from the v13 track: the two never touch the same tags, so
+# they are free to publish concurrently.
+concurrency:
+  group: stable-release-v14
+  cancel-in-progress: false
+
+jobs:
+  check-and-release:
+    name: Check Version and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current version from module.json
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' module.json)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Current version in module.json: $VERSION"
+
+      - name: Guard against publishing the wrong version line
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          COMPAT_MIN=$(jq -r '.compatibility.minimum' module.json)
+
+          # Reject empty, prerelease, or non-semver stable versions before
+          # the track-family check. Bash glob `1.*`/`2.*` would otherwise
+          # accept strings like `2.0.0-beta.28` as valid for a stable publish.
+          if [[ -z "$VERSION" ]]; then
+            echo "❌ Refusing to publish: module.json version is empty."
+            exit 1
+          fi
+          if [[ "$VERSION" == *-* ]]; then
+            echo "❌ Refusing to publish: prerelease version '$VERSION' cannot be published as stable."
+            echo "   Strip any -beta/-rc/-alpha suffix from module.json before releasing."
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[12]\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Refusing to publish: version '$VERSION' is not a stable X.Y.Z semver."
+            exit 1
+          fi
+
+          # main publishes the v14 track (2.x / compat 14.x). Refuse to
+          # publish a v13-shaped build here — same mistake as release/v13, mirrored.
+          if [[ "$VERSION" != 2.* ]]; then
+            echo "❌ Refusing to publish: module.json version '$VERSION' is not in the 2.x (v14) family expected on main."
+            echo "   If this is intentionally a v13 release, it belongs on release/v13, not main."
+            exit 1
+          fi
+          if [[ "$COMPAT_MIN" != 14.* ]]; then
+            echo "❌ Refusing to publish: compatibility.minimum '$COMPAT_MIN' is not in the 14.x range expected on main."
+            exit 1
+          fi
+          echo "✅ Version $VERSION / compatibility.minimum $COMPAT_MIN match the v14 track."
+
+      - name: Check if package.json version matches
+        env:
+          MODULE_VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+
+          if [ "$PACKAGE_VERSION" != "$MODULE_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "   module.json: $MODULE_VERSION"
+            echo "   package.json: $PACKAGE_VERSION"
+            exit 1
+          fi
+
+          echo "✅ Versions match: $MODULE_VERSION"
+
+      - name: Check if CHANGELOG has been updated
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          if ! grep -q "## \[$VERSION\]" CHANGELOG.md; then
+            echo "❌ CHANGELOG.md has not been updated for version $VERSION"
+            echo "   Please add a section for version $VERSION in CHANGELOG.md"
+            exit 1
+          fi
+
+          echo "✅ CHANGELOG.md contains section for version $VERSION"
+
+      - name: Check if release already exists
+        id: check_release
+        env:
+          TAG: ${{ steps.get_version.outputs.TAG }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "ℹ️  Tag $TAG already exists, skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✨ Tag $TAG does not exist, will create release"
+          fi
+
+      - name: Setup Node.js
+        if: steps.check_release.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        if: steps.check_release.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Ensure production URLs in module.json
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.get_version.outputs.TAG }}
+        run: |
+          # Point manifest at the moving "v14-latest" tag, not GitHub's built-in
+          # "releases/latest" — release/v13's auto-release-v13.yml also publishes
+          # non-prerelease GitHub releases to this same repo, so
+          # "releases/latest" would flip between the v13 and v14 tracks.
+          # "v14-latest" is a tag this workflow owns and moves itself
+          # (mirroring beta-release.yml's beta-latest and auto-release.yml's
+          # new v13-latest). Download stays on the immutable version tag so
+          # each release's zip URL never changes when v14-latest moves.
+          jq --arg repo "$REPO" --arg tag "$TAG" \
+            '.manifest = "https://github.com/\($repo)/releases/download/v14-latest/module.json" |
+             .download = "https://github.com/\($repo)/releases/download/\($tag)/module.zip"' \
+            module.json > module.json.tmp && mv module.json.tmp module.json
+
+          echo "✅ Ensured production URLs in module.json"
+          echo "   Manifest: $(jq -r '.manifest' module.json)"
+          echo "   Download: $(jq -r '.download' module.json)"
+
+      - name: Create module archive
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          # Create a clean zip of the module
+          zip -r module.zip \
+            module.json \
+            README.md \
+            CHANGELOG.md \
+            CONTRIBUTING.md \
+            assets/ \
+            lang/ \
+            scripts/ \
+            styles/ \
+            templates/ \
+            -x "*.git*" -x "*node_modules*" -x "*.DS_Store"
+
+          echo "📦 Archive created: module.zip"
+          ls -lh module.zip
+
+      - name: Extract changelog for this version
+        if: steps.check_release.outputs.exists == 'false'
+        id: changelog
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          # Extract changelog section for this version
+          if [ -f CHANGELOG.md ]; then
+            awk "/## \[$VERSION\]/,/## \[/" CHANGELOG.md | sed '$d' > release_notes.md
+          fi
+
+          # If release notes are empty, use a default message
+          if [ ! -s release_notes.md ]; then
+            echo "Release $VERSION" > release_notes.md
+            echo "" >> release_notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for details." >> release_notes.md
+          fi
+
+          echo "📝 Release notes:"
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Release ${{ steps.get_version.outputs.VERSION }} (v14)
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          # Keep GitHub's repo-wide /releases/latest pinned to the v13 track.
+          # v13 users who installed before v13-latest existed still have
+          # /releases/latest/download/module.json stored as their manifest URL;
+          # if a v14 release ever became the repo's "latest", Foundry would
+          # auto-update those users onto v14 — the exact incident the version
+          # guards exist to prevent.
+          make_latest: false
+          files: |
+            module.zip
+            module.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set release environment variables
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.get_version.outputs.TAG }}
+        run: |
+          echo "RELEASE_NAME=$TAG" >> $GITHUB_ENV
+          echo "MANIFEST_FILE_PATH=module.json" >> $GITHUB_ENV
+
+      - name: Configure Git
+        if: steps.check_release.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update v14-latest tag
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          git tag -d v14-latest 2>/dev/null || true
+          git push origin :refs/tags/v14-latest 2>/dev/null || true
+          git tag -a v14-latest -m "Latest v14 stable release: $VERSION"
+          git push origin v14-latest
+
+      - name: Create/Update v14-latest Release
+        if: steps.check_release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v14-latest
+          target_commitish: ${{ github.sha }}
+          name: Latest v14 Stable Release
+          body: |
+            This is an automatically updated release that always points to the
+            most recent v14 stable version.
+
+            **Current Version:** ${{ steps.get_version.outputs.VERSION }}
+
+            Manifest URL for direct install:
+            ```
+            https://github.com/${{ github.repository }}/releases/download/v14-latest/module.json
+            ```
+
+            For the full release notes, see [${{ steps.get_version.outputs.TAG }}](https://github.com/${{ github.repository }}/releases/tag/${{ steps.get_version.outputs.TAG }}).
+          draft: false
+          prerelease: false
+          # Same reason as the versioned release above: repo-wide
+          # /releases/latest must stay on the v13 track for legacy installs.
+          make_latest: false
+          files: |
+            module.zip
+            module.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Module to FoundryVTT Website
+        if: steps.check_release.outputs.exists == 'false'
+        uses: Varriount/fvtt-autopublish@v2.0.2
+        with:
+          username: ${{ secrets.FOUNDRY_ADMIN_USERNAME }}
+          password: ${{ secrets.FOUNDRY_ADMIN_PASSWORD }}
+          module-id: ${{ secrets.FOUNDRY_ADMIN_MODULE_ID }}
+          manifest-url: https://github.com/${{ github.repository }}/releases/download/${{ env.RELEASE_NAME }}/module.json
+          manifest-file: ${{ env.MANIFEST_FILE_PATH }}
+
+      - name: Notify on Success
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          TAG: ${{ steps.get_version.outputs.TAG }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "✅ Release $VERSION (v14) published successfully!"
+          echo "📦 Module archive: https://github.com/$REPO/releases/download/$TAG/module.zip"
+          echo "📄 Manifest: https://github.com/$REPO/releases/download/$TAG/module.json"
+          echo "🌐 Published to Foundry VTT package repository (v14 track)"

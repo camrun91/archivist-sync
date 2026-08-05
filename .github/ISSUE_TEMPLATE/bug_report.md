@@ -27,7 +27,7 @@ If applicable, add screenshots to help explain your problem.
 
 ## Environment
 
-- **Foundry VTT Version:** [e.g. v14.359]
+- **Foundry VTT Version:** [e.g. v13.346]
 - **Module Version:** [e.g. 1.2.3]
 - **Game System:** [e.g. dnd5e v3.3.1]
 - **Browser:** [e.g. Chrome 120, Firefox 121]
