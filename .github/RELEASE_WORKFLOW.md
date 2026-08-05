@@ -1,8 +1,8 @@
 # Release Workflow Documentation
 
 This module publishes **two parallel version lines to the same Foundry package
-listing**: a legacy v13 line (`1.x`, from `main`) and a v14 line (`2.x`, from
-`release/v14`). Foundry's registry natively supports multiple versions per
+listing**: a legacy v13 line (`1.x`, from `release/v13`) and a v14 line (`2.x`, from
+`main`). Foundry's registry natively supports multiple versions per
 package, each with its own compatibility range — the Foundry client picks
 whichever version matches the user's installed core version, so no separate
 listing/package id is needed.
@@ -11,21 +11,21 @@ There are three GitHub Actions workflows involved:
 
 | Branch | Workflow | Publishes to Foundry? | Version family |
 |---|---|---|---|
-| `main` | `auto-release.yml` | Yes | `1.x`, compat `13.x` |
-| `release/v14` | `auto-release-v14.yml` | Yes | `2.x`, compat `14.x` |
+| `main` | `auto-release-v14.yml` | Yes | `2.x`, compat `14.x` |
+| `release/v13` | `auto-release-v13.yml` | Yes | `1.x`, compat `13.x` |
 | `staging` | `beta-release.yml` | No (GitHub pre-release only) | v14 betas |
 
 Both stable workflows refuse to run if `module.json`'s version/compatibility
 don't match their expected family — this guards against the exact incident
 that previously broke v13 users (a v14-shaped build publishing under a v13
-version string via `main`).
+version string via `release/v13`).
 
-## 🚀 Production Release — v13 (main branch)
+## 🚀 Production Release — v13 (release/v13 branch)
 
-**Workflow:** `.github/workflows/auto-release.yml`
+**Workflow:** `.github/workflows/auto-release-v13.yml`
 
 ### When it runs:
-- Automatically triggered when `module.json` or `package.json` is pushed to the `main` branch
+- Automatically triggered when `module.json` or `package.json` is pushed to the `release/v13` branch
 
 ### What it does:
 1. ✅ Verifies `module.json` version is `1.x` and `compatibility.minimum` is `13.x` — refuses to publish otherwise
@@ -44,23 +44,23 @@ version string via `main`).
    ### Added
    - New feature description
    ```
-3. Commit and push to `main`
+3. Commit and push to `release/v13`
 4. The workflow will automatically create the release
 
 ---
 
-## 🚀 Production Release — v14 (release/v14 branch)
+## 🚀 Production Release — v14 (main branch)
 
 **Workflow:** `.github/workflows/auto-release-v14.yml`
 
 ### When it runs:
-- Automatically triggered when `module.json` or `package.json` is pushed to the `release/v14` branch
+- Automatically triggered when `module.json` or `package.json` is pushed to the `main` branch
 
 ### What it does:
 Same steps as the v13 workflow above, but requires `module.json` version to be
 `2.x` and `compatibility.minimum` to be `14.x`, and maintains its own moving
 `v14-latest` tag/release instead of `v13-latest`. Publishes to the **same**
-Foundry package listing as `main` (same `FOUNDRY_ADMIN_MODULE_ID`), as a
+Foundry package listing as `release/v13` (same `FOUNDRY_ADMIN_MODULE_ID`), as a
 separate version entry with its own compatibility range.
 
 Its GitHub releases are created with `make_latest: false`, so the repo-wide
@@ -70,23 +70,19 @@ who installed before `v13-latest` existed and still have
 it, each v14 publish would silently repoint those installs at v14.
 
 ### How to create a v14 production release:
-1. If `release/v14` doesn't exist yet, create it from a commit that already
-   contains `.github/workflows/auto-release-v14.yml` — i.e. from `main` after
-   the dual-publish CI merged, or cherry-pick that workflow file onto the new
-   branch.
-   > ⚠️ Do **not** branch `release/v14` off `staging` alone. GitHub evaluates
-   > workflows from the ref being pushed, so a `release/v14` without
-   > `auto-release-v14.yml` accepts version bumps and silently publishes
-   > nothing.
-2. Merge/promote tested `staging` work into `release/v14`
-3. Resolve the version in both `module.json` and `package.json` (keep it in the
+1. Merge/promote tested `staging` work into `main`
+2. Resolve the version in both `module.json` and `package.json` (keep it in the
    `2.x` family, compat `14.x`) — `staging` merges often carry beta or `1.x`
    values that the workflow will reject
-4. Add a section for the new version in `CHANGELOG.md`
-5. Push to `release/v14` — the workflow creates the release and publishes to Foundry
+3. Add a section for the new version in `CHANGELOG.md`
+4. Push to `main` — the workflow creates the release and publishes to Foundry
+
+   > ⚠️ `release/v13` must keep its own `auto-release-v13.yml`. GitHub evaluates workflows
+   > from the ref being pushed, so a `release/v13` without that file accepts version bumps
+   > and silently publishes nothing.
 
 Before the *first* v14 stable release, complete the one-time
-[Pre-v14 cutover](#-pre-v14-cutover-required-once) checklist.
+[Reclaiming /releases/latest](#-reclaiming-releaseslatest-required-once-still-pending) checklist.
 
 ---
 
@@ -138,45 +134,61 @@ In Foundry VTT:
 ## 📋 Branch Strategy
 
 ```
-                     staging (v14 beta releases)
-                        ↓
-                        ↓ (merge tested work when ready)
-                        ↓
-                     release/v14 (v14 production releases) ──┐
-                                                              ├─→ same Foundry listing,
-                     main (v13 production releases) ─────────┘   different version entries
+                     staging  ── v14 betas ──────────────► GitHub pre-release only
+                        │                                  (beta-release.yml, beta-latest)
+                        │ merge tested work when ready
+                        ▼
+                     main     ── v14 stable (2.x / compat 14.x) ──┐
+                                 auto-release-v14.yml             │  same Foundry package
+                                 tag: v14-latest                  ├─ listing, two version
+                                 make_latest: false               │  entries
+                                                                  │
+                     release/v13 ── v13 stable (1.x / compat 13.x)┘
+                                 auto-release-v13.yml
+                                 tag: v13-latest
+                                 make_latest: true
 ```
 
-`main` and `staging`/`release/v14` are independent lines — `main` no longer
-receives the v14 rewrite. Fixes that apply to both must be ported by hand
+`main` and `release/v13` are independent lines — they must not be merged into
+each other. Fixes that apply to both must be ported by hand
 (cherry-pick or reimplement), not by merging the branches into each other.
 
 ### Typical workflow:
 1. **v14 development:** Make changes on feature branches, merge to `staging`
 2. **v14 Beta Testing:** Push version bump to `staging` → creates beta release
-3. **v14 Release:** When ready, merge `staging` to `release/v14` → creates v14 production release
-4. **v13 maintenance:** Fixes/parity changes for the legacy line go directly to `main` → creates v13 production release
+3. **v14 Release:** When ready, merge `staging` to `main` → creates v14 production release
+4. **v13 maintenance:** Fixes/parity changes for the legacy line go directly to `release/v13` → creates v13 production release
 
 ---
 
-## 🔀 Pre-v14 cutover (required once)
+## 🔀 Reclaiming /releases/latest (required once, still pending)
 
 Installs made before `v13-latest` existed still store
 `/releases/latest/download/module.json` as their manifest URL. That URL is
 repo-wide, so whichever release GitHub last marked "latest" owns those users.
-Run this checklist **once, before the first `release/v14` publish**:
 
-1. **Reclaim `/releases/latest` for v13.** Push a normal v13 production release
-   on `main`. Its release is created with `make_latest: true`, which moves the
-   repo-wide latest pointer back onto the v13 track.
+Current state:
+
+- `v13-latest` **does not exist yet**; the next v13 stable release from `release/v13`
+  creates it.
+- GitHub's repo-wide "Latest" is `v1.3.13` and **must stay on the v13 track**:
+  `auto-release-v13.yml` sets `make_latest: true`, `auto-release-v14.yml` sets
+  `make_latest: false`.
+- Moving `/releases/latest` onto v14 is a **future, separate decision**, only safe once
+  `v13-latest` exists and legacy installs have been migrated to it.
+
+Run this checklist **once, before the first v14 stable publish on `main`**:
+
+1. **Seed `v13-latest`.** Push a normal v13 production release on `release/v13`.
+   Its release is created with `make_latest: true`, which creates the moving
+   `v13-latest` tag and keeps the repo-wide latest pointer on the v13 track.
 2. **Confirm it took.** Open the repo's Releases page (or
    `/releases/latest`) and verify the release badged "Latest" is a `v1.x`
    release.
-3. **Only then publish v14.** Create/push the first `release/v14` stable
-   release. Its workflow uses `make_latest: false`, so it never touches the
-   repo-wide latest pointer.
-4. **Optional user migration.** Legacy installs stay safe as long as `main`
-   keeps reclaiming latest and `release/v14` never sets `make_latest`. Users
+3. **Only then publish v14.** Push the first `main` stable release. Its workflow
+   uses `make_latest: false`, so it never touches the repo-wide latest pointer.
+4. **Optional user migration.** Legacy installs stay safe as long as `release/v13`
+   keeps reclaiming latest and `main` never sets `make_latest`. Users
    who *want* the moving v13 track explicitly can reinstall with
    `https://github.com/camrun91/archivist-sync/releases/download/v13-latest/module.json`.
 
@@ -184,13 +196,13 @@ Run this checklist **once, before the first `release/v14` publish**:
 
 ## 🔧 Version Numbering
 
-### Production v13 (main):
+### Production v13 (release/v13):
 - Tag: `v1.2.0`
 - Version in module.json: `1.2.0`
 - Manifest URL: `/releases/download/v13-latest/module.json` (auto-updates)
 - Download URL in the published manifest: `/releases/download/v1.2.0/module.zip` (immutable for that release)
 
-### Production v14 (release/v14):
+### Production v14 (main):
 - Tag: `v2.1.0`
 - Version in module.json: `2.1.0`
 - Manifest URL: `/releases/download/v14-latest/module.json` (auto-updates)
@@ -235,7 +247,7 @@ was built from, even after a newer release moves the `*-latest` tag.
 - Make changes but don't update the version numbers
 - Or use `[skip ci]` in your commit message
 
-### Promoting staging to release/v14
+### Promoting staging to main
 - The `staging` branch's `module.json` will have beta URLs:
   ```json
   "manifest": "https://github.com/camrun91/archivist-sync/releases/download/beta-latest/module.json",
@@ -247,18 +259,17 @@ was built from, even after a newer release moves the `*-latest` tag.
   `download` becomes that release's versioned zip (`/releases/download/v2.1.0/module.zip`).
 - Do **not** point any manifest at `releases/latest/download/`, and do **not**
   hand-edit which release GitHub marks "latest". That pointer is repo-wide and is
-  managed by the workflows: `main` claims it (`make_latest: true`), `release/v14`
+  managed by the workflows: `release/v13` claims it (`make_latest: true`), `main`
   leaves it alone (`make_latest: false`). See
-  [Pre-v14 cutover](#-pre-v14-cutover-required-once).
+  [Reclaiming /releases/latest](#-reclaiming-releaseslatest-required-once-still-pending).
 
 ---
 
 ## 🎯 Best Practices
 
 1. **Always update CHANGELOG.md** before releasing (production)
-2. **Test on staging** before promoting to `release/v14`
+2. **Test on staging** before promoting to `main`
 3. **Keep versions in sync** between `module.json` and `package.json`
 4. **Use semantic versioning**: `MAJOR.MINOR.PATCH`
 5. **Beta testing**: Share the beta manifest URL with trusted testers
-6. **Production release**: Only push to `main` (v13) or `release/v14` (v14) when ready for public release
-
+6. **Production release**: Only push to `release/v13` (v13) or `main` (v14) when ready for public release
