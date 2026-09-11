@@ -1418,8 +1418,71 @@ function installRealtimeSyncListeners() {
     }
   });
 
-  // Delete custom sheets when the JournalEntry itself is deleted
-  Hooks.on('preDeleteJournalEntry', async (entry) => {
+  // Delete custom sheets when the JournalEntry itself is deleted.
+  // Defer the Archivist-side decision until every preDelete in this turn has
+  // registered. A bulk delete of duplicate sheets otherwise sees each sibling
+  // still in game.journal and skips the remote delete for all of them.
+  const pendingSheetDeletes = new Map();
+  let flushChain = Promise.resolve();
+
+  const flushArchivistSheetDelete = async (archivistId, bucket) => {
+    const survivors = (game.journal?.contents || []).filter((j) => {
+      if (bucket.ids.has(String(j.id))) return false;
+      return Utils.journalReferencesArchivistId(j, archivistId);
+    });
+    const hasLinkedCoreDocument =
+      Utils.coreDocumentReferencesArchivistId(archivistId);
+    if (survivors.length || hasLinkedCoreDocument) {
+      console.log(
+        '[RTS] Skipping Archivist delete: other sheets still reference this record',
+        { archivistId, remaining: survivors.length, hasLinkedCoreDocument }
+      );
+      ui.notifications?.info?.(
+        survivors.length
+          ? `Removed the duplicate sheet. "${bucket.name}" is still in Archivist — ${survivors.length} other sheet${survivors.length > 1 ? 's' : ''} still reference${survivors.length > 1 ? '' : 's'} it.`
+          : `Removed the duplicate sheet. "${bucket.name}" is still in Archivist — a linked Actor, Item, or Scene still references it.`
+      );
+      return;
+    }
+
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: 'Delete from Archivist?' },
+      content:
+        `<p>This is the only Foundry sheet for <strong>${foundry.utils.escapeHTML(bucket.name || 'this record')}</strong>.</p>` +
+        `<p>Deleting it here also <strong>permanently deletes it from Archivist</strong> for everyone in the campaign. This cannot be undone.</p>` +
+        `<p>Delete from Archivist too, or keep the Archivist record and only remove the Foundry sheet?</p>`,
+      yes: { label: 'Delete from Archivist', icon: 'fa-solid fa-trash' },
+      no: { label: 'Keep in Archivist', icon: 'fa-solid fa-cloud' },
+      defaultYes: false,
+      rejectClose: false,
+    });
+    if (!confirmed) {
+      console.log('[RTS] GM kept the Archivist record; only the Foundry sheet is removed', {
+        archivistId,
+      });
+      return;
+    }
+
+    const st = bucket.sheetType;
+    if (
+      (st === 'pc' || st === 'npc' || st === 'character') &&
+      archivistApi.deleteCharacter
+    ) {
+      await archivistApi.deleteCharacter(apiKey, archivistId);
+    } else if (st === 'item' && archivistApi.deleteItem) {
+      await archivistApi.deleteItem(apiKey, archivistId);
+    } else if (st === 'location' && archivistApi.deleteLocation) {
+      await archivistApi.deleteLocation(apiKey, archivistId);
+    } else if (st === 'faction' && archivistApi.deleteFaction) {
+      await archivistApi.deleteFaction(apiKey, archivistId);
+    } else if (st === 'quest') {
+      await archivistApi.deleteQuest(apiKey, archivistId);
+    } else if (st === 'journal') {
+      await archivistApi.deleteJournal(apiKey, archivistId);
+    }
+  };
+
+  Hooks.on('preDeleteJournalEntry', (entry) => {
     try {
       if (
         !settingsManager.isRealtimeSyncEnabled?.() ||
@@ -1430,23 +1493,29 @@ function installRealtimeSyncListeners() {
       const id = flags?.archivistId;
       const st = String(flags?.sheetType || '').toLowerCase();
       if (!id) return;
-      if (st === 'recap') return; // Never create/delete recaps
-      if (
-        (st === 'pc' || st === 'npc' || st === 'character') &&
-        archivistApi.deleteCharacter
-      ) {
-        await archivistApi.deleteCharacter(apiKey, id);
-      } else if (st === 'item' && archivistApi.deleteItem) {
-        await archivistApi.deleteItem(apiKey, id);
-      } else if (st === 'location' && archivistApi.deleteLocation) {
-        await archivistApi.deleteLocation(apiKey, id);
-      } else if (st === 'faction' && archivistApi.deleteFaction) {
-        await archivistApi.deleteFaction(apiKey, id);
-      } else if (st === 'quest') {
-        await archivistApi.deleteQuest(apiKey, id);
-      } else if (st === 'journal') {
-        await archivistApi.deleteJournal(apiKey, id);
+      if (st === 'recap' || st === 'session') return; // Never create/delete recaps
+
+      let bucket = pendingSheetDeletes.get(id);
+      if (!bucket) {
+        bucket = {
+          ids: new Set(),
+          sheetType: st,
+          name: entry.name || 'this record',
+        };
+        pendingSheetDeletes.set(id, bucket);
+        queueMicrotask(() => {
+          pendingSheetDeletes.delete(id);
+          // Distinct records each get their own bucket; run their confirms
+          // one after another so a multi-select delete does not open a
+          // stack of destructive DialogV2 windows at once.
+          flushChain = flushChain
+            .catch(() => {})
+            .then(() => flushArchivistSheetDelete(id, bucket))
+            .catch((e) => console.warn('[RTS] preDeleteJournalEntry failed', e));
+        });
       }
+      bucket.ids.add(String(entry.id));
+      if (entry.name) bucket.name = entry.name;
     } catch (e) {
       console.warn('[RTS] preDeleteJournalEntry failed', e);
     }

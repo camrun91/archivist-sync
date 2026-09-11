@@ -2144,7 +2144,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         try {
           const name = c.character_name || c.name || actor.name || 'Character';
           const html = Utils.markdownToStoredHtml(String(c.description || ''));
-          const imageUrl = c.image || undefined;
+          // Pass the API value through as-is: `undefined` means the field was
+          // omitted (leave the reused journal's image alone), while an
+          // authoritative `null`/'' means Archivist has no image and the
+          // reused journal's stale thumbnail must be cleared. `c.image ||
+          // undefined` used to coerce both cases to `undefined`, defeating
+          // that distinction in Utils.createCustomJournalForImport.
+          const imageUrl = c.image;
           const targetFolderId =
             archivistType === 'NPC'
               ? this.setupData.destinations.npc
@@ -2272,7 +2278,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         try {
           const name = i.name || item.name || 'Item';
           const html = Utils.markdownToStoredHtml(String(i.description || ''));
-          const imageUrl = i.image || undefined;
+          // See the matching comment in createCharacter above: pass the API
+          // value through as-is so an authoritative null/'' (no Archivist
+          // image) reaches Utils.createCustomJournalForImport distinctly
+          // from an omitted field, instead of both collapsing to undefined.
+          const imageUrl = i.image;
           const targetFolderId = this.setupData.destinations.item;
 
           console.debug(`[World Setup] Creating journal for Item:`, {
@@ -2485,7 +2495,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               ? folderIdMap.get(String(j.folder_id)) || journalRootFolderId
               : journalRootFolderId;
             const html = Utils.markdownToStoredHtml(
-              String(j.content || j.summary || '')
+              Utils.archivistBodyText('Journal', j)
             );
             const imageUrl =
               typeof j.cover_image === 'string' && j.cover_image.trim()
@@ -2754,15 +2764,17 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           sort: sortValue,
         });
         if (journal) {
-          if (s.session_date) {
-            try {
+          try {
+            if (s.session_date) {
               await journal.setFlag(
                 CONFIG.MODULE_ID,
                 'sessionDate',
                 String(s.session_date)
               );
-            } catch (_) {}
-          }
+            } else {
+              await journal.unsetFlag(CONFIG.MODULE_ID, 'sessionDate');
+            }
+          } catch (_) {}
         }
       }
 

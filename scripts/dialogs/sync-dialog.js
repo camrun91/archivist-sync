@@ -171,7 +171,13 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     event.preventDefault();
     const scope = event?.target?.closest?.('[data-scope]')?.dataset?.scope;
     if (!scope) return;
-    if (scope === 'diffs') this.model.diffs.forEach((d) => (d.selected = true));
+    // Select All arms updates, never deletions. A deletion is irreversible in
+    // both systems, so it stays an explicit per-row choice.
+    if (scope === 'diffs') {
+      this.model.diffs.forEach((d) => {
+        if (!d.deleted) d.selected = true;
+      });
+    }
     if (scope === 'imports')
       this.model.imports.forEach((i) => (i.selected = true));
     this._captureScrollPosition();
@@ -236,7 +242,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       ui.notifications?.warn?.('Archivist world not configured.');
       return;
     }
-    const selectedDiffs = this.model.diffs.filter((d) => d.selected);
+    let selectedDiffs = this.model.diffs.filter((d) => d.selected);
     const selectedImports = this.model.imports.filter((i) => i.selected);
 
     // Show nothing selected warning
@@ -272,22 +278,38 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     console.debug('[SyncDialog] Real-time sync successfully suppressed');
 
     try {
-      // Confirm deletions before proceeding
-      const deleteDiffs = selectedDiffs.filter((d) => d.deleted);
+      // Confirm deletions before proceeding. Declining must not throw away the
+      // non-destructive half of the sync, so this is a three-way choice:
+      // delete, skip just the deletions, or abandon the run entirely.
+      let deleteDiffs = selectedDiffs.filter((d) => d.deleted);
       if (deleteDiffs.length > 0) {
         const names = deleteDiffs
           .map((d) => foundry.utils.escapeHTML(String(d.name ?? '')))
           .join(', ');
         const confirmed = await foundry.applications.api.DialogV2.confirm({
           window: { title: 'Confirm Deletion' },
-          content: `<p><strong>${deleteDiffs.length}</strong> journal${deleteDiffs.length > 1 ? 's' : ''} will be permanently deleted:</p><p>${names}</p><p>This cannot be undone. Continue?</p>`,
-          yes: { label: 'Delete', icon: 'fas fa-trash' },
-          no: { label: 'Cancel' },
+          content:
+            `<p><strong>${deleteDiffs.length}</strong> Foundry sheet${deleteDiffs.length > 1 ? 's' : ''} will be permanently deleted because ${deleteDiffs.length > 1 ? 'their' : 'its'} Archivist record no longer exists:</p>` +
+            `<p>${names}</p>` +
+            `<p>This cannot be undone. If ${deleteDiffs.length > 1 ? 'those records were' : 'that record was'} deleted by accident, skip the deletions and restore in Archivist first.</p>`,
+          yes: { label: 'Delete them', icon: 'fas fa-trash' },
+          no: { label: 'Skip deletions, apply the rest', icon: 'fas fa-forward' },
+          defaultYes: false,
+          rejectClose: false,
         });
-        if (!confirmed) {
+        if (confirmed === null || confirmed === undefined) {
+          // Dialog dismissed — abandon the whole run rather than guessing.
           this.isLoading = false;
           await this.render();
           return;
+        }
+        if (confirmed === false) {
+          const skipped = new Set(deleteDiffs.map((d) => d.journalId));
+          selectedDiffs = selectedDiffs.filter((d) => !skipped.has(d.journalId));
+          deleteDiffs = [];
+          for (const d of this.model.diffs) {
+            if (skipped.has(d.journalId)) d.selected = false;
+          }
         }
       }
 
@@ -440,6 +462,31 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         .map((line) => line.trim())
         .join('\n')
         .trim()
+    );
+  }
+
+  /**
+   * Compare stored HTML while keeping tags, so `# Title` vs `Title` is a
+   * real journal change instead of collapsing to the same plain text.
+   * @param {string} html
+   * @returns {string}
+   */
+  _normalizeHtmlForComparison(html) {
+    const src = String(html ?? '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n');
+    const parked = [];
+    const withoutCode = src.replace(
+      /<(pre|code)\b[^>]*>[\s\S]*?<\/\1>/gi,
+      (m) => `\uE000${parked.push(m) - 1}\uE001`
+    );
+    const normalized = withoutCode
+      .replace(/[^\S\n]+/g, ' ')
+      .replace(/>\s+</g, '><')
+      .trim();
+    return normalized.replace(
+      /\uE000(\d+)\uE001/g,
+      (_m, i) => parked[Number(i)] ?? ''
     );
   }
 
@@ -603,27 +650,39 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           const questChanges = this._diffQuestData(localQd, archQd);
           if (questChanges) changes.questData = questChanges;
         } else {
-          // Description mapping: compare normalized plain text (Foundry HTML vs Archivist Markdown)
+          // Description mapping: Foundry HTML vs Archivist Markdown
           try {
             const textPage =
               (j?.pages?.contents || []).find((p) => p.type === 'text') || null;
             const stored = Utils.extractPageHtml(textPage) || '';
-            const foundryPlain = Utils.toMarkdownIfHtml(stored);
-            const archMd = String(
-              (arch.description ?? arch.summary ?? arch.content) || ''
-            );
+            const archMd = Utils.archivistBodyText(type, arch);
             const archHtml = Utils.markdownToStoredHtml(archMd);
-            const archivistPlain = Utils.toMarkdownIfHtml(archHtml);
 
-            const foundryNormalized =
-              this._normalizeTextForComparison(foundryPlain);
-            const archivistNormalized =
-              this._normalizeTextForComparison(archivistPlain);
-
-            if (
-              archivistNormalized &&
-              foundryNormalized !== archivistNormalized
-            ) {
+            // Journals now arrive as Markdown specifically to restore
+            // headings/lists. Compare rendered HTML so `Title` vs `# Title`
+            // is a real change, and allow an explicit empty Archivist body
+            // to clear a stale Foundry page.
+            let differs;
+            if (String(type) === 'Journal') {
+              const storedHtml =
+                Number(textPage?.text?.format ?? 0) === 2
+                  ? Utils.markdownToStoredHtml(stored)
+                  : stored;
+              differs =
+                this._normalizeHtmlForComparison(storedHtml) !==
+                this._normalizeHtmlForComparison(archHtml);
+            } else {
+              const foundryNormalized = this._normalizeTextForComparison(
+                Utils.toMarkdownIfHtml(stored)
+              );
+              const archivistNormalized = this._normalizeTextForComparison(
+                Utils.toMarkdownIfHtml(archHtml)
+              );
+              differs = !!(
+                archivistNormalized && foundryNormalized !== archivistNormalized
+              );
+            }
+            if (differs) {
               changes.description = { from: stored, to: archMd };
             }
           } catch (_) {
@@ -758,7 +817,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           type,
           id,
           name: row.character_name || row.name || row.title || 'Untitled',
-          description: row.description || row.summary || row.content || '',
+          description: Utils.archivistBodyText(type, row),
           image: row.image || '',
           selected: false,
           createCore: false,
@@ -954,7 +1013,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
                     : null;
     if (!sheetType) return;
     // Convert markdown from Archivist to HTML for Foundry storage (sessions use summary)
-    const markdownContent = String(row.description || row.summary || row.content || '');
+    const markdownContent = Utils.archivistBodyText(row.type, row);
     const htmlContent = Utils.markdownToStoredHtml(markdownContent);
 
     // Determine folder ID based on sheet type using saved destinations
@@ -1048,13 +1107,17 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       }
     }
     // For sessions, set sessionDate flag for later edits
-    if (sheetType === 'recap' && row.session_date) {
+    if (sheetType === 'recap') {
       try {
-        await journal.setFlag(
-          CONFIG.MODULE_ID,
-          'sessionDate',
-          String(row.session_date)
-        );
+        if (row.session_date) {
+          await journal.setFlag(
+            CONFIG.MODULE_ID,
+            'sessionDate',
+            String(row.session_date)
+          );
+        } else {
+          await journal.unsetFlag(CONFIG.MODULE_ID, 'sessionDate');
+        }
       } catch (_) {}
     }
     // Ensure chronological ordering within the Recaps folder (oldest -> newest)
@@ -1222,7 +1285,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
               else if (itemId) targetDoc = game.items?.get?.(itemId) || null;
               else if (sceneId) targetDoc = game.scenes?.get?.(sceneId) || null;
 
-              const md = String(row.description || row.summary || row.content || '');
+              const md = Utils.archivistBodyText(row.type, row);
               const html = Utils.markdownToStoredHtml(md);
 
               if (targetDoc) {
