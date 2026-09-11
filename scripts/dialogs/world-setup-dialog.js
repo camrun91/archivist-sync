@@ -2150,7 +2150,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         try {
           const name = c.character_name || c.name || actor.name || 'Character';
           const html = Utils.toMarkdownIfHtml(String(c.description || ''));
-          const imageUrl = c.image || undefined;
+          // Pass an authoritative absent value through so a reused sheet can
+          // clear artwork removed in Archivist.
+          const imageUrl = c.image;
           const targetFolderId =
             archivistType === 'NPC'
               ? this.setupData.destinations.npc
@@ -2278,7 +2280,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         try {
           const name = i.name || item.name || 'Item';
           const html = Utils.toMarkdownIfHtml(String(i.description || ''));
-          const imageUrl = i.image || undefined;
+          // Pass an authoritative absent value through so a reused sheet can
+          // clear artwork removed in Archivist.
+          const imageUrl = i.image;
           const targetFolderId = this.setupData.destinations.item;
 
           console.debug(`[World Setup] Creating journal for Item:`, {
@@ -2490,7 +2494,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             const folderId = j.folder_id
               ? folderIdMap.get(String(j.folder_id)) || journalRootFolderId
               : journalRootFolderId;
-            const html = Utils.toMarkdownIfHtml(String(j.content || j.summary || ''));
+            const html = Utils.markdownToStoredHtml(
+              Utils.archivistBodyText('Journal', j)
+            );
             const imageUrl =
               typeof j.cover_image === 'string' && j.cover_image.trim()
                 ? j.cover_image.trim()
@@ -2796,15 +2802,17 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           sort: sortValue,
         });
         if (journal) {
-          if (s.session_date) {
-            try {
+          try {
+            if (s.session_date) {
               await journal.setFlag(
                 CONFIG.MODULE_ID,
                 'sessionDate',
                 String(s.session_date)
               );
-            } catch (_) {}
-          }
+            } else {
+              await journal.unsetFlag(CONFIG.MODULE_ID, 'sessionDate');
+            }
+          } catch (_) {}
         }
       }
 

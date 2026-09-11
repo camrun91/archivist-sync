@@ -483,6 +483,50 @@ export class Utils {
       return s;
     }
   }
+
+  static firstPresent(...values) {
+    for (const value of values) {
+      if (value != null) return String(value);
+    }
+    return '';
+  }
+
+  /**
+   * Resolve the prose body for an Archivist record.
+   *
+   * Field naming differs per type: compendium entities use `description`,
+   * Sessions put their recap in `summary`, and Journals keep the body in
+   * `content` with `summary` holding only a short blurb — so a single
+   * `description || summary || content` chain imports a Journal's blurb as if
+   * it were the whole entry. An explicit empty string is kept; only
+   * absent/null fields fall through.
+   *
+   * @param {string} type Archivist record type ('Journal', 'Session', ...)
+   * @param {object} row
+   * @returns {string}
+   */
+  static archivistBodyText(type, row) {
+    if (!row) return '';
+    if (String(type) === 'Journal') {
+      return this.firstPresent(row.content, row.description, row.summary);
+    }
+    return this.firstPresent(row.description, row.summary, row.content);
+  }
+
+  /**
+   * Allow only http(s), mailto, and in-page fragments in fallback Markdown
+   * links. The surrounding text is already HTML-escaped.
+   * @param {string} href
+   * @returns {string} original escaped href, or empty if rejected
+   */
+  static _safeMarkdownHref(href) {
+    const raw = String(href ?? '').trim();
+    if (!raw) return '';
+    const decoded = raw.replace(/&amp;/g, '&');
+    if (/^(https?:|mailto:|#)/i.test(decoded)) return raw;
+    return '';
+  }
+
   /**
    * Log messages with module prefix
    * @param {string} message - The message to log
@@ -519,17 +563,537 @@ export class Utils {
    * @param {string} markdown
    * @returns {string} sanitized HTML
    */
+  /**
+   * Scan a Markdown link/image destination starting right after its opening
+   * `(`, honoring balanced inner parentheses.
+   */
+  static _scanMarkdownDestination(str, start) {
+    const len = str.length;
+    let i = start;
+    let href;
+    if (str.startsWith('&lt;', start)) {
+      const closeIdx = str.indexOf('&gt;', start + 4);
+      if (closeIdx === -1) return null;
+      href = str.slice(start + 4, closeIdx);
+      if (!href || href.includes('&lt;')) return null;
+      i = closeIdx + 4;
+    } else {
+      let depth = 0;
+      while (i < len) {
+        const ch = str[i];
+        if (ch === '(') {
+          depth += 1;
+          i += 1;
+          continue;
+        }
+        if (ch === ')') {
+          if (depth === 0) break;
+          depth -= 1;
+          i += 1;
+          continue;
+        }
+        if (/\s/.test(ch)) break;
+        i += 1;
+      }
+      if (i === start) return null;
+      href = str.slice(start, i);
+    }
+
+    let idx = i;
+    let title;
+    let titleEsc;
+    let j = i;
+    let sawSpace = false;
+    while (j < len && /\s/.test(str[j])) {
+      j += 1;
+      sawSpace = true;
+    }
+    if (sawSpace && str[j] === '"') {
+      const closeIdx = str.indexOf('"', j + 1);
+      if (closeIdx !== -1) {
+        title = str.slice(j + 1, closeIdx);
+        idx = closeIdx + 1;
+      }
+    } else if (sawSpace && str.startsWith('&quot;', j)) {
+      const closeIdx = str.indexOf('&quot;', j + 6);
+      if (closeIdx !== -1) {
+        titleEsc = str.slice(j + 6, closeIdx);
+        idx = closeIdx + 6;
+      }
+    }
+    if (str[idx] !== ')') return null;
+    return { href, title, titleEsc, end: idx + 1 };
+  }
+
+  /** Replace Markdown links or images with parked HTML. */
+  static _replaceMarkdownLinks(str, isImage, park) {
+    const marker = isImage ? '![' : '[';
+    let out = '';
+    let i = 0;
+    while (i < str.length) {
+      const idx = str.indexOf(marker, i);
+      if (idx === -1) {
+        out += str.slice(i);
+        break;
+      }
+      out += str.slice(i, idx);
+      const labelStart = idx + marker.length;
+      const labelEnd = this._scanMarkdownLabelEnd(str, labelStart);
+      const validLabel = isImage
+        ? labelEnd !== -1
+        : labelEnd !== -1 && labelEnd > labelStart;
+      if (!validLabel || str[labelEnd + 1] !== '(') {
+        out += marker[0];
+        i = idx + 1;
+        continue;
+      }
+      const label = str.slice(labelStart, labelEnd);
+      const dest = this._scanMarkdownDestination(str, labelEnd + 2);
+      if (!dest) {
+        out += marker[0];
+        i = idx + 1;
+        continue;
+      }
+      const safe = this._safeMarkdownHref(dest.href);
+      if (!safe) {
+        out += str.slice(idx, dest.end);
+        i = dest.end;
+        continue;
+      }
+      const title = dest.title || dest.titleEsc;
+      const titleAttr = title ? ' title="' + title + '"' : '';
+      if (isImage) {
+        out += park(
+          '<img src="' + safe + '" alt="' + label + '"' + titleAttr + '>'
+        );
+      } else {
+        const renderedLabel = this._formatMarkdownInline(label);
+        out += park(
+          '<a href="' + safe + '"' + titleAttr + '>' + renderedLabel + '</a>'
+        );
+      }
+      i = dest.end;
+    }
+    return out;
+  }
+
+  /** Find the closing bracket paired with a Markdown link/image label. */
+  static _scanMarkdownLabelEnd(str, start) {
+    let depth = 0;
+    for (let i = start; i < str.length; i += 1) {
+      if (str[i] === '[') {
+        depth += 1;
+      } else if (str[i] === ']') {
+        if (depth === 0) return i;
+        depth -= 1;
+      }
+    }
+    return -1;
+  }
+
+  /** Apply the non-structural emphasis passes used by the inline fallback. */
+  static _formatMarkdownInline(text) {
+    return String(text ?? '')
+      .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/~~(.+?)~~/g, '<s>$1</s>')
+      .replace(/(?<!\w)[*_](?=\S)(.+?)(?<=\S)[*_](?!\w)/g, '<em>$1</em>');
+  }
+
+  /** Replace code spans whose opening and closing backtick runs match. */
+  static _replaceMarkdownCodeSpans(str, park) {
+    let out = '';
+    let i = 0;
+    while (i < str.length) {
+      let openIdx = str.indexOf('`', i);
+      while (openIdx !== -1) {
+        let slashes = 0;
+        for (let j = openIdx - 1; j >= 0 && str[j] === '\\'; j -= 1) {
+          slashes += 1;
+        }
+        if (slashes % 2 === 0) break;
+        openIdx = str.indexOf('`', openIdx + 1);
+      }
+      if (openIdx === -1) {
+        out += str.slice(i);
+        break;
+      }
+      out += str.slice(i, openIdx);
+      let openEnd = openIdx;
+      while (str[openEnd] === '`') openEnd += 1;
+      const delimiterLength = openEnd - openIdx;
+
+      let searchIdx = openEnd;
+      let closeIdx = -1;
+      let closeEnd = -1;
+      while (searchIdx < str.length) {
+        const candidate = str.indexOf('`', searchIdx);
+        if (candidate === -1) break;
+        let candidateEnd = candidate;
+        while (str[candidateEnd] === '`') candidateEnd += 1;
+        if (candidateEnd - candidate === delimiterLength) {
+          closeIdx = candidate;
+          closeEnd = candidateEnd;
+          break;
+        }
+        searchIdx = candidateEnd;
+      }
+
+      if (closeIdx === -1) {
+        out += str.slice(openIdx, openEnd);
+        i = openEnd;
+        continue;
+      }
+      out += park(
+        '<code>' +
+          foundry.utils.escapeHTML(str.slice(openEnd, closeIdx)) +
+          '</code>'
+      );
+      i = closeEnd;
+    }
+    return out;
+  }
+
+  /**
+   * Render inline markdown (emphasis, code, backslash escapes) to HTML.
+   * Protects Markdown escapes before HTML encoding so escaped angle brackets
+   * cannot be mistaken for autolinks.
+   * @param {string} text
+   * @returns {string}
+   */
+  static _renderMarkdownInline(text) {
+    const parked = [];
+    const park = (value) => '\uE000' + (parked.push(value) - 1) + '\uE001';
+    const withoutCode = this._replaceMarkdownCodeSpans(
+      String(text ?? ''),
+      park
+    );
+    const protectedEscapes = withoutCode.replace(
+      /\\([\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E])/g,
+      (_m, ch) => park(foundry.utils.escapeHTML(ch))
+    );
+    const protectedReferences = protectedEscapes.replace(
+      /&(?:#\d{1,7}|#x[\da-f]{1,6}|[a-z][a-z\d]{1,31});/gi,
+      (reference) => park(reference)
+    );
+    const escaped = foundry.utils.escapeHTML(protectedReferences);
+    const withoutImages = this._replaceMarkdownLinks(escaped, true, park);
+    const withoutLinks = this._replaceMarkdownLinks(withoutImages, false, park);
+    const withoutAutolinks = withoutLinks.replace(
+      /&lt;([^\s<>]+?)&gt;/gi,
+      (m, value) => {
+        const isHttp = /^https?:\/\//i.test(value);
+        const isMailto = /^mailto:/i.test(value);
+        const isEmail = !isMailto && /^[^@\s<>]+@[^@\s<>]+$/.test(value);
+        if (!isHttp && !isMailto && !isEmail) return m;
+        const href = isEmail ? 'mailto:' + value : value;
+        const safe = this._safeMarkdownHref(href);
+        if (!safe) return m;
+        const linkText = isEmail ? value : safe;
+        return park('<a href="' + safe + '">' + linkText + '</a>');
+      }
+    );
+    const formatted = this._formatMarkdownInline(withoutAutolinks);
+    const token = /\uE000(\d+)\uE001/g;
+    let restored = formatted;
+    for (let pass = 0; pass <= parked.length; pass += 1) {
+      const next = restored.replace(token, (_m, i) => parked[Number(i)] ?? '');
+      if (next === restored) break;
+      restored = next;
+    }
+    return restored;
+  }
+
+  /**
+   * Block-level markdown renderer used when no markdown-it global is present.
+   * Covers the subset Archivist emits: ATX headings, bullet/ordered lists,
+   * blockquotes, fenced code, horizontal rules and paragraphs. A
+   * paragraph-only fallback rendered these as literal '# ' and '- ' text.
+   * @param {string} markdown
+   * @returns {string}
+   */
+  static _renderMarkdownFallback(markdown) {
+    const lines = String(markdown ?? '')
+      .replace(/\r\n/g, '\n')
+      .split('\n');
+    const out = [];
+    let i = 0;
+
+    const isBlank = (l) => !String(l).trim();
+    // CommonMark-ish fence: 3+ backticks or tildes, optional info string
+    // (`c++`, `objective-c`, ` ``` rust,ignore `). Must match isBlockStart or
+    // the paragraph loop consumes nothing and the outer loop never advances.
+    const fenceOpen = (l) => String(l).match(/^\s*([`~]{3,})(.*)$/);
+    const isBlockStart = (l) =>
+      /^\s*(?:#{1,6}\s|>)/.test(l) ||
+      !!fenceOpen(l) ||
+      /^\s*(?:[-*+]|\d+[.)])\s+/.test(l) ||
+      /^\s*(?:[-*_]\s*){3,}$/.test(l);
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      if (isBlank(line)) {
+        i += 1;
+        continue;
+      }
+
+      // Fenced code — verbatim, no inline processing.
+      const fence = fenceOpen(line);
+      if (fence) {
+        const marker = fence[1][0];
+        const fenceLen = fence[1].length;
+        const info = String(fence[2] || '').trim().split(/\s+/)[0] || '';
+        const isClose = (l) => {
+          const m = String(l).match(/^\s*([`~]+)\s*$/);
+          return !!(m && m[1][0] === marker && m[1].length >= fenceLen);
+        };
+        const body = [];
+        i += 1;
+        while (i < lines.length && !isClose(lines[i])) {
+          body.push(lines[i]);
+          i += 1;
+        }
+        if (i < lines.length) i += 1; // closing fence
+        const lang = info.replace(/[^\w+#.-]/g, '');
+        const cls = lang ? ' class="language-' + lang + '"' : '';
+        out.push(
+          '<pre><code' +
+            cls +
+            '>' +
+            foundry.utils.escapeHTML(body.join('\n')) +
+            '</code></pre>'
+        );
+        continue;
+      }
+
+      const heading = line.match(/^\s*(#{1,6})\s+(.*)$/);
+      if (heading) {
+        const level = heading[1].length;
+        out.push(
+          '<h' +
+            level +
+            '>' +
+            this._renderMarkdownInline(heading[2].trim()) +
+            '</h' +
+            level +
+            '>'
+        );
+        i += 1;
+        continue;
+      }
+
+      if (/^\s*(?:[-*_]\s*){3,}$/.test(line)) {
+        out.push('<hr>');
+        i += 1;
+        continue;
+      }
+
+      if (/^\s*>\s?/.test(line)) {
+        const body = [];
+        while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+          body.push(lines[i].replace(/^\s*>\s?/, ''));
+          i += 1;
+        }
+        out.push(
+          '<blockquote>' +
+            this._renderMarkdownFallback(body.join('\n')) +
+            '</blockquote>'
+        );
+        continue;
+      }
+
+      if (/^\s*(?:[-*+]|\d+[.)])\s+/.test(line)) {
+        out.push(this._renderMarkdownList(lines, i, 0));
+        i = this._lastListIndex;
+        continue;
+      }
+
+      // Paragraph: accumulate until a blank line or the start of another block.
+      // If a block-start form is not handled above, still advance so a future
+      // syntax cannot freeze import/sync the way unmatched ```c++ did.
+      const body = [];
+      const paraStart = i;
+      while (i < lines.length && !isBlank(lines[i]) && !isBlockStart(lines[i])) {
+        body.push(lines[i]);
+        i += 1;
+      }
+      if (i === paraStart) i += 1;
+      out.push(
+        '<p>' +
+          this._renderMarkdownInline(body.join('\n')).replace(/\n/g, '<br>') +
+          '</p>'
+      );
+    }
+
+    return out.join('');
+  }
+
+  /**
+   * Render a (possibly nested) markdown list starting at `start`.
+   * Sets `_lastListIndex` to the first line after the list.
+   * @param {string[]} lines
+   * @param {number} start
+   * @param {number} depth
+   * @returns {string}
+   */
+  static _renderMarkdownList(lines, start, depth) {
+    let i = start;
+    const first = lines[i].match(/^(\s*)([-*+]|\d+[.)])\s+/);
+    const baseIndent = first[1].length;
+    const ordered = /\d/.test(first[2]);
+    const items = [];
+
+    // Guard against a malformed document nesting without end.
+    if (depth > 8) {
+      this._lastListIndex = i + 1;
+      return '';
+    }
+
+    while (i < lines.length) {
+      const m = lines[i].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+      if (!m) {
+        // Soft-wrapped item: indented text with no new marker stays in the
+        // current <li>. A less-indented or blank line ends the list.
+        const cont = String(lines[i]).match(/^(\s+)(\S.*)$/);
+        if (
+          items.length &&
+          cont &&
+          cont[1].length > baseIndent &&
+          !/^\s*(?:#{1,6}\s|>|```|~~~)/.test(lines[i])
+        ) {
+          items[items.length - 1] +=
+            '<br>' + this._renderMarkdownInline(cont[2].trim());
+          i += 1;
+          continue;
+        }
+        break;
+      }
+      const indent = m[1].length;
+      if (indent < baseIndent) break;
+      if (indent > baseIndent) {
+        // Nested list — fold it into the item just opened.
+        const nested = this._renderMarkdownList(lines, i, depth + 1);
+        i = this._lastListIndex;
+        if (items.length) items[items.length - 1] += nested;
+        else items.push(nested);
+        continue;
+      }
+      if (/\d/.test(m[2]) !== ordered) break;
+      items.push(this._renderMarkdownInline(m[3].trim()));
+      i += 1;
+    }
+
+    this._lastListIndex = i;
+    const tag = ordered ? 'ol' : 'ul';
+    const startNum = ordered ? parseInt(first[2], 10) : 1;
+    const startAttr =
+      ordered && Number.isFinite(startNum) && startNum !== 1
+        ? ` start="${startNum}"`
+        : '';
+    return (
+      '<' +
+      tag +
+      startAttr +
+      '>' +
+      items.map((it) => '<li>' + it + '</li>').join('') +
+      '</' +
+      tag +
+      '>'
+    );
+  }
+
+  /** Return only text that is outside complete HTML elements. */
+  static _textOutsideHtmlElements(text) {
+    const source = String(text ?? '').replace(/<!--[\s\S]*?-->/g, (comment) =>
+      comment.replace(/[^\n]/g, '')
+    );
+    const voidTags = new Set([
+      'area',
+      'base',
+      'br',
+      'col',
+      'embed',
+      'hr',
+      'img',
+      'input',
+      'link',
+      'meta',
+      'param',
+      'source',
+      'track',
+      'wbr',
+    ]);
+    const tag = /<\/?([a-z][\w-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+    const stack = [];
+    let outside = '';
+    let cursor = 0;
+    for (const match of source.matchAll(tag)) {
+      const between = source.slice(cursor, match.index);
+      outside += stack.length ? between.replace(/[^\n]/g, '') : between;
+      const name = match[1].toLowerCase();
+      if (/^<\//.test(match[0])) {
+        const openIdx = stack.lastIndexOf(name);
+        if (openIdx !== -1) stack.length = openIdx;
+      } else if (!voidTags.has(name) && !/\/\s*>$/.test(match[0])) {
+        stack.push(name);
+      }
+      cursor = match.index + match[0].length;
+    }
+    const tail = source.slice(cursor);
+    outside += stack.length ? tail.replace(/[^\n]/g, '') : tail;
+    return outside;
+  }
+
+  /**
+   * True for stored Foundry HTML, not for Markdown that happens to contain
+   * angle brackets or an inline tag. `<https://example.com>` is a CommonMark
+   * autolink, and `# Title` plus a `<span>` is still Markdown — both must go
+   * through the renderer. The old `startsWith('<')` heuristic treated any
+   * angle bracket as HTML, skipped rendering, and let cleanHTML drop it.
+   * @param {string} text
+   * @returns {boolean}
+   */
+  static looksLikeStoredHtml(text) {
+    const raw = String(text ?? '').trim();
+    if (!raw) return false;
+    const decoded = raw
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'");
+    const withoutAutolinks = decoded
+      .replace(/<https?:\/\/[^>\s]+>/gi, ' ')
+      .replace(/<mailto:[^>\s]+>/gi, ' ')
+      .replace(/<[^\s<>]+@[^\s<>]+>/g, ' ');
+    const outsideHtmlElements = this._textOutsideHtmlElements(withoutAutolinks);
+    const hasMarkdownBlock = outsideHtmlElements
+      .split('\n')
+      .some((line) =>
+        /^\s*(?:#{1,6}\s|>|(?:[-*+]|\d+[.)])\s+|[`~]{3,}|(?:[-*_]\s*){3,}\s*$)/.test(
+          line
+        )
+      );
+    if (hasMarkdownBlock) return false;
+    const startsWithHtmlTag =
+      /^\s*<\/?(?:p|div|span|br|hr|h[1-6]|ul|ol|li|pre|code|blockquote|strong|em|a|img|table|thead|tbody|tr|td|th|section|article|header|footer|main|aside|figure|figcaption)\b/i.test(
+        withoutAutolinks
+      );
+    // Complete HTML elements (including pre/code contents) were removed before
+    // checking for Markdown blocks, so a leading inline tag cannot conceal a
+    // later heading, list, quote, rule, or fence.
+    if (startsWithHtmlTag) return true;
+    // Markdown with an incidental inline tag (`# Title` plus a <span>) must
+    // still go through the renderer. A document that doesn't open with an
+    // HTML tag is never treated as stored HTML, so it falls through here.
+    return false;
+  }
+
   static markdownToStoredHtml(markdown) {
     const md = String(markdown ?? '');
     try {
-      const trimmed = md.trim();
-      const isProbablyHtml =
-        !!trimmed &&
-        ((trimmed.startsWith('<') && trimmed.includes('>')) ||
-          /<\/?[a-z][\s\S]*>/i.test(trimmed) ||
-          /&(?:lt|gt|amp|quot|#39);/i.test(trimmed));
-
-      if (isProbablyHtml) {
+      if (this.looksLikeStoredHtml(md)) {
         return foundry?.utils?.TextEditor?.cleanHTML
           ? foundry.utils.TextEditor.cleanHTML(md)
           : md;
@@ -552,23 +1116,11 @@ export class Utils {
         });
         rawHtml = mdIt.render(md);
       } else {
-        // Minimal fallback: escape first, then apply lightweight markdown formatting
-        // so generated tags are not re-escaped into visible literal text.
-        const renderInline = (text) =>
-          foundry.utils
-            .escapeHTML(String(text ?? ''))
-            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-            .replace(/_(.+?)_/g, '<em>$1</em>')
-            .replace(/`(.+?)`/g, '<code>$1</code>')
-            .replace(/\n/g, '<br>');
-
-        rawHtml = md
-          .replace(/\r\n/g, '\n')
-          .split(/\n{2,}/)
-          .map((p) => p.trim())
-          .filter(Boolean)
-          .map((p) => `<p>${renderInline(p)}</p>`)
-          .join('');
+        // Minimal fallback for worlds where no markdown-it global exists. It has
+        // to cover block syntax, not just paragraphs: Archivist journals use
+        // headings and bullet lists, and a paragraph-only renderer emitted
+        // those as literal '# ' and '- ' text.
+        rawHtml = this._renderMarkdownFallback(md);
       }
       return foundry?.utils?.TextEditor?.cleanHTML
         ? foundry.utils.TextEditor.cleanHTML(rawHtml)
@@ -776,22 +1328,7 @@ export class Utils {
     // v10+ API: JournalEntryPage documents under journal.pages
     const pagesCollection = journal.pages;
     const safeContent = String(content ?? '');
-    // Heuristic: detect if provided content is HTML (vs. Markdown/plain)
-    const isProbablyHtml = (() => {
-      const t = safeContent.trim();
-      if (!t) return false;
-      // Common HTML markers or tags
-      if (t.startsWith('<') && t.includes('>')) return true;
-      if (
-        t.includes('</') ||
-        t.includes('<br') ||
-        t.includes('<p') ||
-        t.includes('<h1') ||
-        t.includes('&lt;')
-      )
-        return true;
-      return false;
-    })();
+    const isProbablyHtml = this.looksLikeStoredHtml(safeContent);
 
     console.log(`[Utils] ensureJournalTextPage:`, {
       journalId: journal?.id,
@@ -1169,6 +1706,94 @@ export class Utils {
   }
 
   /** Create a custom sheet JournalEntry for an imported Archivist entity */
+  /**
+   * Find the JournalEntry that represents a given Archivist record, if any.
+   * @param {string} archivistId
+   * @returns {JournalEntry|null}
+   */
+  static findJournalByArchivistId(archivistId) {
+    const wanted = String(archivistId || '');
+    if (!wanted) return null;
+    try {
+      for (const j of game.journal?.contents || []) {
+        const flags = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+        if (String(flags.archivistId || '') === wanted) return j;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return null;
+  }
+
+  /** Find a legacy JournalEntryPage representation of an Archivist record. */
+  static findJournalPageByArchivistId(archivistId) {
+    const wanted = String(archivistId || '');
+    if (!wanted) return null;
+    try {
+      for (const journal of game.journal?.contents || []) {
+        for (const page of journal.pages?.contents || []) {
+          if (String(this.getPageArchivistMeta(page).id || '') === wanted) {
+            return page;
+          }
+        }
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return null;
+  }
+
+  /**
+   * True if this journal or any of its pages represents the Archivist record.
+   * Legacy location/faction imports lived as JournalEntryPages; a standalone
+   * sheet delete must not treat those pages as absent.
+   * @param {JournalEntry} journal
+   * @param {string} archivistId
+   * @returns {boolean}
+   */
+  static journalReferencesArchivistId(journal, archivistId) {
+    const wanted = String(archivistId || '');
+    if (!wanted || !journal) return false;
+    try {
+      const flags = journal.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+      if (String(flags.archivistId || '') === wanted) return true;
+      for (const page of journal.pages?.contents || []) {
+        if (String(this.getPageArchivistMeta(page).id || '') === wanted)
+          return true;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  /**
+   * True if any Actor, Item, or Scene carries this Archivist record's id.
+   * World Setup gives a core document the same `archivistId` flag as its
+   * companion journal when it creates or maps that Actor/Item/Scene. A
+   * survivor check that only scans game.journal misses those linked core
+   * documents and can offer to permanently delete an Archivist record that
+   * a core document — and realtime updates — still depend on.
+   * @param {string} archivistId
+   * @returns {boolean}
+   */
+  static coreDocumentReferencesArchivistId(archivistId) {
+    const wanted = String(archivistId || '');
+    if (!wanted) return false;
+    try {
+      const collections = [game.actors, game.items, game.scenes];
+      for (const collection of collections) {
+        for (const doc of collection?.contents || []) {
+          const id = doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId');
+          if (String(id || '') === wanted) return true;
+        }
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return false;
+  }
+
   static async createCustomJournalForImport({
     name,
     html = '',
@@ -1212,6 +1837,78 @@ export class Utils {
       });
 
       const targetFolderId = folderId || folder?.id || null;
+
+      // An Archivist id identifies exactly one sheet. Re-running World Setup
+      // used to create a second JournalEntry for every record it had already
+      // imported, and because both copies carried the same archivistId,
+      // deleting either duplicate cascaded a delete of the shared Archivist
+      // record. Adopt the existing sheet instead of creating a rival.
+      const existing = archivistId
+        ? this.findJournalByArchivistId(archivistId)
+        : null;
+      if (existing) {
+        console.log('[Archivist Sync] Reusing existing journal for import:', {
+          journalId: existing.id,
+          archivistId,
+          sheetType: normalizedType,
+        });
+        const updates = {};
+        if (name && existing.name !== name) updates.name = name;
+        // `imageUrl === undefined` means the caller omitted it. null/'' means
+        // Archivist has no image and a reused sheet must drop the stale one.
+        if (imageUrl !== undefined) {
+          const nextImg = imageUrl || null;
+          if (nextImg && existing.img !== nextImg) updates.img = nextImg;
+          if (!nextImg && existing.img) updates.img = null;
+        }
+        if (typeof sort === 'number' && existing.sort !== sort) updates.sort = sort;
+        if (targetFolderId && (existing.folder?.id || null) !== targetFolderId) {
+          updates.folder = targetFolderId;
+        }
+        if (sheetClass) {
+          const core = existing.flags?.core || {};
+          if (core.sheetClass !== sheetClass || core.sheet !== sheetClass) {
+            updates['flags.core.sheetClass'] = sheetClass;
+            updates['flags.core.sheet'] = sheetClass;
+          }
+        }
+        if (Object.keys(updates).length) {
+          await existing.update(updates, { render: false });
+        }
+        await this.ensureJournalTextPage(existing, html);
+        const priorFlags = existing.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+        await existing.setFlag(CONFIG.MODULE_ID, 'archivist', {
+          ...priorFlags,
+          sheetType: normalizedType,
+          archivistId,
+          archivistWorldId: worldId || priorFlags.archivistWorldId || null,
+          image:
+            imageUrl !== undefined ? imageUrl || null : priorFlags.image || null,
+        });
+        return existing;
+      }
+
+      // A legacy location/faction page already represents this record. Avoid
+      // creating a duplicate, and do not repurpose its shared parent journal.
+      const legacyPage = archivistId
+        ? this.findJournalPageByArchivistId(archivistId)
+        : null;
+      const migrateLegacyPage =
+        legacyPage && ['location', 'faction'].includes(normalizedType);
+      if (legacyPage && !migrateLegacyPage) {
+        console.log(
+          '[Archivist Sync] Skipping standalone import; legacy journal page already represents record:',
+          { pageId: legacyPage.id, archivistId, sheetType: normalizedType }
+        );
+        return null;
+      }
+      if (migrateLegacyPage) {
+        console.log(
+          '[Archivist Sync] Migrating legacy journal page to standalone sheet:',
+          { pageId: legacyPage.id, archivistId, sheetType: normalizedType }
+        );
+      }
+
       const createData = {
         name,
         folder: targetFolderId,
@@ -1248,6 +1945,22 @@ export class Utils {
         },
         foundryRefs: { actors: [], items: [], scenes: [], journals: [] },
       });
+
+      if (migrateLegacyPage) {
+        try {
+          // Clear the remote identity before deletion so realtime hooks do not
+          // interpret this local representation migration as an Archivist delete.
+          await legacyPage.unsetFlag(CONFIG.MODULE_ID, 'archivistId');
+          await legacyPage.unsetFlag(CONFIG.MODULE_ID, 'archivistType');
+          await legacyPage.unsetFlag(CONFIG.MODULE_ID, 'archivistWorldId');
+          await legacyPage.delete();
+        } catch (migrationError) {
+          console.warn(
+            '[Archivist Sync] Standalone sheet created, but legacy page cleanup failed:',
+            migrationError
+          );
+        }
+      }
 
       console.log(
         `[Archivist Sync] Journal finalized with flags, final location:`,
