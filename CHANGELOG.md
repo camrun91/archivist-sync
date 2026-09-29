@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-09-29
+
+### Added
+- Sync dialog Review Changes and Import New tables can be sorted by Type or
+  Name. Click a header to cycle ascending, descending, then natural load
+  order. Sort prefs last for the dialog session and re-apply after Refresh
+  without a full data reload. Apply uses the same order as the visible rows.
+
 ## [2.0.3] - 2026-09-09
 
 ### Fixed
