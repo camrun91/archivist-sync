@@ -2,6 +2,13 @@ import { settingsManager } from '../modules/settings-manager.js';
 import { archivistApi } from '../services/archivist-api.js';
 import { CONFIG } from '../modules/config.js';
 import { Utils } from '../modules/utils.js';
+import {
+  createDefaultSortSpecs,
+  cycleSortSpec,
+  applySort,
+  buildSortHeaders,
+  SORT_KEYS,
+} from '../modules/sync-table-sort.js';
 
 /**
  * SyncDialog — Two‑phase reconciliation wizard
@@ -21,6 +28,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       stats: { diffs: 0, imports: 0 },
     };
     this._scrollPosition = 0;
+    this._sortSpecs = createDefaultSortSpecs();
   }
 
   static DEFAULT_OPTIONS = {
@@ -40,6 +48,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       sync: SyncDialog.prototype._onSync,
       cancel: SyncDialog.prototype._onCancel,
       refresh: SyncDialog.prototype._onRefresh,
+      sortHeader: SyncDialog.prototype._onSortHeader,
     },
   };
 
@@ -164,7 +173,27 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       stats: this.model.stats,
       syncProgress: this.syncProgress || null,
       hasSelected,
+      sortHeaders: buildSortHeaders(this._sortSpecs),
     };
+  }
+
+  /** Reassign model row arrays from sort prefs (same row object refs). */
+  _applySortToModel() {
+    this.model.diffs = applySort(this.model.diffs, this._sortSpecs.diffs);
+    this.model.imports = applySort(this.model.imports, this._sortSpecs.imports);
+  }
+
+  async _onSortHeader(event, target) {
+    event.preventDefault();
+    const tableId = target?.dataset?.table;
+    const key = target?.dataset?.key;
+    if (tableId !== 'diffs' && tableId !== 'imports') return;
+    if (!SORT_KEYS.has(key)) return;
+
+    this._sortSpecs[tableId] = cycleSortSpec(this._sortSpecs[tableId], key);
+    this._applySortToModel();
+    this._captureScrollPosition();
+    await this.render();
   }
 
   async _onSelectAll(event) {
@@ -609,6 +638,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           imports: [],
           stats: { diffs: 0, imports: 0 },
         };
+        this._applySortToModel();
         return;
       }
 
@@ -934,6 +964,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         imports,
         stats: { diffs: diffs.length, imports: imports.length },
       };
+      this._applySortToModel();
     } finally {
       this.isLoading = false;
     }
