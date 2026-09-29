@@ -36,8 +36,17 @@
                 <thead>
                     <tr>
                         <th class="col-checkbox"></th>
-                        <th class="col-type">Type</th>
-                        <th>Name</th>
+                        {{#each sortHeaders.diffs as |h|}}
+                        <th class="sortable-header {{h.headerClass}} {{h.iconClass}}{{#if h.active}} sort-active{{/if}}"
+                            data-action="sortHeader"
+                            data-table="diffs"
+                            data-key="{{h.key}}"
+                            aria-sort="{{h.ariaSort}}"
+                            role="columnheader"
+                            tabindex="0">
+                            {{h.label}}
+                        </th>
+                        {{/each}}
                         <th class="col-indicator">Name</th>
                         <th class="col-indicator">Description</th>
                         <th class="col-indicator">Image</th>
@@ -105,8 +114,17 @@
                 <thead>
                     <tr>
                         <th class="col-checkbox"></th>
-                        <th class="col-type">Type</th>
-                        <th>Name</th>
+                        {{#each sortHeaders.imports as |h|}}
+                        <th class="sortable-header {{h.headerClass}} {{h.iconClass}}{{#if h.active}} sort-active{{/if}}"
+                            data-action="sortHeader"
+                            data-table="imports"
+                            data-key="{{h.key}}"
+                            aria-sort="{{h.ariaSort}}"
+                            role="columnheader"
+                            tabindex="0">
+                            {{h.label}}
+                        </th>
+                        {{/each}}
                         <th class="col-create-new">Create New</th>
                     </tr>
                 </thead>
