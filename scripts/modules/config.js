@@ -92,10 +92,10 @@ export const SETTINGS = {
     key: 'chatHistory',
     name: 'ARCHIVIST_SYNC.Settings.ChatHistory.Name',
     hint: 'ARCHIVIST_SYNC.Settings.ChatHistory.Hint',
-    scope: 'world',
+    scope: 'client',
     config: false,
     type: String,
-    default: '[]',
+    default: '{}',
   },
 
   CHAT_HISTORY_ENABLED: {

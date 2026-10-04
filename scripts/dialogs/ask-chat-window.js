@@ -33,7 +33,7 @@ export class AskChatWindow {
     }
   }
 
-  _saveHistory() {
+  async _saveHistory() {
     try {
       const enabled = !!game.settings.get(
         CONFIG.MODULE_ID,
@@ -45,7 +45,7 @@ export class AskChatWindow {
       const byUser = JSON.parse(raw || '{}');
       const key = this._historyKey();
       byUser[key] = this._messages.slice(-40); // keep more locally, trim on send
-      game.settings.set(
+      await game.settings.set(
         CONFIG.MODULE_ID,
         SETTINGS.CHAT_HISTORY.key,
         JSON.stringify(byUser)
