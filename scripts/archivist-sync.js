@@ -141,6 +141,11 @@ Hooks.once('ready', async function () {
 
   // Register module settings and menu
   settingsManager.registerSettings();
+  try {
+    await settingsManager.syncApiKeyStores();
+  } catch (e) {
+    console.warn('[Archivist Sync] API key sync failed', e);
+  }
   // Ensure organized folders exist (always during ready) so imports land correctly
   try {
     await Utils.ensureArchivistFolders();

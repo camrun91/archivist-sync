@@ -21,6 +21,19 @@ export const SETTINGS = {
     default: '',
   },
 
+  // Browser copy of the API key. Foundry allows one scope per key, so this
+  // client setting carries the key across worlds. The world setting above
+  // remains the secret value stored for the current world.
+  API_KEY_CLIENT: {
+    key: 'apiKeyClient',
+    name: 'ARCHIVIST_SYNC.Settings.ApiKey.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ApiKey.Hint',
+    scope: 'client',
+    config: false,
+    type: String,
+    default: '',
+  },
+
   SELECTED_WORLD_ID: {
     key: 'selectedWorldId',
     name: 'ARCHIVIST_SYNC.Settings.SelectedWorld.Name',

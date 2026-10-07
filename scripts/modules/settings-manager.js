@@ -17,6 +17,7 @@ export class SettingsManager {
    * Register all module settings
    */
   registerSettings() {
+    if (this._settingsRegistered) return;
     this._registerApiKey();
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
@@ -32,6 +33,7 @@ export class SettingsManager {
     this._registerRunSetupAgainMenu();
     this._registerDocumentationMenu();
     this._registerProjectionSettings();
+    this._settingsRegistered = true;
   }
 
   /**
@@ -48,8 +50,21 @@ export class SettingsManager {
       type: setting.type,
       default: setting.default,
       secret: true,
-      onChange: (value) => {
+      onChange: () => {
         console.log(`${this.moduleTitle} | API Key updated`);
+        this._onChatAvailabilityChange();
+      },
+    });
+
+    const clientSetting = SETTINGS.API_KEY_CLIENT;
+    game.settings.register(this.moduleId, clientSetting.key, {
+      name: game.i18n.localize(clientSetting.name),
+      hint: game.i18n.localize(clientSetting.hint),
+      scope: clientSetting.scope,
+      config: clientSetting.config,
+      type: clientSetting.type,
+      default: clientSetting.default,
+      onChange: () => {
         this._onChatAvailabilityChange();
       },
     });
@@ -197,28 +212,23 @@ export class SettingsManager {
             rejectClose: false,
           });
 
-          if (result) {
+          if (result != null) {
             const newApiKey = String(result).trim();
-            if (!newApiKey) {
-              ui.notifications.error(
-                game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Empty')
+            try {
+              const { settingsManager } = await import(
+                './settings-manager.js'
               );
-            } else {
-              try {
-                const { settingsManager } = await import(
-                  './settings-manager.js'
-                );
-                const MODULE_ID =
-                  settingsManager.moduleId ||
-                  (await import('./config.js')).CONFIG.MODULE_ID;
-                await game.settings.set(MODULE_ID, 'apiKey', newApiKey);
-                ui.notifications.info(
-                  game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Success')
-                );
-              } catch (e) {
-                console.error('[Archivist Sync] Failed to update API key', e);
-                ui.notifications.error('Failed to update API key');
-              }
+              await settingsManager.setApiKey(newApiKey);
+              ui.notifications.info(
+                game.i18n.localize(
+                  newApiKey
+                    ? 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Success'
+                    : 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Cleared'
+                )
+              );
+            } catch (e) {
+              console.error('[Archivist Sync] Failed to update API key', e);
+              ui.notifications.error('Failed to update API key');
             }
           }
           return this;
@@ -454,11 +464,75 @@ export class SettingsManager {
   }
 
   /**
-   * Get API key
+   * Read a stored API key, treating missing and blank values as empty.
+   * @param {string} key
+   * @returns {string}
+   * @private
+   */
+  _readApiKey(key) {
+    try {
+      const value = this.getSetting(key);
+      return typeof value === 'string' ? value.trim() : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * True when this user may write world-scoped settings.
+   * @returns {boolean}
+   * @private
+   */
+  _canModifyWorldSettings() {
+    try {
+      return !!game.user?.can?.('SETTINGS_MODIFY');
+    } catch (_) {
+      return !!game.user?.isGM;
+    }
+  }
+
+  /**
+   * Save the API key to this world and to this browser.
+   * An empty value clears both. World writes are skipped when this user
+   * cannot modify world settings; the browser copy is still saved.
+   * @param {string} value
+   * @returns {Promise<void>}
+   */
+  async setApiKey(value) {
+    const key = typeof value === 'string' ? value.trim() : '';
+    if (this._canModifyWorldSettings()) {
+      await this.setSetting(SETTINGS.API_KEY.key, key);
+    }
+    await this.setSetting(SETTINGS.API_KEY_CLIENT.key, key);
+  }
+
+  /**
+   * Fill an empty API key store from the one that has a value.
+   * When both are set, leave them unchanged even if they differ.
+   * @returns {Promise<void>}
+   */
+  async syncApiKeyStores() {
+    const world = this._readApiKey(SETTINGS.API_KEY.key);
+    const client = this._readApiKey(SETTINGS.API_KEY_CLIENT.key);
+
+    if (!client && world) {
+      await this.setSetting(SETTINGS.API_KEY_CLIENT.key, world);
+      return;
+    }
+
+    if (!world && client && this._canModifyWorldSettings()) {
+      await this.setSetting(SETTINGS.API_KEY.key, client);
+    }
+  }
+
+  /**
+   * Get API key. Prefers the world value, then the browser copy.
    * @returns {string} The API key
    */
   getApiKey() {
-    return this.getSetting(SETTINGS.API_KEY.key);
+    const world = this._readApiKey(SETTINGS.API_KEY.key);
+    if (world) return world;
+    return this._readApiKey(SETTINGS.API_KEY_CLIENT.key);
   }
 
   // AI settings and mapping override getters removed

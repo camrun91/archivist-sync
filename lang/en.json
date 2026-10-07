@@ -3,7 +3,7 @@
     "Settings": {
       "ApiKey": {
         "Name": "API Key",
-        "Hint": "Enter your API key to authenticate with the Archivist API service"
+        "Hint": "Enter your API key to authenticate with the Archivist API service. It is saved for this world and remembered in this browser for other worlds."
       },
       "SemanticMappingEnabled": {
         "Name": "Enable semantic field mapping",
@@ -109,6 +109,7 @@
         "Update": "Update",
         "Cancel": "Cancel",
         "Success": "API key updated successfully",
+        "Cleared": "API key cleared",
         "Empty": "API key cannot be empty"
       },
       "RunSetup": {

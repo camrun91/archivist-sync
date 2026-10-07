@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-10-07
+
+### Added
+- The Archivist API key is saved for the current world and remembered in this
+  browser. When one copy is missing, it is filled from the other on load.
+  Clearing the key removes both copies, so the next world does not restore it.
+
 ## [2.0.4] - 2026-09-29
 
 ### Added

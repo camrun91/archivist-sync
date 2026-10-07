@@ -174,7 +174,7 @@ Examples (representative; bodies vary by type):
 
 ## Security & Permissions
 
-- The API key is stored as a world-scoped setting and obfuscated in the UI.
+- The API key is stored for the current world and in this browser. An empty copy is filled from the other on load. The value is obfuscated in the UI.
 - Real‑Time Sync and the "Sync with Archivist" button execute only on GM clients.
 - The sidebar chat is available to all users once the world is configured and initialized.
 - GM chat requests can include private journal context during retrieval when the GM setting is enabled; non-GM requests always send `gm_permissions: false`.
