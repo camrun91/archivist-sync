@@ -1423,6 +1423,12 @@ function installRealtimeSyncListeners() {
       return;
     }
 
+    // The dialog can stay open while the key is cleared or replaced, so
+    // resolve it again before the destructive call.
+    const currentKey = settingsManager.getApiKey();
+    if (!currentKey) return;
+    apiKey = currentKey;
+
     const st = bucket.sheetType;
     if (
       (st === 'pc' || st === 'npc' || st === 'character') &&
