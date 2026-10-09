@@ -945,10 +945,23 @@ function installRealtimeSyncListeners() {
   if (!isGM) return; // Only the GM client should perform API writes
   if (realtimeListenersInstalled) return;
 
-  const apiKey = settingsManager.getApiKey();
+  const initialApiKey = settingsManager.getApiKey();
   const worldId = settingsManager.getSelectedWorldId();
-  if (!apiKey || !worldId) return;
+  if (!initialApiKey || !worldId) return;
   realtimeListenersInstalled = true;
+
+  // Resolve the current key on every event so a cleared or replaced key
+  // takes effect without reinstalling the listeners.
+  let apiKey = initialApiKey;
+  const Hooks = {
+    on: (name, fn) =>
+      globalThis.Hooks.on(name, (...args) => {
+        const current = settingsManager.getApiKey();
+        if (!current) return;
+        apiKey = current;
+        return fn(...args);
+      }),
+  };
 
   const toItemPayload = (item) => {
     const name = item?.name || 'Item';
