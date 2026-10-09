@@ -18,9 +18,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     this.isLoading = false;
     this.isValidatingApi = false;
     this.worlds = [];
+    const storedApiKey = settingsManager.getApiKey?.() || '';
     this.setupData = {
-      apiKey: '',
-      apiKeyValid: false,
+      apiKey: storedApiKey,
+      apiKeyValid: false, // a prefilled key must still be validated
       selectedWorldId: '',
       selectedWorldName: '',
       setupComplete: false,
@@ -574,9 +575,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // API key is valid
         this.setupData.apiKey = apiKey;
         this.setupData.apiKeyValid = true;
+        this._validatedApiKey = apiKey;
 
-        // Save to settings
-        await settingsManager.setSetting('apiKey', apiKey);
+        // Save to this world and this browser
+        await settingsManager.setApiKey(apiKey);
 
         ui.notifications.info('API key validated successfully!');
 
@@ -2949,6 +2951,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               event.preventDefault();
               this._onValidateApiKey(event);
             }
+          });
+          apiKeyInput.addEventListener('input', () => {
+            const typed = apiKeyInput.value.trim();
+            const validated = String(this._validatedApiKey || '').trim();
+            this.setupData.apiKeyValid = !!validated && typed === validated;
+            const nextBtn = this.element.querySelector(
+              '[data-action="nextStep"]'
+            );
+            if (nextBtn) nextBtn.disabled = !this._canProceedFromCurrentStep();
           });
           apiKeyInput.dataset.bound = 'true';
         }

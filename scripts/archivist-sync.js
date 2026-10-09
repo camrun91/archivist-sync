@@ -141,6 +141,11 @@ Hooks.once('ready', async function () {
 
   // Register module settings and menu
   settingsManager.registerSettings();
+  try {
+    await settingsManager.syncApiKeyStores();
+  } catch (e) {
+    console.warn('[Archivist Sync] API key sync failed', e);
+  }
   // Ensure organized folders exist (always during ready) so imports land correctly
   try {
     await Utils.ensureArchivistFolders();
@@ -933,13 +938,30 @@ export { CONFIG, settingsManager, archivistApi, Utils };
  * Real-Time Sync: listen to Foundry CRUD and POST/PATCH/DELETE to Archivist
  * Only runs for GMs and when a world is selected & setting enabled.
  */
+let realtimeListenersInstalled = false;
+
 function installRealtimeSyncListeners() {
   const isGM = game.user?.isGM;
   if (!isGM) return; // Only the GM client should perform API writes
+  if (realtimeListenersInstalled) return;
 
-  const apiKey = settingsManager.getApiKey();
+  const initialApiKey = settingsManager.getApiKey();
   const worldId = settingsManager.getSelectedWorldId();
-  if (!apiKey || !worldId) return;
+  if (!initialApiKey || !worldId) return;
+  realtimeListenersInstalled = true;
+
+  // Resolve the current key on every event so a cleared or replaced key
+  // takes effect without reinstalling the listeners.
+  let apiKey = initialApiKey;
+  const Hooks = {
+    on: (name, fn) =>
+      globalThis.Hooks.on(name, (...args) => {
+        const current = settingsManager.getApiKey();
+        if (!current) return;
+        apiKey = current;
+        return fn(...args);
+      }),
+  };
 
   const toItemPayload = (item) => {
     const name = item?.name || 'Item';
@@ -1400,6 +1422,12 @@ function installRealtimeSyncListeners() {
       });
       return;
     }
+
+    // The dialog can stay open while the key is cleared or replaced, so
+    // resolve it again before the destructive call.
+    const currentKey = settingsManager.getApiKey();
+    if (!currentKey) return;
+    apiKey = currentKey;
 
     const st = bucket.sheetType;
     if (
