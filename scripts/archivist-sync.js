@@ -938,13 +938,17 @@ export { CONFIG, settingsManager, archivistApi, Utils };
  * Real-Time Sync: listen to Foundry CRUD and POST/PATCH/DELETE to Archivist
  * Only runs for GMs and when a world is selected & setting enabled.
  */
+let realtimeListenersInstalled = false;
+
 function installRealtimeSyncListeners() {
   const isGM = game.user?.isGM;
   if (!isGM) return; // Only the GM client should perform API writes
+  if (realtimeListenersInstalled) return;
 
   const apiKey = settingsManager.getApiKey();
   const worldId = settingsManager.getSelectedWorldId();
   if (!apiKey || !worldId) return;
+  realtimeListenersInstalled = true;
 
   const toItemPayload = (item) => {
     const name = item?.name || 'Item';

@@ -56,6 +56,14 @@ export class SettingsManager {
       },
     });
 
+    const clearedSetting = SETTINGS.API_KEY_CLEARED;
+    game.settings.register(this.moduleId, clearedSetting.key, {
+      scope: clearedSetting.scope,
+      config: clearedSetting.config,
+      type: clearedSetting.type,
+      default: clearedSetting.default,
+    });
+
     const clientSetting = SETTINGS.API_KEY_CLIENT;
     game.settings.register(this.moduleId, clientSetting.key, {
       name: game.i18n.localize(clientSetting.name),
@@ -218,7 +226,18 @@ export class SettingsManager {
               const { settingsManager } = await import(
                 './settings-manager.js'
               );
+              const hadKey = !!settingsManager.getApiKey();
               await settingsManager.setApiKey(newApiKey);
+              if (newApiKey && !hadKey) {
+                try {
+                  if (
+                    settingsManager.isWorldSelected?.() &&
+                    settingsManager.isRealtimeSyncEnabled?.()
+                  ) {
+                    window.ARCHIVIST_SYNC?.installRealtimeSyncListeners?.();
+                  }
+                } catch (_) {}
+              }
               ui.notifications.info(
                 game.i18n.localize(
                   newApiKey
@@ -501,9 +520,23 @@ export class SettingsManager {
   async setApiKey(value) {
     const key = typeof value === 'string' ? value.trim() : '';
     if (this._canModifyWorldSettings()) {
+      await this.setSetting(SETTINGS.API_KEY_CLEARED.key, !key);
       await this.setSetting(SETTINGS.API_KEY.key, key);
     }
     await this.setSetting(SETTINGS.API_KEY_CLIENT.key, key);
+  }
+
+  /**
+   * True when a GM explicitly cleared the key for this world.
+   * @returns {boolean}
+   * @private
+   */
+  _isApiKeyCleared() {
+    try {
+      return !!this.getSetting(SETTINGS.API_KEY_CLEARED.key);
+    } catch (_) {
+      return false;
+    }
   }
 
   /**
@@ -520,7 +553,12 @@ export class SettingsManager {
       return;
     }
 
-    if (!world && client && this._canModifyWorldSettings()) {
+    if (
+      !world &&
+      client &&
+      !this._isApiKeyCleared() &&
+      this._canModifyWorldSettings()
+    ) {
       await this.setSetting(SETTINGS.API_KEY.key, client);
     }
   }
@@ -532,6 +570,7 @@ export class SettingsManager {
   getApiKey() {
     const world = this._readApiKey(SETTINGS.API_KEY.key);
     if (world) return world;
+    if (this._isApiKeyCleared()) return '';
     return this._readApiKey(SETTINGS.API_KEY_CLIENT.key);
   }
 
