@@ -541,6 +541,7 @@ export class SettingsManager {
 
   /**
    * Fill an empty API key store from the one that has a value.
+   * Only users who can modify world settings persist the cross-world copy.
    * When both are set, leave them unchanged even if they differ.
    * @returns {Promise<void>}
    */
@@ -548,7 +549,7 @@ export class SettingsManager {
     const world = this._readApiKey(SETTINGS.API_KEY.key);
     const client = this._readApiKey(SETTINGS.API_KEY_CLIENT.key);
 
-    if (!client && world) {
+    if (!client && world && this._canModifyWorldSettings()) {
       await this.setSetting(SETTINGS.API_KEY_CLIENT.key, world);
       return;
     }

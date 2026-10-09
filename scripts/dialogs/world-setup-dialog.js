@@ -21,7 +21,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const storedApiKey = settingsManager.getApiKey?.() || '';
     this.setupData = {
       apiKey: storedApiKey,
-      apiKeyValid: storedApiKey.length > 0,
+      apiKeyValid: false, // a prefilled key must still be validated
       selectedWorldId: '',
       selectedWorldName: '',
       setupComplete: false,
@@ -575,6 +575,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         // API key is valid
         this.setupData.apiKey = apiKey;
         this.setupData.apiKeyValid = true;
+        this._validatedApiKey = apiKey;
 
         // Save to this world and this browser
         await settingsManager.setApiKey(apiKey);
@@ -2953,8 +2954,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           });
           apiKeyInput.addEventListener('input', () => {
             const typed = apiKeyInput.value.trim();
-            const stored = String(this.setupData.apiKey || '').trim();
-            this.setupData.apiKeyValid = !!stored && typed === stored;
+            const validated = String(this._validatedApiKey || '').trim();
+            this.setupData.apiKeyValid = !!validated && typed === validated;
             const nextBtn = this.element.querySelector(
               '[data-action="nextStep"]'
             );
