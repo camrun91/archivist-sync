@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.7] - 2026-11-09
+
+### Fixed
+- The sync dialog no longer keeps offering an update for a journal whose
+  content has not changed. Foundry's editor can save apostrophes, quotes and
+  other characters as plain text while Archivist renders them as entities
+  (`&#39;`, `&apos;`, `&quot;`, `&#8217;`). Journal comparison now treats a
+  character and its entity as the same, while `&`, `<` and `>` stay escaped.
+  Real text and formatting changes still appear in Review Changes.
+
 ## [2.0.6] - 2026-11-09
 
 ### Fixed
