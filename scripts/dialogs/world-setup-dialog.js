@@ -1334,8 +1334,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const setArchivistFlag = async (kind, doc, archivistId) => {
         try {
           await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', archivistId);
-          if (kind === 'CREATURE')
-            await doc.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
+          if (kind === 'PC' || kind === 'NPC' || kind === 'CREATURE')
+            await doc.setFlag(
+              CONFIG.MODULE_ID, 'archivistType', kind === 'CREATURE' ? 'Creature' : kind
+            );
         } catch (_) {}
       };
 
@@ -1369,8 +1371,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           );
           try {
             await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id);
-            if (String(row.type || '').toUpperCase() === 'CREATURE')
-              await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
+            const rowType = String(row.type || 'PC').toUpperCase();
+            await actor.setFlag(
+              CONFIG.MODULE_ID, 'archivistType', rowType === 'CREATURE' ? 'Creature' : rowType
+            );
           } catch (_) {}
           this.syncStatus.logs.push(
             `Created Actor '${actor.name}' for Archivist Character ${row.id}`
@@ -2073,8 +2077,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           if (actor) {
             try {
               await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id);
-              if (archivistType === 'CREATURE')
-                await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
+              await actor.setFlag(
+                CONFIG.MODULE_ID, 'archivistType', archivistType === 'CREATURE' ? 'Creature' : archivistType
+              );
             } catch (_) {}
             // If projection is enabled, apply Archivist description to the existing Actor
             if (projectionEnabled) {
@@ -2146,8 +2151,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           actor = await Actor.create(actorData, { render: false });
           try {
             await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id);
-            if (archivistType === 'CREATURE')
-              await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
+            await actor.setFlag(
+              CONFIG.MODULE_ID, 'archivistType', archivistType === 'CREATURE' ? 'Creature' : archivistType
+            );
           } catch (_) {}
         }
 
