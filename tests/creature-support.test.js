@@ -77,6 +77,26 @@ test('World Setup matches system-specific Actor types by name', () => {
   assert.equal(result.characters.archivist.find((c) => c.id === 'creature-1').match, 'a2');
 });
 
+test('World Setup exports explicitly classified Creatures and offers custom NPC types', async () => {
+  const build = WorldSetupDialog.prototype._buildReconciliationModel;
+  const adversary = { id: 'a1', name: 'Owlbear', type: 'adversary', getFlag: () => null };
+  const model = build.call({}, { archivist: { characters: [] }, foundry: { actors: [adversary] } });
+  assert.equal(model.characters.foundry[0].canChooseCreature, true);
+
+  const dialog = {
+    setupData: { reconcile: { characters: { archivist: [], foundry: [
+      { id: 'a2', name: 'Ancient Owlbear', type: 'character', archivistType: 'Creature', selected: true, match: null },
+    ] } } },
+    archivistCandidates: {},
+    _prepareCreateFoundryChoices: async () => {},
+    render: async () => {},
+  };
+  await WorldSetupDialog.prototype._onConfirmSelections.call(dialog);
+  assert.equal(dialog.syncPlan.createInArchivist[0].kind, 'CREATURE');
+  assert.equal(dialog.syncPlan.counts.create.creature, 1);
+  assert.equal(dialog.syncPlan.counts.create.pc, 0);
+});
+
 test('sync reclassifies an existing NPC sheet and its linked Actor as Creature', async () => {
   const updates = [];
   let flags = { sheetType: 'npc', archivistId: 'c1', foundryRefs: { actors: ['a1'] } };

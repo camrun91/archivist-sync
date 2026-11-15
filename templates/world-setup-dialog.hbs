@@ -557,7 +557,7 @@
                                             {{this.name}}
                                         </span>
                                         {{#unless this.match}}
-                                        {{#if (or (eq this.type 'npc') (eq this.type 'monster'))}}
+                                        {{#if this.canChooseCreature}}
                                         <select data-action="recon-actor-kind" data-id="{{this.id}}" title="Export this Actor as">
                                             <option value="NPC" {{#unless (eq this.archivistType 'Creature')}}selected{{/unless}}>NPC</option>
                                             <option value="Creature" {{#if (eq this.archivistType 'Creature')}}selected{{/if}}>Creature</option>
