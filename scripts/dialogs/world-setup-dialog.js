@@ -1570,7 +1570,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         if (job.kind === 'PC' || job.kind === 'NPC' || job.kind === 'CREATURE') {
           const payload = {
             ...getMappedFields(job.kind, doc),
-            type: job.kind,
+            type: job.kind === 'CREATURE' ? 'Creature' : job.kind,
             campaign_id: campaignId,
           };
           console.debug(`Archivist Sync | Creating ${job.kind} character:`, {
