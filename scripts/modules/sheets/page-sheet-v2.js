@@ -621,6 +621,16 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
                   'archivist',
                   flags
                 );
+                const actorType = {
+                  pc: 'PC',
+                  npc: 'NPC',
+                  creature: 'Creature',
+                }[String(flags.sheetType || '').toLowerCase()];
+                if (actorType) {
+                  await doc.setFlag(CONFIG.MODULE_ID, 'archivistType', actorType);
+                  if (flags.archivistId)
+                    await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', flags.archivistId);
+                }
                 ui.notifications?.info?.('Linked actor to character');
                 this.render(false);
               } catch (e) {
