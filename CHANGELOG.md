@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-15
+
+### Added
+- Creature records now import, export, and sync as distinct Archivist sheets and folders, with the web app's paw icon.
+- World Setup lets GMs export NPC Actors as Creatures and can create NPC Actors for imported Creatures.
+- Creature links appear in their own sheet tab; sync can reclassify existing Character sheets.
+
+### Fixed
+- Creature records no longer automatically match unrelated NPC Actors with the same name.
+
 ## [2.0.0] - 2026-04-05
 
 ### Changed

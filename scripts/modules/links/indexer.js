@@ -122,7 +122,7 @@ export class LinkIndexer {
 
       const bucketForType = (type) => {
         const t = String(type || '').toLowerCase();
-        if (t === 'character') return 'characters';
+        if (t === 'character' || t === 'creature') return 'characters';
         if (t === 'item') return 'items';
         if (t === 'location') return 'locationsAssociative';
         if (t === 'faction') return 'factions';

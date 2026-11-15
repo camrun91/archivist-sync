@@ -340,6 +340,7 @@ export class SettingsManager {
                   if (
                     st === 'pc' ||
                     st === 'npc' ||
+                    st === 'creature' ||
                     st === 'character' ||
                     st === 'item' ||
                     st === 'location' ||
@@ -615,13 +616,14 @@ export class SettingsManager {
 
   /**
    * Get journal folder destinations for organizing Archivist journals
-   * @returns {{ pc: string, npc: string, item: string, location: string, faction: string }}
+   * @returns {{ pc: string, npc: string, creature: string, item: string, location: string, faction: string }}
    */
   getJournalDestinations() {
     return (
       this.getSetting(SETTINGS.JOURNAL_DESTINATIONS.key) || {
         pc: '',
         npc: '',
+        creature: '',
         item: '',
         location: '',
         faction: '',
@@ -631,7 +633,7 @@ export class SettingsManager {
 
   /**
    * Set journal folder destinations
-   * @param {{ pc?: string, npc?: string, item?: string, location?: string, faction?: string }} destinations
+   * @param {{ pc?: string, npc?: string, creature?: string, item?: string, location?: string, faction?: string }} destinations
    * @returns {Promise<void>}
    */
   async setJournalDestinations(destinations) {
