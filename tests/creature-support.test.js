@@ -45,25 +45,33 @@ test('World Setup keeps Creature and NPC matching separate', () => {
 
 test('sync reclassifies an existing NPC sheet and its linked Actor as Creature', async () => {
   const updates = [];
-  const flags = { sheetType: 'npc', archivistId: 'c1', foundryRefs: { actors: ['a1'] } };
+  let flags = { sheetType: 'npc', archivistId: 'c1', foundryRefs: { actors: ['a1'] } };
   const journal = {
-    getFlag: () => flags,
+    getFlag: () => structuredClone(flags),
     update: async (data) => updates.push(data),
-    setFlag: async (_module, _key, data) => Object.assign(flags, data),
+    setFlag: async (_module, _key, data) => { flags = structuredClone(data); },
   };
   const actorFlags = [];
   const actor = { setFlag: async (...args) => actorFlags.push(args) };
   const previousGame = globalThis.game;
   const previousDestinations = settingsManager.getJournalDestinations;
   const previousEnsureFolder = Utils.ensureJournalFolder;
+  const previousLeadImage = Utils.ensureJournalLeadImage;
   globalThis.game = { journal: { get: () => journal }, actors: { get: () => actor } };
   settingsManager.getJournalDestinations = () => ({ creature: 'creature-folder' });
   Utils.ensureJournalFolder = async () => { throw new Error('unexpected folder creation'); };
+  Utils.ensureJournalLeadImage = async () => {};
   try {
     await SyncDialog.prototype._applyDiff.call({}, {
-      journalId: 'j1', changes: { sheetType: { from: 'npc', to: 'creature' } },
+      journalId: 'j1', changes: {
+        sheetType: { from: 'npc', to: 'creature' },
+        image: { from: '', to: 'https://example.com/owlbear.png' },
+        links: { add: [{ id: 'item-1', type: 'Item' }], remove: [] },
+      },
     });
     assert.equal(flags.sheetType, 'creature');
+    assert.equal(flags.image, 'https://example.com/owlbear.png');
+    assert.deepEqual(flags.archivistRefs.items, ['item-1']);
     assert.equal(updates[0]['flags.core.sheetClass'], 'archivist-sync.CreaturePageSheetV2');
     assert.equal(updates[0].folder, 'creature-folder');
     assert.deepEqual(actorFlags[0], ['archivist-sync', 'archivistType', 'Creature']);
@@ -71,5 +79,6 @@ test('sync reclassifies an existing NPC sheet and its linked Actor as Creature',
     globalThis.game = previousGame;
     settingsManager.getJournalDestinations = previousDestinations;
     Utils.ensureJournalFolder = previousEnsureFolder;
+    Utils.ensureJournalLeadImage = previousLeadImage;
   }
 });
