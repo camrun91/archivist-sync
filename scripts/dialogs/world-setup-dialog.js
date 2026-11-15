@@ -3475,8 +3475,10 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
     const allActors = [...pcActors, ...npcActors];
     const charConstraint = (ac, fa) => {
-      if (ac.type === 'CREATURE' && fa.archivistType !== 'Creature' && String(fa.doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || '') !== String(ac.id)) return false;
-      if (ac.type === 'NPC' && fa.archivistType === 'Creature') return false;
+      const linkedId = String(fa.doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || '');
+      if (linkedId) return linkedId === String(ac.id);
+      if (ac.type === 'CREATURE') return fa.archivistType === 'Creature';
+      if (fa.archivistType === 'Creature') return false;
       const actorType = String(fa.type || '').toLowerCase();
       if (!['character', 'npc', 'monster'].includes(actorType)) return true;
       return ac.type === 'PC'
