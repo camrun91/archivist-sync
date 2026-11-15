@@ -615,6 +615,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
                   scenes: [],
                   journals: [],
                 };
+                const previousActorId = flags.foundryRefs.actors?.[0];
                 flags.foundryRefs.actors = [doc.id];
                 await this.document.setFlag(
                   CONFIG.MODULE_ID,
@@ -630,6 +631,10 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
                   await doc.setFlag(CONFIG.MODULE_ID, 'archivistType', actorType);
                   if (flags.archivistId)
                     await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', flags.archivistId);
+                }
+                if (previousActorId && previousActorId !== doc.id) {
+                  const previousActor = game.actors?.get?.(previousActorId);
+                  await Utils.clearActorArchivistLink(previousActor, flags.archivistId);
                 }
                 ui.notifications?.info?.('Linked actor to character');
                 this.render(false);
@@ -1805,6 +1810,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
                   ...flags,
                   foundryRefs: next,
                 });
+                await Utils.clearActorArchivistLink(actor, flags.archivistId);
                 this.render(false);
               });
           }

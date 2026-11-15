@@ -164,3 +164,17 @@ test('reconciliation honors character_type when aligning a Creature sheet', asyn
     for (const method of methods) archivistApi[method] = originals[method];
   }
 });
+
+
+test('replacing a linked Actor clears only the previous matching identity', async () => {
+  const values = { archivistId: 'creature-1', archivistType: 'Creature' };
+  const removed = [];
+  const actor = {
+    getFlag: (_module, key) => values[key],
+    unsetFlag: async (_module, key) => { removed.push(key); delete values[key]; },
+  };
+  assert.equal(await Utils.clearActorArchivistLink(actor, 'other-creature'), false);
+  assert.deepEqual(removed, []);
+  assert.equal(await Utils.clearActorArchivistLink(actor, 'creature-1'), true);
+  assert.deepEqual(removed, ['archivistId', 'archivistType']);
+});
