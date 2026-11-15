@@ -60,6 +60,27 @@ test('World Setup retains linked PC Actors reclassified as Creatures', () => {
   assert.equal(result.characters.foundry[0].match, 'creature-1');
 });
 
+test('World Setup preserves explicit NPC classification on native character Actors', async () => {
+  const build = WorldSetupDialog.prototype._buildReconciliationModel;
+  const actor = {
+    id: 'a1', name: 'Aria', type: 'character',
+    getFlag: (_module, key) => key === 'archivistType' ? 'NPC' : null,
+  };
+  const model = build.call({}, { archivist: { characters: [{ id: 'npc-1', character_name: 'Aria', type: 'NPC' }] }, foundry: { actors: [actor] } });
+  assert.equal(model.characters.archivist[0].match, 'a1');
+  const dialog = {
+    setupData: { reconcile: { characters: { archivist: [], foundry: [
+      { ...model.characters.foundry[0], match: null, selected: true },
+    ] } } },
+    archivistCandidates: {},
+    _prepareCreateFoundryChoices: async () => {},
+    render: async () => {},
+  };
+  await WorldSetupDialog.prototype._onConfirmSelections.call(dialog);
+  assert.equal(dialog.syncPlan.createInArchivist[0].kind, 'NPC');
+  assert.equal(dialog.syncPlan.counts.create.npc, 1);
+});
+
 test('World Setup matches system-specific Actor types by name', () => {
   const build = WorldSetupDialog.prototype._buildReconciliationModel;
   const actor = (id, name, typeFlag = '') => ({

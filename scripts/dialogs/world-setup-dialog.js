@@ -945,11 +945,16 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         } else {
           // Foundry-only actor with no match -> export to Archivist
           if (!row.match) {
-            const isCreature = row.archivistType === 'Creature';
-            const isPc = !isCreature && String(row.type || '').toLowerCase() === 'character';
-            const kind = isCreature ? 'creature' : isPc ? 'pc' : 'npc';
+            const actorKind = row.archivistType === 'Creature'
+              ? 'CREATURE'
+              : row.archivistType === 'NPC'
+                ? 'NPC'
+                : row.archivistType === 'PC' || String(row.type || '').toLowerCase() === 'character'
+                  ? 'PC'
+                  : 'NPC';
+            const kind = actorKind.toLowerCase();
             push(plan.createInArchivist, {
-              kind: isCreature ? 'CREATURE' : isPc ? 'PC' : 'NPC',
+              kind: actorKind,
               foundryId: row.id,
               name: row.name,
             });
@@ -3368,15 +3373,21 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const normName = (v) => toName(v).toLowerCase();
 
     const actors = Array.isArray(F.actors) ? F.actors : [];
-    const actorsBase = actors.map((a) => ({
-      id: a.id,
-      name: toName(a.name),
-      img: a.img || '',
-      type: String(a.type || ''),
-      canChooseCreature: String(a.type || '').toLowerCase() !== 'character',
-      archivistType: String(a.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || '').toLowerCase() === 'creature' ? 'Creature' : 'NPC',
-      doc: a,
-    }));
+    const actorsBase = actors.map((a) => {
+      const type = String(a.type || '');
+      const flaggedType = String(a.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || '').toLowerCase();
+      const hasExplicitArchivistType = ['pc', 'npc', 'creature'].includes(flaggedType);
+      return {
+        id: a.id,
+        name: toName(a.name),
+        img: a.img || '',
+        type,
+        canChooseCreature: type.toLowerCase() !== 'character',
+        hasExplicitArchivistType,
+        archivistType: flaggedType === 'creature' ? 'Creature' : flaggedType === 'pc' ? 'PC' : flaggedType === 'npc' ? 'NPC' : type.toLowerCase() === 'character' ? 'PC' : 'NPC',
+        doc: a,
+      };
+    });
     let pcActors = actorsBase.filter(
       (a) => a.type.toLowerCase() === 'character'
     );
@@ -3479,8 +3490,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const charConstraint = (ac, fa) => {
       const linkedId = String(fa.doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || '');
       if (linkedId) return linkedId === String(ac.id);
-      if (ac.type === 'CREATURE') return fa.archivistType === 'Creature';
-      if (fa.archivistType === 'Creature') return false;
+      if (fa.hasExplicitArchivistType)
+        return ac.type === fa.archivistType.toUpperCase();
+      if (ac.type === 'CREATURE') return false;
       const actorType = String(fa.type || '').toLowerCase();
       if (!['character', 'npc', 'monster'].includes(actorType)) return true;
       return ac.type === 'PC'
