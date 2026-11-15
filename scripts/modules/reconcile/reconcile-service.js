@@ -193,7 +193,10 @@ export class ReconcileService {
     };
 
     // Ensure sheets
-    for (const c of characters) await ensureSheet(c, String(c.type || '').toLowerCase() === 'creature' ? 'creature' : String(c.type || '').toUpperCase() === 'NPC' ? 'npc' : 'pc');
+    for (const c of characters) {
+      const subtype = String(c.type || c.character_type || '').toUpperCase();
+      await ensureSheet(c, subtype === 'CREATURE' ? 'creature' : subtype === 'NPC' ? 'npc' : 'pc');
+    }
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
