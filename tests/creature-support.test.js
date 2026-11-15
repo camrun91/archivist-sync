@@ -11,6 +11,9 @@ const { WorldSetupDialog } = await import('../scripts/dialogs/world-setup-dialog
 const { SyncDialog } = await import('../scripts/dialogs/sync-dialog.js');
 const { Utils } = await import('../scripts/modules/utils.js');
 const { settingsManager } = await import('../scripts/modules/settings-manager.js');
+const { ReconcileService } = await import('../scripts/modules/reconcile/reconcile-service.js');
+const { archivistApi } = await import('../scripts/services/archivist-api.js');
+const { journalManager } = await import('../scripts/modules/journal-manager.js');
 
 test('Creature API uses the Character endpoint and preserves its subtype', async () => {
   const api = new ArchivistApiService();
@@ -80,5 +83,53 @@ test('sync reclassifies an existing NPC sheet and its linked Actor as Creature',
     settingsManager.getJournalDestinations = previousDestinations;
     Utils.ensureJournalFolder = previousEnsureFolder;
     Utils.ensureJournalLeadImage = previousLeadImage;
+  }
+});
+
+
+test('reconciliation honors character_type when aligning a Creature sheet', async () => {
+  const originalKey = settingsManager.getApiKey;
+  const originalWorld = settingsManager.getSelectedWorldId;
+  const originalFolders = journalManager.ensureDefaultFolders;
+  const originalFolderNames = journalManager.folderNames;
+  const originalEnsureFolder = Utils.ensureJournalFolder;
+  const originalGame = globalThis.game;
+  const methods = ['listCharacters', 'listItems', 'listLocations', 'listFactions', 'listSessions', 'listLinks', 'listQuests', 'listJournals'];
+  const originals = Object.fromEntries(methods.map((method) => [method, archivistApi[method]]));
+  let flags = { archivistId: 'c1', sheetType: 'pc', foundryRefs: { actors: ['a1'] } };
+  const updates = [];
+  const actorFlags = [];
+  const journal = {
+    id: 'j1', name: 'Owlbear', folder: { id: 'old-folder' }, img: '',
+    getFlag: () => structuredClone(flags),
+    setFlag: async (_module, _key, value) => { flags = structuredClone(value); },
+    update: async (value) => { updates.push(value); },
+  };
+  globalThis.game = {
+    journal: { contents: [journal] },
+    actors: { get: () => ({ setFlag: async (...args) => actorFlags.push(args) }) },
+  };
+  settingsManager.getApiKey = () => 'key';
+  settingsManager.getSelectedWorldId = () => 'world-1';
+  journalManager.ensureDefaultFolders = async () => {};
+  journalManager.folderNames = { ...originalFolderNames, creature: 'Creatures' };
+  Utils.ensureJournalFolder = async () => 'creature-folder';
+  for (const method of methods) archivistApi[method] = async () => ({ success: true, data: method === 'listCharacters' ? [{ id: 'c1', character_name: 'Owlbear', character_type: 'Creature' }] : [] });
+  try {
+    const service = new ReconcileService();
+    service._ensureRecapsContainer = async () => ({ pages: { contents: [] } });
+    service._organizeFolders = async () => {};
+    assert.equal(await service.runFull(), true);
+    assert.equal(flags.sheetType, 'creature');
+    assert.equal(updates[0]['flags.core.sheetClass'], 'archivist-sync.CreaturePageSheetV2');
+    assert.deepEqual(actorFlags[0], ['archivist-sync', 'archivistType', 'Creature']);
+  } finally {
+    settingsManager.getApiKey = originalKey;
+    settingsManager.getSelectedWorldId = originalWorld;
+    journalManager.ensureDefaultFolders = originalFolders;
+    journalManager.folderNames = originalFolderNames;
+    Utils.ensureJournalFolder = originalEnsureFolder;
+    globalThis.game = originalGame;
+    for (const method of methods) archivistApi[method] = originals[method];
   }
 });
