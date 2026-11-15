@@ -1047,7 +1047,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       const imageUrl = String(changes.image.to || '');
       await Utils.ensureJournalLeadImage(j, imageUrl);
       // Update the archivist.image flag so diff detection recognizes the change
-      const nextFlags = { ...(f || {}) };
+      const nextFlags = { ...(j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}) };
       nextFlags.image = imageUrl;
       await j.setFlag(CONFIG.MODULE_ID, 'archivist', nextFlags);
       // Hub image flag removed
@@ -1082,7 +1082,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       }
     }
     if (changes.questData) {
-      const nextFlags = { ...(f || {}) };
+      const nextFlags = { ...(j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}) };
       const qd = { ...(nextFlags.questData || {}) };
       for (const [key, diff] of Object.entries(changes.questData)) {
         qd[key] = diff.to;
@@ -1100,7 +1100,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         journal: 'entries',
         journalentry: 'entries',
       };
-      const next = { ...(f || {}) };
+      const next = { ...(j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}) };
       next.archivistRefs = next.archivistRefs || {
         characters: [],
         items: [],
