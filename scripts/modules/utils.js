@@ -4,6 +4,15 @@ import { CONFIG } from './config.js';
  * Utility functions for Archivist Sync Module
  */
 export class Utils {
+  static async clearActorArchivistLink(actor, archivistId) {
+    if (!actor || !archivistId) return false;
+    const linkedId = actor.getFlag(CONFIG.MODULE_ID, 'archivistId');
+    if (String(linkedId || '') !== String(archivistId)) return false;
+    await actor.unsetFlag(CONFIG.MODULE_ID, 'archivistId');
+    await actor.unsetFlag(CONFIG.MODULE_ID, 'archivistType');
+    return true;
+  }
+
   /**
    * Return the current system id in lowercase (e.g., "dnd5e", "pf2e").
    */
