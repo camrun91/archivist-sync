@@ -578,7 +578,7 @@ export class ArchivistApiService {
    * @param {string} campaignId
    * @returns {Promise<{success:boolean,data:Array}>>}
    */
-  async listCharacters(apiKey, campaignId) {
+  async listCharacters(apiKey, campaignId, characterType = null) {
     try {
       let page = 1;
       const size = 100;
@@ -586,7 +586,7 @@ export class ArchivistApiService {
       while (true) {
         const data = await this._request(
           apiKey,
-          `/characters?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          `/characters?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}${characterType ? `&character_type=${encodeURIComponent(characterType)}` : ''}`,
           { method: 'GET' }
         );
         const items = Array.isArray(data)
@@ -615,6 +615,23 @@ export class ArchivistApiService {
         message: error.message || 'Failed to list characters',
       };
     }
+  }
+
+  /** Creature records use the Character API with type=Creature. */
+  async listCreatures(apiKey, campaignId) {
+    return this.listCharacters(apiKey, campaignId, 'Creature');
+  }
+
+  async createCreature(apiKey, payload) {
+    return this.createCharacter(apiKey, { ...payload, type: 'Creature' });
+  }
+
+  async updateCreature(apiKey, creatureId, payload) {
+    return this.updateCharacter(apiKey, creatureId, payload);
+  }
+
+  async deleteCreature(apiKey, creatureId) {
+    return this.deleteCharacter(apiKey, creatureId);
   }
 
   /**

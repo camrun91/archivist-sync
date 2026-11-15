@@ -25,7 +25,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       selectedWorldId: '',
       selectedWorldName: '',
       setupComplete: false,
-      destinations: { pc: '', npc: '', item: '', location: '', faction: '' },
+      destinations: { pc: '', npc: '', creature: '', item: '', location: '', faction: '' },
       createFoundry: { actors: [], items: [], scenes: [] },
     };
     this.archivistCandidates = {
@@ -878,12 +878,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       exportToArchivist: { characters: 0, items: 0, locations: 0, factions: 0 },
       linked: { characters: 0, items: 0, locations: 0 },
       counts: {
-        create: { pc: 0, npc: 0, item: 0, location: 0, faction: 0 },
-        link: { pc: 0, npc: 0, item: 0, location: 0, faction: 0 },
+        create: { pc: 0, npc: 0, creature: 0, item: 0, location: 0, faction: 0 },
+        link: { pc: 0, npc: 0, creature: 0, item: 0, location: 0, faction: 0 },
       },
       summary: {
         pc: [],
         npc: [],
+        creature: [],
         item: [],
         location: [],
         faction: [],
@@ -923,7 +924,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         if (side === 'archivist') {
           // If matched, it's a link; otherwise it's an import from Archivist
           if (row.match) {
-            const kind = row.type === 'PC' ? 'pc' : 'npc';
+            const kind = row.type === 'PC' ? 'pc' : row.type === 'CREATURE' ? 'creature' : 'npc';
             push(plan.link, {
               kind: row.type,
               archivistId: row.id,
@@ -945,9 +946,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           // Foundry-only actor with no match -> export to Archivist
           if (!row.match) {
             const isPc = String(row.type || '').toLowerCase() === 'character';
-            const kind = isPc ? 'pc' : 'npc';
+            const kind = isPc ? 'pc' : row.archivistType === 'Creature' ? 'creature' : 'npc';
             push(plan.createInArchivist, {
-              kind: isPc ? 'PC' : 'NPC',
+              kind: isPc ? 'PC' : row.archivistType === 'Creature' ? 'CREATURE' : 'NPC',
               foundryId: row.id,
               name: row.name,
             });
@@ -1175,6 +1176,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         const folders = {
           pc: await ensureFolder('Archivist - PCs'),
           npc: await ensureFolder('Archivist - NPCs'),
+          creature: await ensureFolder('Archivist - Creatures'),
           item: await ensureFolder('Archivist - Items'),
           location: await ensureFolder('Archivist - Locations'),
           faction: await ensureFolder('Archivist - Factions'),
@@ -1186,6 +1188,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         console.debug('[World Setup] Folders created:', {
           pc: folders.pc || 'failed',
           npc: folders.npc || 'failed',
+          creature: folders.creature || 'failed',
           item: folders.item || 'failed',
           location: folders.location || 'failed',
           faction: folders.faction || 'failed',
@@ -1197,6 +1200,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         this.setupData.destinations = {
           pc: folders.pc,
           npc: folders.npc,
+          creature: folders.creature,
           item: folders.item,
           location: folders.location,
           faction: folders.faction,
@@ -1208,6 +1212,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         console.debug('[World Setup] Destinations set:', {
           pc: this.setupData.destinations.pc || 'none',
           npc: this.setupData.destinations.npc || 'none',
+          creature: this.setupData.destinations.creature || 'none',
           item: this.setupData.destinations.item || 'none',
           location: this.setupData.destinations.location || 'none',
           faction: this.setupData.destinations.faction || 'none',
@@ -1242,7 +1247,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       await this.render();
 
       const getDoc = async (kind, id) => {
-        if (kind === 'PC' || kind === 'NPC') return game.actors.get(id);
+        if (kind === 'PC' || kind === 'NPC' || kind === 'CREATURE') return game.actors.get(id);
         if (kind === 'Item') return game.items.get(id);
         if (kind === 'Location') {
           // Location creation from Scene - get the Scene document
@@ -1306,7 +1311,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           }
         };
 
-        if (kind === 'PC' || kind === 'NPC') {
+        if (kind === 'PC' || kind === 'NPC' || kind === 'CREATURE') {
           const image = httpsOnly(doc?.img);
           const description = gatherDescription();
           return {
@@ -1337,6 +1342,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       const setArchivistFlag = async (kind, doc, archivistId) => {
         try {
           await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', archivistId);
+          if (kind === 'CREATURE')
+            await doc.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
         } catch (_) {}
       };
 
@@ -1352,12 +1359,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             continue;
           }
           const actorType =
-            String(row.type || 'PC').toUpperCase() === 'NPC'
+            String(row.type || 'PC').toUpperCase() !== 'PC'
               ? 'npc'
               : 'character';
           const folderId =
             actorType === 'npc'
-              ? this.setupData.destinations.npc
+              ? (String(row.type || '').toUpperCase() === 'CREATURE' ? this.setupData.destinations.creature : this.setupData.destinations.npc)
               : this.setupData.destinations.pc;
           const actor = await Actor.create(
             {
@@ -1370,6 +1377,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           );
           try {
             await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id);
+            if (String(row.type || '').toUpperCase() === 'CREATURE')
+              await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
           } catch (_) {}
           this.syncStatus.logs.push(
             `Created Actor '${actor.name}' for Archivist Character ${row.id}`
@@ -1493,12 +1502,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
               let targetFolderId = null;
               let html = '';
               let imageUrl = undefined;
-              if (job.kind === 'PC' || job.kind === 'NPC') {
-                sheetType = job.kind === 'PC' ? 'pc' : 'npc';
+              if (job.kind === 'PC' || job.kind === 'NPC' || job.kind === 'CREATURE') {
+                sheetType = job.kind === 'PC' ? 'pc' : job.kind === 'CREATURE' ? 'creature' : 'npc';
                 targetFolderId =
                   job.kind === 'PC'
                     ? this.setupData.destinations.pc
-                    : this.setupData.destinations.npc;
+                    : job.kind === 'CREATURE' ? this.setupData.destinations.creature : this.setupData.destinations.npc;
                 const desc =
                   doc?.system?.details?.biography?.value ||
                   doc?.system?.description ||
@@ -1541,7 +1550,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                     scenes: [],
                     journals: [],
                   };
-                  if (job.kind === 'PC' || job.kind === 'NPC')
+                  if (job.kind === 'PC' || job.kind === 'NPC' || job.kind === 'CREATURE')
                     flags.foundryRefs.actors = [doc.id];
                   if (job.kind === 'Item') flags.foundryRefs.items = [doc.id];
                   if (job.kind === 'Location')
@@ -1566,7 +1575,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
         // Create in Archivist
         let res = { success: false, data: null };
-        if (job.kind === 'PC' || job.kind === 'NPC') {
+        if (job.kind === 'PC' || job.kind === 'NPC' || job.kind === 'CREATURE') {
           const payload = {
             ...getMappedFields(job.kind, doc),
             type: job.kind,
@@ -1633,12 +1642,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           try {
             let sheetType, targetFolderId, html, imageUrl;
 
-            if (job.kind === 'PC' || job.kind === 'NPC') {
-              sheetType = job.kind === 'PC' ? 'pc' : 'npc';
+            if (job.kind === 'PC' || job.kind === 'NPC' || job.kind === 'CREATURE') {
+              sheetType = job.kind === 'PC' ? 'pc' : job.kind === 'CREATURE' ? 'creature' : 'npc';
               targetFolderId =
                 job.kind === 'PC'
                   ? this.setupData.destinations.pc
-                  : this.setupData.destinations.npc;
+                  : job.kind === 'CREATURE' ? this.setupData.destinations.creature : this.setupData.destinations.npc;
               // Extract description from actor
               const desc =
                 doc?.system?.details?.biography?.value ||
@@ -2056,11 +2065,9 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         const archivistType = String(
           c.type || c.character_type || 'PC'
         ).toUpperCase();
-        const foundryType = archivistType === 'NPC' ? 'npc' : 'character';
+        const foundryType = archivistType === 'PC' ? 'character' : 'npc';
         const folderId =
-          archivistType === 'NPC'
-            ? this.setupData.destinations.npc || null
-            : this.setupData.destinations.pc || null;
+          archivistType === 'CREATURE' ? this.setupData.destinations.creature || null : archivistType === 'NPC' ? this.setupData.destinations.npc || null : this.setupData.destinations.pc || null;
 
         // If user mapped this Archivist character to an existing Foundry Actor, link instead of creating
         const mappedFoundryId = mappedActorByArchivistId.get(String(c.id));
@@ -2074,6 +2081,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           if (actor) {
             try {
               await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id);
+              if (archivistType === 'CREATURE')
+                await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
             } catch (_) {}
             // If projection is enabled, apply Archivist description to the existing Actor
             if (projectionEnabled) {
@@ -2145,20 +2154,20 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
           actor = await Actor.create(actorData, { render: false });
           try {
             await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', c.id);
+            if (archivistType === 'CREATURE')
+              await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
           } catch (_) {}
         }
 
         // Create a standalone JournalEntry for this character with the custom sheet
         try {
-          const name = c.character_name || c.name || actor.name || 'Character';
+          const name = c.character_name || c.name || actor?.name || 'Character';
           const html = Utils.toMarkdownIfHtml(String(c.description || ''));
           // Pass an authoritative absent value through so a reused sheet can
           // clear artwork removed in Archivist.
           const imageUrl = c.image;
           const targetFolderId =
-            archivistType === 'NPC'
-              ? this.setupData.destinations.npc
-              : this.setupData.destinations.pc;
+            archivistType === 'CREATURE' ? this.setupData.destinations.creature : archivistType === 'NPC' ? this.setupData.destinations.npc : this.setupData.destinations.pc;
 
           console.debug(`[World Setup] Creating journal for ${archivistType}:`, {
             name,
@@ -2173,7 +2182,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             name,
             html,
             imageUrl,
-            sheetType: archivistType === 'NPC' ? 'npc' : 'pc',
+            sheetType: archivistType === 'CREATURE' ? 'creature' : archivistType === 'NPC' ? 'npc' : 'pc',
             archivistId: c.id,
             worldId: campaignId,
             folderId: targetFolderId || null,
@@ -3173,6 +3182,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       // Delegate match dropdown change
       if (!root.dataset.boundReconMatch) {
         root.addEventListener('change', async (ev) => {
+          const kindSelect = ev.target?.closest?.('select[data-action="recon-actor-kind"]');
+          if (kindSelect) {
+            const row = this.setupData.reconcile?.characters?.foundry?.find(
+              (r) => String(r.id) === String(kindSelect.dataset.id)
+            );
+            if (row) row.archivistType = kindSelect.value === 'Creature' ? 'Creature' : 'NPC';
+            return;
+          }
           const sel = ev.target?.closest?.(
             'select[data-action="recon-change-match"]'
           );
@@ -3349,6 +3366,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       name: toName(a.name),
       img: a.img || '',
       type: String(a.type || ''),
+      archivistType: String(a.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || '').toLowerCase() === 'creature' ? 'Creature' : 'NPC',
       doc: a,
     }));
     let pcActors = actorsBase.filter(
@@ -3451,6 +3469,8 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
 
     const allActors = [...pcActors, ...npcActors];
     const charConstraint = (ac, fa) => {
+      if (ac.type === 'CREATURE' && fa.archivistType !== 'Creature' && String(fa.doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || '') !== String(ac.id)) return false;
+      if (ac.type === 'NPC' && fa.archivistType === 'Creature') return false;
       if (!fa.type || fa.type === '' || fa.type === 'base') return true;
       return ac.type === 'PC'
         ? fa.type.toLowerCase() === 'character'
@@ -3501,7 +3521,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         for (const l of leftArr) {
           if (!l.match) {
             const r = rightByName.get(normName(l.name));
-            if (r && !r.match) {
+            if (r && !r.match && charConstraint(l, r)) {
               l.match = r.id;
               r.match = l.id;
             }

@@ -1630,6 +1630,7 @@ export class Utils {
       const folders = {
         pc: 'Archivist - PCs',
         npc: 'Archivist - NPCs',
+        creature: 'Archivist - Creatures',
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
@@ -1659,6 +1660,7 @@ export class Utils {
       const map = {
         pc: 'Archivist - PCs',
         npc: 'Archivist - NPCs',
+        creature: 'Archivist - Creatures',
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
@@ -1818,6 +1820,7 @@ export class Utils {
       const sheetClassMap = {
         pc: 'archivist-sync.PCPageSheetV2',
         npc: 'archivist-sync.NPCPageSheetV2',
+        creature: 'archivist-sync.CreaturePageSheetV2',
         item: 'archivist-sync.ItemPageSheetV2',
         location: 'archivist-sync.LocationPageSheetV2',
         faction: 'archivist-sync.FactionPageSheetV2',
@@ -1995,6 +1998,7 @@ export class Utils {
     const sheetClassMap = {
       pc: 'archivist-sync.PCPageSheetV2',
       npc: 'archivist-sync.NPCPageSheetV2',
+      creature: 'archivist-sync.CreaturePageSheetV2',
       item: 'archivist-sync.ItemPageSheetV2',
       location: 'archivist-sync.LocationPageSheetV2',
       faction: 'archivist-sync.FactionPageSheetV2',
@@ -2043,6 +2047,13 @@ export class Utils {
       ...opts,
       sheetType: 'npc',
       folderName: 'Archivist - NPCs',
+    });
+  }
+  static createCreatureJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'creature',
+      folderName: 'Archivist - Creatures',
     });
   }
   static createItemJournal(opts) {

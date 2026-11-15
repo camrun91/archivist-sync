@@ -133,7 +133,7 @@ export class ReconcileService {
           }
         } else {
           j = await journalManager.create({
-            name: entity.name || entity.title || sheetType,
+            name: entity.character_name || entity.name || entity.title || sheetType,
             sheetType,
             archivistId: id,
             worldId: campaignId,
@@ -156,6 +156,24 @@ export class ReconcileService {
         }
         byArchId.set(id, j);
       } else {
+        if (['pc', 'npc', 'creature'].includes(sheetType)) {
+          const current = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+          if (current.sheetType !== sheetType) {
+            const className = { pc: 'PCPageSheetV2', npc: 'NPCPageSheetV2', creature: 'CreaturePageSheetV2' }[sheetType];
+            const folderName = journalManager.folderNames[sheetType];
+            const folderId = folderName ? await Utils.ensureJournalFolder(folderName) : null;
+            await j.update({
+              'flags.core.sheetClass': `archivist-sync.${className}`,
+              'flags.core.sheet': `archivist-sync.${className}`,
+              ...(folderId ? { folder: folderId } : {}),
+            }, { render: false });
+            await j.setFlag(CONFIG.MODULE_ID, 'archivist', { ...current, sheetType });
+            for (const actorId of current.foundryRefs?.actors || []) {
+              const actor = game.actors?.get?.(actorId);
+              if (actor) await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', sheetType === 'creature' ? 'Creature' : sheetType === 'npc' ? 'NPC' : 'PC');
+            }
+          }
+        }
         // Existing journal: backfill or update image from Archivist if missing/different
         try {
           const raw = String(entity?.image || '').trim();
@@ -167,7 +185,7 @@ export class ReconcileService {
         } catch (_) {}
       }
       // Title/description updates
-      const desiredName = entity.name || entity.title || j.name;
+      const desiredName = entity.character_name || entity.name || entity.title || j.name;
       if (desiredName && desiredName !== j.name)
         await j.update({ name: desiredName });
       // For brevity we do not overwrite page body here to avoid clobbering GM edits.
@@ -175,7 +193,7 @@ export class ReconcileService {
     };
 
     // Ensure sheets
-    for (const c of characters) await ensureSheet(c, 'character');
+    for (const c of characters) await ensureSheet(c, String(c.type || '').toLowerCase() === 'creature' ? 'creature' : String(c.type || '').toUpperCase() === 'NPC' ? 'npc' : 'pc');
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
@@ -337,7 +355,9 @@ export class ReconcileService {
   async _organizeFolders() {
     try {
       const nameFor = (st) => {
-        if (st === 'character') return 'Characters';
+        if (st === 'character' || st === 'pc') return 'Characters';
+        if (st === 'npc') return 'NPCs';
+        if (st === 'creature') return 'Creatures';
         if (st === 'item') return 'Items';
         if (st === 'location') return 'Locations';
         if (st === 'faction') return 'Factions';
@@ -350,6 +370,8 @@ export class ReconcileService {
         if (cache.has(label)) return cache.get(label);
         const organized = {
           Characters: 'Archivist - PCs',
+          NPCs: 'Archivist - NPCs',
+          Creatures: 'Archivist - Creatures',
           Items: 'Archivist - Items',
           Locations: 'Archivist - Locations',
           Factions: 'Archivist - Factions',

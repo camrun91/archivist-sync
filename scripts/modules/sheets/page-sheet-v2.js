@@ -93,7 +93,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         const flagImg = String(f.image || '').trim();
         if (flagImg) image = flagImg;
       }
-      if (!image && (st === 'pc' || st === 'npc' || st === 'character')) {
+      if (!image && (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character')) {
         const actorId = (f.foundryRefs?.actors || [])[0];
         const actor = actorId ? game.actors?.get?.(actorId) : null;
         if (actor?.img) image = String(actor.img).trim();
@@ -110,7 +110,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       // Hub fallback removed
       // Final fallback: Foundry default icons per sheet type
       if (!image) {
-        if (st === 'pc' || st === 'npc' || st === 'character')
+        if (st === 'creature') image = 'modules/archivist-sync/assets/icons/creature.svg';
+        else if (st === 'pc' || st === 'npc' || st === 'character')
           image = 'icons/svg/mystery-man.svg';
         else if (st === 'item') image = 'icons/svg/item-bag.svg';
         else if (st === 'location') image = 'icons/svg/mountain.svg';
@@ -701,7 +702,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     if (!grid) return;
     const flags = this._getArchivistFlags();
     const sheetType = String(flags.sheetType || '').toLowerCase();
-    const entityType = { pc: 'character', npc: 'character', character: 'character', faction: 'faction', location: 'location', item: 'item' }[sheetType];
+    const entityType = { pc: 'character', npc: 'character', creature: 'character', character: 'character', faction: 'faction', location: 'location', item: 'item' }[sheetType];
     const archivistId = String(flags.archivistId || '');
     if (!entityType || !archivistId) {
       grid.innerHTML = '<span class="quest-empty-state">None</span>';
@@ -985,6 +986,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       if (
         sheetType === 'pc' ||
         sheetType === 'npc' ||
+        sheetType === 'creature' ||
         sheetType === 'character'
       ) {
         console.log('[Archivist V2 Sheet] Syncing Character to API');
@@ -1283,7 +1285,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           if (apiKey && campaignId && toId && fromId) {
             const resolveType = (flags) => {
               const st = String(flags.sheetType || '').toLowerCase();
-              if (st === 'character' || st === 'pc' || st === 'npc')
+              if (st === 'character' || st === 'pc' || st === 'npc' || st === 'creature')
                 return 'Character';
               if (st === 'item') return 'Item';
               if (st === 'location') return 'Location';
@@ -1322,7 +1324,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         doc?.parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') ||
         {};
       const dType = String(dFlags.sheetType || '').toLowerCase();
-      if (dType === 'character' || dType === 'pc' || dType === 'npc')
+      if (dType === 'character' || dType === 'pc' || dType === 'npc' || dType === 'creature')
         return 'characters';
       if (dType === 'item') return 'items';
       if (dType === 'faction') return 'factions';
@@ -1428,7 +1430,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         if (flagImg) image = flagImg;
       }
       if (!image) {
-        if (st === 'pc' || st === 'npc' || st === 'character') {
+        if (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character') {
           const actorId = (f.foundryRefs?.actors || [])[0];
           const actor = actorId ? game.actors?.get?.(actorId) : null;
           if (actor?.img) image = String(actor.img).trim();
@@ -1445,6 +1447,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       }
       // Hub fallback removed
       if (!image) {
+        if (st === 'creature') return 'modules/archivist-sync/assets/icons/creature.svg';
         if (st === 'pc' || st === 'npc' || st === 'character')
           return 'icons/svg/mystery-man.svg';
         if (st === 'item') return 'icons/svg/item-bag.svg';
@@ -1542,7 +1545,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       const npcsEl = root.querySelector(
         '.tab[data-tab="npcs"] .archivist-grid, .tab[data-tab="npcs"] .npcs-grid'
       );
-      if (pcsEl || npcsEl) {
+      const creaturesEl = root.querySelector('.tab[data-tab="creatures"] .archivist-grid');
+      if (pcsEl || npcsEl || creaturesEl) {
         let allCharIds = [];
         try {
           const { linkIndexer } = await import(
@@ -1569,6 +1573,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           ).toLowerCase();
           if (sheetType === 'pc' || sheetType === 'character') return 'pc';
           if (sheetType === 'npc') return 'npc';
+          if (sheetType === 'creature') return 'creature';
           const actor = byActorId(id);
           const t = String(actor?.type || '').toLowerCase();
           if (t === 'character') return 'pc';
@@ -1577,9 +1582,10 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         };
         if (pcsEl) pcsEl.innerHTML = '';
         if (npcsEl) npcsEl.innerHTML = '';
+        if (creaturesEl) creaturesEl.innerHTML = '';
         for (const id of allCharIds) {
           const bucket = classify(id);
-          const container = bucket === 'npc' ? npcsEl : pcsEl;
+          const container = bucket === 'creature' ? creaturesEl : bucket === 'npc' ? npcsEl : pcsEl;
           if (!container) continue;
           const actor = byActorId(id);
           const targetDoc = actor || byId(id);
@@ -1597,6 +1603,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         }
         if (pcsEl) setCount('pcs', pcsEl.children.length);
         if (npcsEl) setCount('npcs', npcsEl.children.length);
+        if (creaturesEl) setCount('creatures', creaturesEl.children.length);
       }
 
       // Factions (outbound only)
@@ -1891,6 +1898,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
   static SHEET_TYPE_TO_IMAGE_ENTITY_TYPE = {
     pc: 'character',
     npc: 'character',
+    creature: 'character',
     character: 'character',
     item: 'item',
     location: 'location',
@@ -1909,7 +1917,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     const st = String(f.sheetType || '').toLowerCase();
     const explicit = String(entry?.img || '').trim();
     if (explicit) return explicit;
-    if (st === 'pc' || st === 'npc' || st === 'character') {
+    if (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character') {
       const actorId = (f.foundryRefs?.actors || [])[0];
       const actor = actorId ? game.actors?.get?.(actorId) : null;
       if (actor?.img) return String(actor.img).trim();
@@ -1996,6 +2004,11 @@ export class PCPageSheetV2 extends ArchivistBasePageSheetV2 {
 export class NPCPageSheetV2 extends ArchivistBasePageSheetV2 {
   static PARTS = {
     form: { template: 'modules/archivist-sync/templates/sheets/character.hbs' },
+  };
+}
+export class CreaturePageSheetV2 extends ArchivistBasePageSheetV2 {
+  static PARTS = {
+    form: { template: 'modules/archivist-sync/templates/sheets/creature.hbs' },
   };
 }
 export class CharacterPageSheetV2 extends PCPageSheetV2 {}

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-15
+
+### Added
+- Creature records (`type: "Creature"`) now import, export, and sync as their own Archivist sheets, with a dedicated Creatures folder and a paw icon matching the web app.
+- World Setup can classify an unmatched Foundry NPC Actor as a Creature before export. Imported Creatures use an NPC Actor when an Actor is requested, and their Archivist subtype is retained.
+- Creature links appear in a separate sheet tab, and linked sheets reclassify when their Archivist Character subtype changes.
+
+### Fixed
+- World Setup no longer automatically matches a Creature to an unrelated NPC Actor with the same name.
+
 ## [2.0.7] - 2026-11-09
 
 ### Fixed
