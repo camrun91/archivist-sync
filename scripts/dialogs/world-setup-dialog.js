@@ -945,10 +945,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         } else {
           // Foundry-only actor with no match -> export to Archivist
           if (!row.match) {
-            const isPc = String(row.type || '').toLowerCase() === 'character';
-            const kind = isPc ? 'pc' : row.archivistType === 'Creature' ? 'creature' : 'npc';
+            const isCreature = row.archivistType === 'Creature';
+            const isPc = !isCreature && String(row.type || '').toLowerCase() === 'character';
+            const kind = isCreature ? 'creature' : isPc ? 'pc' : 'npc';
             push(plan.createInArchivist, {
-              kind: isPc ? 'PC' : row.archivistType === 'Creature' ? 'CREATURE' : 'NPC',
+              kind: isCreature ? 'CREATURE' : isPc ? 'PC' : 'NPC',
               foundryId: row.id,
               name: row.name,
             });
@@ -3372,6 +3373,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
       name: toName(a.name),
       img: a.img || '',
       type: String(a.type || ''),
+      canChooseCreature: String(a.type || '').toLowerCase() !== 'character',
       archivistType: String(a.getFlag?.(CONFIG.MODULE_ID, 'archivistType') || '').toLowerCase() === 'creature' ? 'Creature' : 'NPC',
       doc: a,
     }));
