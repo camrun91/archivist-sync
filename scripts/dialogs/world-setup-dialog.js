@@ -3471,11 +3471,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     const charConstraint = (ac, fa) => {
       if (ac.type === 'CREATURE' && fa.archivistType !== 'Creature' && String(fa.doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || '') !== String(ac.id)) return false;
       if (ac.type === 'NPC' && fa.archivistType === 'Creature') return false;
-      if (!fa.type || fa.type === '' || fa.type === 'base') return true;
+      const actorType = String(fa.type || '').toLowerCase();
+      if (!['character', 'npc', 'monster'].includes(actorType)) return true;
       return ac.type === 'PC'
-        ? fa.type.toLowerCase() === 'character'
-        : fa.type.toLowerCase() === 'npc' ||
-            fa.type.toLowerCase() === 'monster';
+        ? actorType === 'character'
+        : actorType === 'npc' || actorType === 'monster';
     };
     const { leftOut: aCharsOut, rightOut: fActorsOut } = matchByName(
       aChars,

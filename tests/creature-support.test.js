@@ -46,6 +46,23 @@ test('World Setup keeps Creature and NPC matching separate', () => {
   assert.equal(flagged.characters.archivist.find((c) => c.type === 'NPC').match, 'a2');
 });
 
+test('World Setup matches system-specific Actor types by name', () => {
+  const build = WorldSetupDialog.prototype._buildReconciliationModel;
+  const actor = (id, name, typeFlag = '') => ({
+    id, name, type: 'hero',
+    getFlag: (_module, key) => key === 'archivistType' ? typeFlag : null,
+  });
+  const result = build.call({}, {
+    archivist: { characters: [
+      { id: 'pc-1', character_name: 'Aria', type: 'PC' },
+      { id: 'creature-1', character_name: 'Owlbear', type: 'Creature' },
+    ] },
+    foundry: { actors: [actor('a1', 'Aria'), actor('a2', 'Owlbear', 'Creature')] },
+  });
+  assert.equal(result.characters.archivist.find((c) => c.id === 'pc-1').match, 'a1');
+  assert.equal(result.characters.archivist.find((c) => c.id === 'creature-1').match, 'a2');
+});
+
 test('sync reclassifies an existing NPC sheet and its linked Actor as Creature', async () => {
   const updates = [];
   let flags = { sheetType: 'npc', archivistId: 'c1', foundryRefs: { actors: ['a1'] } };
