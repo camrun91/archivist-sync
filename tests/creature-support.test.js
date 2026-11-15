@@ -46,6 +46,20 @@ test('World Setup keeps Creature and NPC matching separate', () => {
   assert.equal(flagged.characters.archivist.find((c) => c.type === 'NPC').match, 'a2');
 });
 
+test('World Setup retains linked PC Actors reclassified as Creatures', () => {
+  const build = WorldSetupDialog.prototype._buildReconciliationModel;
+  const actor = {
+    id: 'a1', name: 'Owlbear', type: 'character',
+    getFlag: (_module, key) => key === 'archivistId' ? 'creature-1' : key === 'archivistType' ? 'Creature' : null,
+  };
+  const result = build.call({}, {
+    archivist: { characters: [{ id: 'creature-1', character_name: 'Owlbear', type: 'Creature' }] },
+    foundry: { actors: [actor] },
+  });
+  assert.equal(result.characters.archivist[0].match, 'a1');
+  assert.equal(result.characters.foundry[0].match, 'creature-1');
+});
+
 test('World Setup matches system-specific Actor types by name', () => {
   const build = WorldSetupDialog.prototype._buildReconciliationModel;
   const actor = (id, name, typeFlag = '') => ({
