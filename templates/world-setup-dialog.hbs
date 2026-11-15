@@ -515,7 +515,7 @@
                                         <span class="ws-name">
                                             {{#if this.img}}<img src="{{this.img}}"
                                                 style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}
-                                            {{this.name}}
+                                            {{this.name}} ({{this.type}})
                                         </span>
                                         <select data-action="recon-change-match" data-tab="characters"
                                             data-side="archivist" data-id="{{this.id}}">
@@ -556,6 +556,14 @@
                                                 style="width:20px; height:20px; border-radius:50%; vertical-align:middle; margin-right:6px;" />{{/if}}
                                             {{this.name}}
                                         </span>
+                                        {{#unless this.match}}
+                                        {{#if (or (eq this.type 'npc') (eq this.type 'monster'))}}
+                                        <select data-action="recon-actor-kind" data-id="{{this.id}}" title="Export this Actor as">
+                                            <option value="NPC" {{#unless (eq this.archivistType 'Creature')}}selected{{/unless}}>NPC</option>
+                                            <option value="Creature" {{#if (eq this.archivistType 'Creature')}}selected{{/if}}>Creature</option>
+                                        </select>
+                                        {{/if}}
+                                        {{/unless}}
                                         <select data-action="recon-change-match" data-tab="characters"
                                             data-side="foundry" data-id="{{this.id}}">
                                             <option value="NA" {{#unless this.match}}selected{{/unless}}>N/A</option>
