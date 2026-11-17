@@ -157,6 +157,7 @@ test('reconciliation honors character_type when aligning a Creature sheet', asyn
   const originalFolders = journalManager.ensureDefaultFolders;
   const originalFolderNames = journalManager.folderNames;
   const originalEnsureFolder = Utils.ensureJournalFolder;
+  const originalDestinations = settingsManager.getJournalDestinations;
   const originalGame = globalThis.game;
   const methods = ['listCharacters', 'listItems', 'listLocations', 'listFactions', 'listSessions', 'listLinks', 'listQuests', 'listJournals'];
   const originals = Object.fromEntries(methods.map((method) => [method, archivistApi[method]]));
@@ -167,7 +168,10 @@ test('reconciliation honors character_type when aligning a Creature sheet', asyn
     id: 'j1', name: 'Owlbear', folder: { id: 'old-folder' }, img: '',
     getFlag: () => structuredClone(flags),
     setFlag: async (_module, _key, value) => { flags = structuredClone(value); },
-    update: async (value) => { updates.push(value); },
+    update: async (value) => {
+      updates.push(value);
+      if (value.folder) journal.folder = { id: value.folder };
+    },
   };
   globalThis.game = {
     journal: { contents: [journal] },
@@ -177,17 +181,19 @@ test('reconciliation honors character_type when aligning a Creature sheet', asyn
   settingsManager.getSelectedWorldId = () => 'world-1';
   journalManager.ensureDefaultFolders = async () => {};
   journalManager.folderNames = { ...originalFolderNames, creature: 'Creatures' };
-  Utils.ensureJournalFolder = async () => 'creature-folder';
+  settingsManager.getJournalDestinations = () => ({});
+  Utils.ensureJournalFolder = async (name) => `default:${name}`;
   for (const method of methods) archivistApi[method] = async () => ({ success: true, data: method === 'listCharacters' ? [{ id: 'c1', character_name: 'Owlbear', character_type: 'Creature' }] : [] });
   try {
     const service = new ReconcileService();
     service._ensureRecapsContainer = async () => ({ pages: { contents: [] } });
-    service._organizeFolders = async () => {};
     assert.equal(await service.runFull(), true);
     assert.equal(flags.sheetType, 'creature');
     assert.equal(updates[0]['flags.core.sheetClass'], 'archivist-sync.CreaturePageSheetV2');
     assert.deepEqual(actorFlags[0], ['archivist-sync', 'archivistType', 'Creature']);
+    assert.equal(journal.folder.id, 'default:Archivist - Creatures');
   } finally {
+    settingsManager.getJournalDestinations = originalDestinations;
     settingsManager.getApiKey = originalKey;
     settingsManager.getSelectedWorldId = originalWorld;
     journalManager.ensureDefaultFolders = originalFolders;
@@ -198,6 +204,48 @@ test('reconciliation honors character_type when aligning a Creature sheet', asyn
   }
 });
 
+
+test('reconciliation keeps a reclassified journal in its configured destination', async () => {
+  const originalKey = settingsManager.getApiKey;
+  const originalWorld = settingsManager.getSelectedWorldId;
+  const originalDestinations = settingsManager.getJournalDestinations;
+  const originalFolders = journalManager.ensureDefaultFolders;
+  const originalEnsureFolder = Utils.ensureJournalFolder;
+  const originalGame = globalThis.game;
+  const methods = ['listCharacters', 'listItems', 'listLocations', 'listFactions', 'listSessions', 'listLinks', 'listQuests', 'listJournals'];
+  const originals = Object.fromEntries(methods.map((method) => [method, archivistApi[method]]));
+  let flags = { archivistId: 'c1', sheetType: 'npc', foundryRefs: { actors: [] } };
+  const journal = {
+    id: 'j1', name: 'Owlbear', folder: { id: 'old-folder' }, img: '',
+    getFlag: () => structuredClone(flags),
+    setFlag: async (_module, _key, value) => { flags = structuredClone(value); },
+    update: async (value) => {
+      if (value.folder) journal.folder = { id: value.folder };
+    },
+  };
+  globalThis.game = { journal: { contents: [journal] }, actors: { get: () => null } };
+  settingsManager.getApiKey = () => 'key';
+  settingsManager.getSelectedWorldId = () => 'world-1';
+  settingsManager.getJournalDestinations = () => ({ creature: 'creature-destination' });
+  journalManager.ensureDefaultFolders = async () => {};
+  Utils.ensureJournalFolder = async (name) => `default:${name}`;
+  for (const method of methods) archivistApi[method] = async () => ({ success: true, data: method === 'listCharacters' ? [{ id: 'c1', character_name: 'Owlbear', type: 'Creature' }] : [] });
+  try {
+    const service = new ReconcileService();
+    service._ensureRecapsContainer = async () => ({ pages: { contents: [] } });
+    assert.equal(await service.runFull(), true);
+    assert.equal(flags.sheetType, 'creature');
+    assert.equal(journal.folder.id, 'creature-destination');
+  } finally {
+    settingsManager.getApiKey = originalKey;
+    settingsManager.getSelectedWorldId = originalWorld;
+    settingsManager.getJournalDestinations = originalDestinations;
+    journalManager.ensureDefaultFolders = originalFolders;
+    Utils.ensureJournalFolder = originalEnsureFolder;
+    globalThis.game = originalGame;
+    for (const method of methods) archivistApi[method] = originals[method];
+  }
+});
 
 test('replacing a linked Actor clears only the previous matching identity', async () => {
   const values = { archivistId: 'creature-1', archivistType: 'Creature' };

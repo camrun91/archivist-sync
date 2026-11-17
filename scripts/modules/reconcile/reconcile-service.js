@@ -296,6 +296,14 @@ export class ReconcileService {
         if (st === 'recap') return 'Recaps';
         return null;
       };
+      // Configured journal destinations win over the default Archivist
+      // folders, matching Utils.reclassifyCharacterJournal and imports.
+      let destinations = {};
+      try {
+        destinations = settingsManager.getJournalDestinations?.() || {};
+      } catch (_) {}
+      const destinationFor = (st) =>
+        destinations?.[st === 'character' ? 'pc' : st] || null;
       const cache = new Map();
       const ensureFolder = async (label) => {
         if (!label) return null;
@@ -321,7 +329,7 @@ export class ReconcileService {
         if (!label) continue;
         // Keep Recaps container at root
         if (st === 'recap') continue;
-        const folderId = await ensureFolder(label);
+        const folderId = destinationFor(st) || (await ensureFolder(label));
         if (folderId && j.folder?.id !== folderId) {
           updates.push(j.update({ folder: folderId }, { render: false }));
         }
