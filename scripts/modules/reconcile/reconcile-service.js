@@ -80,20 +80,14 @@ export class ReconcileService {
       } else {
         if (['pc', 'npc', 'creature'].includes(sheetType)) {
           const current = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-          if (current.sheetType !== sheetType) {
-            const className = { pc: 'PCPageSheetV2', npc: 'NPCPageSheetV2', creature: 'CreaturePageSheetV2' }[sheetType];
-            const folderName = journalManager.folderNames[sheetType];
-            const folderId = folderName ? await Utils.ensureJournalFolder(folderName) : null;
-            await j.update({
-              'flags.core.sheetClass': `archivist-sync.${className}`,
-              'flags.core.sheet': `archivist-sync.${className}`,
-              ...(folderId ? { folder: folderId } : {}),
-            }, { render: false });
-            await j.setFlag(CONFIG.MODULE_ID, 'archivist', { ...current, sheetType });
-            for (const actorId of current.foundryRefs?.actors || []) {
-              const actor = game.actors?.get?.(actorId);
-              if (actor) await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', sheetType === 'creature' ? 'Creature' : sheetType === 'npc' ? 'NPC' : 'PC');
-            }
+          // Same rules as SyncDialog: legacy 'character' sheets already are PCs.
+          const isLegacyPc = current.sheetType === 'character' && sheetType === 'pc';
+          if (current.sheetType !== sheetType && !isLegacyPc) {
+            let destinations = {};
+            try {
+              destinations = settingsManager.getJournalDestinations?.() || {};
+            } catch (_) {}
+            await Utils.reclassifyCharacterJournal(j, sheetType, destinations);
           }
         }
         // Existing journal: backfill or update image from Archivist if missing/different
@@ -116,8 +110,7 @@ export class ReconcileService {
 
     // Ensure sheets
     for (const c of characters) {
-      const subtype = String(c.type || c.character_type || '').toUpperCase();
-      await ensureSheet(c, subtype === 'CREATURE' ? 'creature' : subtype === 'NPC' ? 'npc' : 'pc');
+      await ensureSheet(c, Utils.characterSheetType(c.type || c.character_type));
     }
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
@@ -214,6 +207,7 @@ export class ReconcileService {
     // Align link flags using Links table
     const keyMap = {
       Character: 'characters',
+      Creature: 'characters',
       Item: 'items',
       Location: 'locationsAssociative',
       Faction: 'factions',

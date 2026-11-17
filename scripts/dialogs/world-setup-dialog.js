@@ -2681,6 +2681,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             : L?.from_type) || '';
         const keyMap = {
           Character: 'characters',
+          Creature: 'characters',
           Item: 'items',
           Location: 'locationsAssociative',
           Faction: 'factions',
@@ -3150,7 +3151,12 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
             const row = this.setupData.reconcile?.characters?.foundry?.find(
               (r) => String(r.id) === String(kindSelect.dataset.id)
             );
-            if (row) row.archivistType = kindSelect.value === 'Creature' ? 'Creature' : 'NPC';
+            if (row)
+              row.archivistType = ['PC', 'NPC', 'Creature'].includes(
+                kindSelect.value
+              )
+                ? kindSelect.value
+                : 'NPC';
             return;
           }
           const sel = ev.target?.closest?.(
@@ -3194,6 +3200,15 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
                 `select[data-action="recon-change-match"][data-tab="${tab}"][data-side="${otherSide}"][data-id="${nextId}"]`
               );
               if (matchedSelect) matchedSelect.value = id;
+            }
+          }
+          // The Export-as select only applies to unmatched Foundry Actors.
+          if (tab === 'characters') {
+            for (const fr of r.foundry || []) {
+              const kindSel = root.querySelector(
+                `select[data-action="recon-actor-kind"][data-id="${fr.id}"]`
+              );
+              if (kindSel) kindSel.hidden = !!fr.match;
             }
           }
         });
@@ -3384,6 +3399,7 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         name: toName(c.character_name || c.name),
         img: toName(c.image || ''),
         type: String(c.type || c.character_type || 'PC').toUpperCase(),
+        typeLabel: Utils.characterKindLabel(c.type || c.character_type || 'PC'),
       })
     );
     const aItems = (Array.isArray(A.items) ? A.items : []).map((i) => ({
@@ -3438,9 +3454,13 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     };
 
     const allActors = [...pcActors, ...npcActors];
+    const archivistCharIds = new Set(aChars.map((c) => String(c.id)));
     const charConstraint = (ac, fa) => {
       const linkedId = String(fa.doc?.getFlag?.(CONFIG.MODULE_ID, 'archivistId') || '');
-      if (linkedId) return linkedId === String(ac.id);
+      // Only a link to a record that still exists is binding; a stale
+      // archivistId falls through to the type and name rules.
+      if (linkedId && archivistCharIds.has(linkedId))
+        return linkedId === String(ac.id);
       if (fa.hasExplicitArchivistType)
         return ac.type === fa.archivistType.toUpperCase();
       if (ac.type === 'CREATURE') return false;
@@ -3487,14 +3507,14 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
     };
 
     try {
-      const ensureNameMatch = (leftArr, rightArr) => {
+      const ensureNameMatch = (leftArr, rightArr, constraint = () => true) => {
         const rightByName = new Map(
           rightArr.map((r) => [normName(r.name), r])
         );
         for (const l of leftArr) {
           if (!l.match) {
             const r = rightByName.get(normName(l.name));
-            if (r && !r.match && charConstraint(l, r)) {
+            if (r && !r.match && constraint(l, r)) {
               l.match = r.id;
               r.match = l.id;
             }
@@ -3502,7 +3522,11 @@ export class WorldSetupDialog extends foundry.applications.api.HandlebarsApplica
         }
       };
 
-      ensureNameMatch(result.characters.archivist, result.characters.foundry);
+      ensureNameMatch(
+        result.characters.archivist,
+        result.characters.foundry,
+        charConstraint
+      );
       ensureNameMatch(result.items.archivist, result.items.foundry);
       ensureNameMatch(result.locations.archivist, result.locations.foundry);
     } catch (_) {

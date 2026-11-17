@@ -626,8 +626,9 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         }
         const changes = {};
         if (type === 'Character') {
-          const rawKind = String(arch.type || arch.character_type || 'PC').toUpperCase();
-          const wanted = rawKind === 'CREATURE' ? 'creature' : rawKind === 'NPC' ? 'npc' : 'pc';
+          const wanted = Utils.characterSheetType(
+            arch.type || arch.character_type || 'PC'
+          );
           if (st !== wanted && !(st === 'character' && wanted === 'pc')) {
             changes.sheetType = { from: st, to: wanted };
           }
@@ -751,7 +752,10 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         if (Object.keys(changes).length > 0) {
           diffs.push({
             type,
-            characterKind: type === 'Character' ? arch.type : undefined,
+            characterKind:
+              type === 'Character'
+                ? Utils.characterKindLabel(arch.type || arch.character_type)
+                : undefined,
             id: archId,
             name: archName || j.name,
             journalId: j.id,
@@ -874,22 +878,11 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     }
     const changes = d.changes || {};
     if (changes.sheetType) {
-      const sheetType = changes.sheetType.to;
-      const className = { pc: 'PCPageSheetV2', npc: 'NPCPageSheetV2', creature: 'CreaturePageSheetV2' }[sheetType];
-      const destinations = settingsManager.getJournalDestinations?.() || {};
-      const folderId = destinations[sheetType] || await Utils.ensureJournalFolder(
-        sheetType === 'creature' ? 'Archivist - Creatures' : sheetType === 'npc' ? 'Archivist - NPCs' : 'Archivist - PCs'
+      await Utils.reclassifyCharacterJournal(
+        j,
+        changes.sheetType.to,
+        settingsManager.getJournalDestinations?.() || {}
       );
-      await j.update({
-        'flags.core.sheetClass': `archivist-sync.${className}`,
-        'flags.core.sheet': `archivist-sync.${className}`,
-        ...(folderId ? { folder: folderId } : {}),
-      }, { render: false });
-      await j.setFlag(CONFIG.MODULE_ID, 'archivist', { ...f, sheetType });
-      for (const actorId of f.foundryRefs?.actors || []) {
-        const actor = game.actors?.get?.(actorId);
-        if (actor) await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', sheetType === 'creature' ? 'Creature' : sheetType === 'npc' ? 'NPC' : 'PC');
-      }
     }
     if (changes.name) {
       await j.update({ name: changes.name.to });
@@ -952,6 +945,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     if (changes.links) {
       const buckets = {
         character: 'characters',
+        creature: 'characters',
         item: 'items',
         location: 'locationsAssociative',
         faction: 'factions',
@@ -1255,7 +1249,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           if (resp?.success) {
             const keyForType = (t) => {
               const s = String(t || '').toLowerCase();
-              if (s === 'character') return 'characters';
+              if (s === 'character' || s === 'creature') return 'characters';
               if (s === 'item') return 'items';
               if (s === 'location') return 'locationsAssociative';
               if (s === 'faction') return 'factions';

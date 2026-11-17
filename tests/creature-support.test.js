@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ArchivistApiService } from '../scripts/services/archivist-api.js';
-
 globalThis.foundry = {
   applications: { api: { ApplicationV2: class {}, HandlebarsApplicationMixin: (Base) => Base } },
 };
@@ -15,20 +13,14 @@ const { ReconcileService } = await import('../scripts/modules/reconcile/reconcil
 const { archivistApi } = await import('../scripts/services/archivist-api.js');
 const { journalManager } = await import('../scripts/modules/journal-manager.js');
 
-test('Creature API uses the Character endpoint and preserves its subtype', async () => {
-  const api = new ArchivistApiService();
-  const calls = [];
-  api._request = async (_key, path, options) => {
-    calls.push([path, options]);
-    if (path.startsWith('/characters?')) return { data: [{ id: 'c1', type: 'Creature' }], pages: 1 };
-    return { id: 'c1', type: 'Creature' };
-  };
-  const listed = await api.listCreatures('key', 'world-1');
-  const created = await api.createCreature('key', { character_name: 'Owlbear', campaign_id: 'world-1' });
-  assert.equal(listed.data[0].type, 'Creature');
-  assert.equal(created.success, true);
-  assert.match(calls[0][0], /character_type=Creature/);
-  assert.equal(JSON.parse(calls[1][1].body).type, 'Creature');
+test('character subtypes normalize to one sheet type and label', () => {
+  assert.equal(Utils.characterSheetType('Creature'), 'creature');
+  assert.equal(Utils.characterSheetType('creature'), 'creature');
+  assert.equal(Utils.characterSheetType('NPC'), 'npc');
+  assert.equal(Utils.characterSheetType(''), 'pc');
+  assert.equal(Utils.characterKindLabel('CREATURE'), 'Creature');
+  assert.equal(Utils.characterKindLabel('npc'), 'NPC');
+  assert.equal(Utils.characterKindLabel(undefined), 'PC');
 });
 
 test('World Setup keeps Creature and NPC matching separate', () => {
@@ -218,4 +210,64 @@ test('replacing a linked Actor clears only the previous matching identity', asyn
   assert.deepEqual(removed, []);
   assert.equal(await Utils.clearActorArchivistLink(actor, 'creature-1'), true);
   assert.deepEqual(removed, ['archivistId', 'archivistType']);
+});
+
+test('World Setup ignores a stale archivistId when name matching', () => {
+  const build = WorldSetupDialog.prototype._buildReconciliationModel;
+  const actor = {
+    id: 'a1', name: 'Aria', type: 'npc',
+    getFlag: (_module, key) => key === 'archivistId' ? 'deleted-record' : null,
+  };
+  const result = build.call({}, {
+    archivist: { characters: [{ id: 'npc-1', character_name: 'Aria', type: 'NPC' }] },
+    foundry: { actors: [actor] },
+  });
+  assert.equal(result.characters.archivist[0].match, 'a1');
+  assert.equal(result.characters.archivist[0].typeLabel, 'NPC');
+});
+
+test('World Setup preselects PC for a flagged non-character Actor', () => {
+  const build = WorldSetupDialog.prototype._buildReconciliationModel;
+  const hero = {
+    id: 'a1', name: 'Aria', type: 'hero',
+    getFlag: (_module, key) => key === 'archivistType' ? 'PC' : null,
+  };
+  const model = build.call({}, { archivist: { characters: [] }, foundry: { actors: [hero] } });
+  assert.equal(model.characters.foundry[0].canChooseCreature, true);
+  assert.equal(model.characters.foundry[0].archivistType, 'PC');
+});
+
+test('reconciliation leaves legacy character sheets as PCs', async () => {
+  const originalKey = settingsManager.getApiKey;
+  const originalWorld = settingsManager.getSelectedWorldId;
+  const originalFolders = journalManager.ensureDefaultFolders;
+  const originalGame = globalThis.game;
+  const methods = ['listCharacters', 'listItems', 'listLocations', 'listFactions', 'listSessions', 'listLinks', 'listQuests', 'listJournals'];
+  const originals = Object.fromEntries(methods.map((method) => [method, archivistApi[method]]));
+  const flags = { archivistId: 'c1', sheetType: 'character', foundryRefs: { actors: [] } };
+  const updates = [];
+  const journal = {
+    id: 'j1', name: 'Aria', folder: { id: 'old-folder' }, img: '',
+    getFlag: () => structuredClone(flags),
+    setFlag: async () => { throw new Error('unexpected reclassification'); },
+    update: async (value) => { updates.push(value); },
+  };
+  globalThis.game = { journal: { contents: [journal] }, actors: { get: () => null } };
+  settingsManager.getApiKey = () => 'key';
+  settingsManager.getSelectedWorldId = () => 'world-1';
+  journalManager.ensureDefaultFolders = async () => {};
+  for (const method of methods) archivistApi[method] = async () => ({ success: true, data: method === 'listCharacters' ? [{ id: 'c1', character_name: 'Aria', type: 'PC' }] : [] });
+  try {
+    const service = new ReconcileService();
+    service._ensureRecapsContainer = async () => ({ pages: { contents: [] } });
+    service._organizeFolders = async () => {};
+    assert.equal(await service.runFull(), true);
+    assert.equal(updates.some((u) => 'flags.core.sheetClass' in u), false);
+  } finally {
+    settingsManager.getApiKey = originalKey;
+    settingsManager.getSelectedWorldId = originalWorld;
+    journalManager.ensureDefaultFolders = originalFolders;
+    globalThis.game = originalGame;
+    for (const method of methods) archivistApi[method] = originals[method];
+  }
 });
