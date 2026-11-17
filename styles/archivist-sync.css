@@ -1,4 +1,3 @@
-.archivist-creature-icon { width: 1em; height: 1em; vertical-align: -0.12em; margin-right: 0.2em; }
 /* Archivist Sync - style sheet layout */
 .archivist-sheet {
   display: grid;
@@ -435,8 +434,6 @@
   box-sizing: border-box;
 }
 
-.archivist-creature-icon { width: 1em; height: 1em; vertical-align: -0.12em; margin-right: 0.2em; }
-.archivist-creature-icon { width: 1em; height: 1em; vertical-align: -0.12em; margin-right: 0.2em; }
 /* Archivist Sync content container - all styles scoped within this */
 .archivist-sync-content {
   font-family: "Signika", sans-serif;
@@ -1656,6 +1653,19 @@ img.archivist-icon {
   filter: brightness(0) invert(1);
 }
 
+/* Creatures tab icon (inline <img> before the tab label) */
+.archivist-creature-icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+  margin-right: 0.2em;
+}
+
+/* World Setup hides Export-as on matched rows; keep themes from overriding */
+select[data-action="recon-actor-kind"][hidden] {
+  display: none;
+}
+
 /* Make the button look like the stock sidebar buttons */
 #sidebar nav.tabs button.ui-control.plain.icon[data-tab="archivist-chat"],
 #sidebar #sidebar-tabs button.ui-control.plain.icon[data-tab="archivist-chat"] {
@@ -1944,8 +1954,6 @@ img.archivist-icon {
   margin-bottom: 0;
 }
 
-.archivist-creature-icon { width: 1em; height: 1em; vertical-align: -0.12em; margin-right: 0.2em; }
-.archivist-creature-icon { width: 1em; height: 1em; vertical-align: -0.12em; margin-right: 0.2em; }
 /* Archivist Info editors: keep a comfortable editing height */
 .archivist-info prose-mirror,
 .archivist-info .ProseMirror,

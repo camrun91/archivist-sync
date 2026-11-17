@@ -1507,9 +1507,12 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
               `.archivist-nav [data-tab="${tab}"]`
             ) || root.querySelector?.(`.archivist-nav [data-tab="${tab}"]`);
           if (!a) return;
-          const base = a.dataset._label || a.textContent || tab;
+          // Write only the label so an icon inside the tab link survives.
+          const label = a.querySelector?.('.archivist-tab-label') || a;
+          const base =
+            a.dataset._label || String(label.textContent || '').trim() || tab;
           if (!a.dataset._label) a.dataset._label = base;
-          a.textContent = count > 0 ? `${base} (${count})` : base;
+          label.textContent = count > 0 ? `${base} (${count})` : base;
         } catch (_) {}
       };
 

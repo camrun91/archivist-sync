@@ -366,7 +366,10 @@ export class SettingsManager {
               try {
                 const actors = game.actors?.contents || [];
                 await Promise.allSettled(
-                  actors.map((a) => a?.unsetFlag?.(MODULE_ID, 'archivistId'))
+                  actors.map(async (a) => {
+                    await a?.unsetFlag?.(MODULE_ID, 'archivistId');
+                    await a?.unsetFlag?.(MODULE_ID, 'archivistType');
+                  })
                 );
               } catch (e) {
                 console.warn(
