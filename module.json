@@ -8,16 +8,16 @@
       "email": "cameron.b.llewellyn@gmail.com"
     }
   ],
-  "version": "1.3.9",
+  "type": "module",
+  "version": "2.1.0",
   "compatibility": {
-    "minimum": "13.341",
-    "verified": "13.346"
+    "minimum": "14.359",
+    "verified": "14.359"
   },
   "relationships": {
     "systems": [],
     "requires": [],
-    "conflicts": [],
-    "flags": {}
+    "conflicts": []
   },
   "esmodules": [
     "scripts/archivist-sync.js",
@@ -25,7 +25,6 @@
     "scripts/modules/config.js",
     "scripts/modules/settings-manager.js",
     "scripts/modules/utils.js",
-    "scripts/modules/adapters/system-adapter.js",
     "scripts/modules/links/helpers.js",
     "scripts/modules/links/indexer.js",
     "scripts/services/archivist-api.js",

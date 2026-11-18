@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/camrun91/archivist-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/camrun91/archivist-sync/actions/workflows/ci.yml)
 
-Foundry VTT v13 module to connect your world to the Archivist service. It provides a guided setup wizard, an Archivist Hub for managing campaign content, real‑time bidirectional sync for entities and links, and an in‑client "Ask Archivist" sidebar chat with RAG support.
+Foundry VTT v14 module to connect your world to the Archivist service. It provides a guided setup wizard, real‑time bidirectional sync for entities and links, and an in‑client "Ask Archivist" sidebar chat with RAG support.
 
 ## Features
 
@@ -22,11 +22,19 @@ Foundry VTT v13 module to connect your world to the Archivist service. It provid
 3. Restart Foundry and enable the module in your world’s Module Settings.
 
 ### Manifest URL
-Use your repository’s release manifest URL (update the placeholder in `module.json`):
 
-`https://github.com/yourusername/archivist-sync/releases/latest/download/module.json`
+Foundry v14 (current line):
 
-Tip: Also update the `url`, `manifest`, `download`, and `bugs` fields in `module.json` to point to your repo.
+`https://github.com/camrun91/archivist-sync/releases/download/v14-latest/module.json`
+
+Foundry v13 (legacy line, maintained on `release/v13`):
+
+`https://github.com/camrun91/archivist-sync/releases/download/v13-latest/module.json`
+
+> Each `*-latest` URL becomes live with the first stable release on its track. Until
+> then, existing v13 installs continue to work through
+> `https://github.com/camrun91/archivist-sync/releases/latest/download/module.json`,
+> which stays pinned to the v13 line.
 
 ### Beta Releases (Testing)
 
@@ -119,6 +127,7 @@ All sheets include:
 Available in Game Settings → Module Settings → Archivist Sync:
 
 - **API Key** (world): Your Archivist API key (obfuscated in the UI for security)
+- **Allow GM private journal context in chat** (world): When enabled, GM chat requests include private journal context during retrieval; non-GM requests never include it.
 - **Run World Setup Again** (menu): Reset initialization and relaunch the setup wizard
 - **Projection: Sidecar Only** (world): When enabled, never modify core system data fields; store descriptions only in sidecar journals.
 
@@ -153,20 +162,22 @@ Examples (representative; bodies vary by type):
   "messages": [
     { "role": "user", "content": "Who is the duke?" }
   ],
-  "stream": true
+  "stream": true,
+  "gm_permissions": false
 }
 ```
 
 ## Compatibility
 
-- **Foundry VTT**: v13 (minimum 13.341; verified 13.346)
+- **Foundry VTT**: v14 (minimum 14.359; verified 14.359)
 - **Game Systems**: System-agnostic with built-in adapters for common systems
 
 ## Security & Permissions
 
-- The API key is stored as a world-scoped setting and obfuscated in the UI.
+- The API key is stored for the current world and in this browser. An empty copy is filled from the other on load. The value is obfuscated in the UI.
 - Real‑Time Sync and the "Sync with Archivist" button execute only on GM clients.
 - The sidebar chat is available to all users once the world is configured and initialized.
+- GM chat requests can include private journal context during retrieval when the GM setting is enabled; non-GM requests always send `gm_permissions: false`.
 - All requests use HTTPS endpoints with CORS-safe headers and exponential backoff on `429` and network failures.
 
 ## Troubleshooting
@@ -234,10 +245,8 @@ archivist-sync/
 │   │   │   └── page-sheet-v2.js             # DocumentSheetV2 custom sheets (Entry/PC/NPC/Item/Location/Faction/Recap)
 │   │   ├── toc/
 │   │   │   └── toc-window.js                # Archivist Hub window (ApplicationV2)
-│   │   ├── reconcile/
-│   │   │   └── reconcile-service.js         # Full sync reconciliation service
-│   │   └── adapters/
-│   │       └── system-adapter.js            # System-specific field adapters
+│   │   └── reconcile/
+│   │       └── reconcile-service.js         # Full sync reconciliation service
 │   ├── services/
 │   │   └── archivist-api.js                 # API client with throttling and retries
 │   ├── dialogs/

@@ -1,6 +1,6 @@
 /**
- * Documentation window that displays the README.md content
- * Uses ApplicationV2 framework for Foundry v13
+ * Documentation window that displays the README.md content.
+ * Uses ApplicationV2 framework.
  */
 export class DocumentationWindow extends foundry.applications.api
   .ApplicationV2 {

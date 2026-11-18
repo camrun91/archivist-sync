@@ -13,7 +13,6 @@ import { archivistApi } from './services/archivist-api.js';
 import { Utils } from './modules/utils.js';
 import { linkIndexer } from './modules/links/indexer.js';
 import { AskChatWindow } from './dialogs/ask-chat-window.js';
-import AskChatSidebarTab from './sidebar/ask-chat-sidebar-tab.js';
 import { ensureChatSlot } from './sidebar/ask-chat-tab.js';
 import { SyncDialog } from './dialogs/sync-dialog.js';
 import { WorldSetupDialog } from './dialogs/world-setup-dialog.js';
@@ -55,11 +54,14 @@ Hooks.once('init', async function () {
       EntryPageSheetV2,
       PCPageSheetV2,
       NPCPageSheetV2,
+      CreaturePageSheetV2,
       CharacterPageSheetV2,
       ItemPageSheetV2,
       LocationPageSheetV2,
       FactionPageSheetV2,
       RecapPageSheetV2,
+      JournalPageSheetV2,
+      QuestPageSheetV2,
     } = await import('./modules/sheets/page-sheet-v2.js');
 
     const DSC =
@@ -78,6 +80,9 @@ Hooks.once('init', async function () {
       label: 'Archivist: NPC',
       types: ['base'],
       makeDefault: false,
+    });
+    DSC.registerSheet(JournalEntry, 'archivist-sync', CreaturePageSheetV2, {
+      label: 'Archivist: Creature', types: ['base'], makeDefault: false,
     });
     DSC.registerSheet(JournalEntry, 'archivist-sync', ItemPageSheetV2, {
       label: 'Archivist: Item',
@@ -99,62 +104,29 @@ Hooks.once('init', async function () {
       types: ['base'],
       makeDefault: false,
     });
+    DSC.registerSheet(JournalEntry, 'archivist-sync', JournalPageSheetV2, {
+      label: 'Archivist: Journal',
+      types: ['base'],
+      makeDefault: false,
+    });
+    DSC.registerSheet(JournalEntry, 'archivist-sync', QuestPageSheetV2, {
+      label: 'Archivist: Quest',
+      types: ['base'],
+      makeDefault: false,
+    });
   } catch (e) {
     console.error(
       '[Archivist Sync] Failed to register V2 DocumentSheet sheets',
       e
     );
   }
-  // Register the Archivist Chat tab with the core Sidebar early so it renders its
-  // nav button and panel using the Application V2 TabGroup. Availability will be
-  // handled at runtime by showing/hiding the button and panel.
-  try {
-    const Sidebar = foundry.applications.sidebar?.Sidebar;
-    if (Sidebar) {
-      const label =
-        game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ||
-        'Archivist Chat';
-      Sidebar.TABS = Sidebar.TABS || {};
-      Sidebar.TABS['archivist-chat'] = {
-        id: 'archivist-chat',
-        title: label,
-        icon: 'fa-solid fa-sparkles',
-        group: 'primary',
-        tooltip: label,
-        tab: AskChatSidebarTab,
-        app: AskChatSidebarTab,
-      };
-    }
-  } catch (_) {
-    /* no-op */
-  }
+  // Sidebar.TABS registration removed — v14 does not support dynamic tab
+  // addition via this API.  The chat button is injected at runtime by
+  // updateArchivistChatAvailability() in the ready hook.
 });
 
 Hooks.once('setup', function () {
-  try {
-    console.log('[Archivist Sync] setup');
-  } catch (_) {}
-  // Ensure registration also occurs here in case Sidebar wasn't ready during init
-  try {
-    const Sidebar = foundry.applications.sidebar?.Sidebar;
-    if (Sidebar) {
-      const label =
-        game.i18n?.localize?.('ARCHIVIST_SYNC.Menu.AskChat.Label') ||
-        'Archivist Chat';
-      Sidebar.TABS = Sidebar.TABS || {};
-      Sidebar.TABS['archivist-chat'] = Sidebar.TABS['archivist-chat'] || {
-        id: 'archivist-chat',
-        title: label,
-        icon: 'fa-solid fa-sparkles',
-        group: 'primary',
-        tooltip: label,
-        tab: AskChatSidebarTab,
-        app: AskChatSidebarTab,
-      };
-    }
-  } catch (_) {
-    /* no-op */
-  }
+  console.debug('[Archivist Sync] setup');
 });
 
 // Register Scene Controls immediately (outside ready) so it's available on reloads
@@ -173,6 +145,11 @@ Hooks.once('ready', async function () {
 
   // Register module settings and menu
   settingsManager.registerSettings();
+  try {
+    await settingsManager.syncApiKeyStores();
+  } catch (e) {
+    console.warn('[Archivist Sync] API key sync failed', e);
+  }
   // Ensure organized folders exist (always during ready) so imports land correctly
   try {
     await Utils.ensureArchivistFolders();
@@ -249,13 +226,24 @@ Hooks.once('ready', async function () {
   // Conditionally set up Archivist chat based on availability
   updateArchivistChatAvailability();
 
+  // If world is already initialized, ensure Journal Directory renders with custom elements
+  // This handles cases where the directory was rendered before initialization
+  if (settingsManager.isWorldInitialized?.() && game.user?.isGM) {
+    setTimeout(async () => {
+      try {
+        await ui?.journal?.render?.({ force: true });
+        console.log('[Archivist Sync] Journal Directory re-rendered on ready (world already initialized)');
+      } catch (e) {
+        console.warn('[Archivist Sync] Failed to re-render Journal Directory on ready', e);
+      }
+    }, 500); // Delay to ensure everything is fully loaded
+  }
+
   // Delegated renderer: when the archivist tab button is clicked, render chat into panel
   try {
     const sidebar = document.getElementById('sidebar');
     const tabsNav = sidebar?.querySelector?.('#sidebar-tabs, nav.tabs');
-    if (!tabsNav) {
-      return;
-    }
+    if (tabsNav) {
 
     const onClick = (ev) => {
       // CRITICAL: Ignore clicks on dice roll cards or any elements inside them
@@ -322,6 +310,8 @@ Hooks.once('ready', async function () {
       }, 0);
     };
     tabsNav.addEventListener('click', onClick);
+
+    } // end if (tabsNav found for delegated renderer)
   } catch (e) {
     console.error('[Archivist Sync] Failed to install delegated renderer', e);
   }
@@ -330,9 +320,7 @@ Hooks.once('ready', async function () {
   try {
     const sidebar = document.getElementById('sidebar');
     const tabsNav = sidebar?.querySelector?.('#sidebar-tabs, nav.tabs');
-    if (!tabsNav) {
-      return;
-    }
+    if (tabsNav) {
 
     const onOtherTabClick = (ev) => {
       // CRITICAL: Ignore clicks on dice roll cards or any elements inside them
@@ -397,6 +385,8 @@ Hooks.once('ready', async function () {
       }, 0);
     };
     tabsNav.addEventListener('click', onOtherTabClick);
+
+    } // end if (tabsNav found for delegated cleanup)
   } catch (e) {
     console.error('[Archivist Sync] Failed to install delegated cleanup', e);
   }
@@ -438,28 +428,35 @@ Hooks.once('ready', async function () {
       if (!isWorldInitialized) return;
       if (!game.user?.isGM) return;
 
-      const root = html instanceof jQuery ? html[0] : html?.element || html;
+      // V13 ApplicationV2: app.element is the root, fallback to html for compatibility
+      const root = app?.element || (html instanceof jQuery ? html[0] : html?.element || html);
       if (!root) return;
-      const header =
-        root.querySelector('header.directory-header') ||
-        root.querySelector('header.header') ||
-        root.querySelector('header') ||
-        root.querySelector('.directory-header') ||
-        root.querySelector('.header');
-      if (!header) return;
-      if (header.querySelector?.('.archivist-sync-btn')) return;
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'archivist-sync-btn';
-      btn.textContent = 'Sync with Archivist';
-      btn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        try {
-          new SyncDialog().render(true);
-        } catch (_) {}
+      
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        const header =
+          root.querySelector('header.directory-header') ||
+          root.querySelector('header.header') ||
+          root.querySelector('header') ||
+          root.querySelector('.directory-header') ||
+          root.querySelector('.header');
+        if (!header) return;
+        if (header.querySelector?.('.archivist-sync-btn')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'archivist-sync-btn';
+        btn.textContent = 'Sync with Archivist';
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          try {
+            new SyncDialog().render(true);
+          } catch (_) {}
+        });
+        header.appendChild(btn);
       });
-      header.appendChild(btn);
-    } catch (_) {}
+    } catch (e) {
+      console.warn('[Archivist Sync] Failed to inject sync button', e);
+    }
   });
 
   // Inject quick-create buttons for Archivist sheets in the Journal Directory header
@@ -469,119 +466,130 @@ Hooks.once('ready', async function () {
       const isWorldInitialized = settingsManager.isWorldInitialized?.();
       if (!isWorldInitialized) return;
       if (!game.user?.isGM) return;
-      const root = html instanceof jQuery ? html[0] : html?.element || html;
+      
+      // V13 ApplicationV2: app.element is the root, fallback to html for compatibility
+      const root = app?.element || (html instanceof jQuery ? html[0] : html?.element || html);
       if (!root) return;
-      const header =
-        root.querySelector('header.directory-header') ||
-        root.querySelector('header.header') ||
-        root.querySelector('header') ||
-        root.querySelector('.directory-header') ||
-        root.querySelector('.header');
-      if (!header) return;
-      if (header.querySelector('.archivist-create-buttons')) return;
+      
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        const header =
+          root.querySelector('header.directory-header') ||
+          root.querySelector('header.header') ||
+          root.querySelector('header') ||
+          root.querySelector('.directory-header') ||
+          root.querySelector('.header');
+        if (!header) return;
+        if (header.querySelector('.archivist-create-buttons')) return;
 
-      const wrap = document.createElement('div');
-      wrap.className = 'archivist-create-buttons';
-      wrap.style.display = 'flex';
-      wrap.style.flexWrap = 'wrap';
-      wrap.style.gap = '6px';
-      wrap.style.marginTop = '6px';
+        const wrap = document.createElement('div');
+        wrap.className = 'archivist-create-buttons';
+        wrap.style.display = 'flex';
+        wrap.style.flexWrap = 'wrap';
+        wrap.style.gap = '6px';
+        wrap.style.marginTop = '6px';
 
-      const types = [
-        { key: 'pc', label: 'PC', icon: 'fa-user', tooltip: 'Create New PC' },
-        {
-          key: 'npc',
-          label: 'NPC',
-          icon: 'fa-user-ninja',
-          tooltip: 'Create New NPC',
-        },
-        {
-          key: 'item',
-          label: 'Item',
-          icon: 'fa-gem',
-          tooltip: 'Create New Item',
-        },
-        {
-          key: 'location',
-          label: 'Location',
-          icon: 'fa-location-dot',
-          tooltip: 'Create New Location',
-        },
-        {
-          key: 'faction',
-          label: 'Faction',
-          icon: 'fa-people-group',
-          tooltip: 'Create New Faction',
-        },
-      ];
+        const types = [
+          { key: 'pc', label: 'PC', icon: 'fa-user', tooltip: 'Create New PC' },
+          {
+            key: 'npc',
+            label: 'NPC',
+            icon: 'fa-user-ninja',
+            tooltip: 'Create New NPC',
+          },
+          { key: 'creature', label: 'Creature', icon: 'fa-paw', tooltip: 'Create New Creature' },
+          {
+            key: 'item',
+            label: 'Item',
+            icon: 'fa-gem',
+            tooltip: 'Create New Item',
+          },
+          {
+            key: 'location',
+            label: 'Location',
+            icon: 'fa-location-dot',
+            tooltip: 'Create New Location',
+          },
+          {
+            key: 'faction',
+            label: 'Faction',
+            icon: 'fa-people-group',
+            tooltip: 'Create New Faction',
+          },
+        ];
 
-      const promptForName = async (title) => {
-        try {
-          const name = await foundry.applications.api.DialogV2.prompt({
-            window: { title },
-            content: `
-              <div class="form-group">
-                <label>Name:</label>
-                <input type="text" name="name" placeholder="Enter name..." autofocus style="width: 100%;" />
-              </div>
-            `,
-            ok: {
-              icon: '<i class="fas fa-check"></i>',
-              label: 'Create',
-              callback: (event, button) => {
-                const enteredName = button.form.elements.name.value.trim();
-                return enteredName || null;
-              },
-            },
-            cancel: { icon: '<i class="fas fa-times"></i>', label: 'Cancel' },
-            rejectClose: true,
-          });
-          return name;
-        } catch (_) {
-          return null;
-        }
-      };
-
-      const makeBtn = (t) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'archivist-create-btn';
-        b.innerHTML = `<i class="fas ${t.icon}"></i>`;
-        b.title = t.tooltip;
-        b.dataset.type = t.key;
-        b.addEventListener('click', async (ev) => {
-          ev.preventDefault();
+        const promptForName = async (title) => {
           try {
-            const worldId = settingsManager.getSelectedWorldId?.();
-            const name = await promptForName(`Create ${t.label}`);
-            if (!name) return;
-
-            let journal = null;
-            if (t.key === 'pc')
-              journal = await Utils.createPcJournal({ name, worldId });
-            else if (t.key === 'npc')
-              journal = await Utils.createNpcJournal({ name, worldId });
-            else if (t.key === 'item')
-              journal = await Utils.createItemJournal({ name, worldId });
-            else if (t.key === 'location')
-              journal = await Utils.createLocationJournal({ name, worldId });
-            else if (t.key === 'faction')
-              journal = await Utils.createFactionJournal({ name, worldId });
-
-            // Open the newly created sheet and bring it to front
-            if (journal) {
-              journal.sheet?.render?.(true);
-              setTimeout(() => journal.sheet?.bringToFront?.(), 50);
-            }
-          } catch (e) {
-            console.warn('[Archivist Sync] create button failed', e);
+            const name = await foundry.applications.api.DialogV2.prompt({
+              window: { title },
+              content: `
+                <div class="form-group">
+                  <label>Name:</label>
+                  <input type="text" name="name" placeholder="Enter name..." autofocus style="width: 100%;" />
+                </div>
+              `,
+              ok: {
+                icon: '<i class="fas fa-check"></i>',
+                label: 'Create',
+                callback: (event, button) => {
+                  const enteredName = button.form.elements.name.value.trim();
+                  return enteredName || null;
+                },
+              },
+              cancel: { icon: '<i class="fas fa-times"></i>', label: 'Cancel' },
+              rejectClose: true,
+            });
+            return name;
+          } catch (_) {
+            return null;
           }
-        });
-        return b;
-      };
+        };
 
-      for (const t of types) wrap.appendChild(makeBtn(t));
-      header.appendChild(wrap);
+        const makeBtn = (t) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'archivist-create-btn';
+          b.innerHTML = t.key === 'creature'
+            ? '<img class="archivist-creature-icon" src="modules/archivist-sync/assets/icons/creature.svg" alt="" />'
+            : `<i class="fas ${t.icon}"></i>`;
+          b.title = t.tooltip;
+          b.dataset.type = t.key;
+          b.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            try {
+              const worldId = settingsManager.getSelectedWorldId?.();
+              const name = await promptForName(`Create ${t.label}`);
+              if (!name) return;
+
+              let journal = null;
+              if (t.key === 'pc')
+                journal = await Utils.createPcJournal({ name, worldId });
+              else if (t.key === 'npc')
+                journal = await Utils.createNpcJournal({ name, worldId });
+              else if (t.key === 'creature')
+                journal = await Utils.createCreatureJournal({ name, worldId });
+              else if (t.key === 'item')
+                journal = await Utils.createItemJournal({ name, worldId });
+              else if (t.key === 'location')
+                journal = await Utils.createLocationJournal({ name, worldId });
+              else if (t.key === 'faction')
+                journal = await Utils.createFactionJournal({ name, worldId });
+
+              // Open the newly created sheet and bring it to front
+              if (journal) {
+                journal.sheet?.render?.(true);
+                setTimeout(() => journal.sheet?.bringToFront?.(), 50);
+              }
+            } catch (e) {
+              console.warn('[Archivist Sync] create button failed', e);
+            }
+          });
+          return b;
+        };
+
+        for (const t of types) wrap.appendChild(makeBtn(t));
+        header.appendChild(wrap);
+      });
     } catch (e) {
       console.warn('[Archivist Sync] Failed to inject create buttons', e);
     }
@@ -607,6 +615,7 @@ Hooks.once('ready', async function () {
             <optgroup label="Archivist">
               <option value="pc">PC</option>
               <option value="npc">NPC</option>
+              <option value="creature">Creature</option>
               <option value="item">Item</option>
               <option value="location">Location</option>
               <option value="faction">Faction</option>
@@ -859,7 +868,12 @@ function updateArchivistChatAvailability() {
           });
           li.appendChild(btn);
           const menu = tabsNav.querySelector('menu.flexcol') || tabsNav;
-          menu.appendChild(li);
+          const beforeNode = menu.lastElementChild;
+          if (beforeNode) {
+            menu.insertBefore(li, beforeNode);
+          } else {
+            menu.appendChild(li);
+          }
         } catch (e) {
           console.warn(
             '[Archivist Sync] Failed to inject fallback Sidebar tab button',
@@ -934,13 +948,30 @@ export { CONFIG, settingsManager, archivistApi, Utils };
  * Real-Time Sync: listen to Foundry CRUD and POST/PATCH/DELETE to Archivist
  * Only runs for GMs and when a world is selected & setting enabled.
  */
+let realtimeListenersInstalled = false;
+
 function installRealtimeSyncListeners() {
   const isGM = game.user?.isGM;
   if (!isGM) return; // Only the GM client should perform API writes
+  if (realtimeListenersInstalled) return;
 
-  const apiKey = settingsManager.getApiKey();
+  const initialApiKey = settingsManager.getApiKey();
   const worldId = settingsManager.getSelectedWorldId();
-  if (!apiKey || !worldId) return;
+  if (!initialApiKey || !worldId) return;
+  realtimeListenersInstalled = true;
+
+  // Resolve the current key on every event so a cleared or replaced key
+  // takes effect without reinstalling the listeners.
+  let apiKey = initialApiKey;
+  const Hooks = {
+    on: (name, fn) =>
+      globalThis.Hooks.on(name, (...args) => {
+        const current = settingsManager.getApiKey();
+        if (!current) return;
+        apiKey = current;
+        return fn(...args);
+      }),
+  };
 
   const toItemPayload = (item) => {
     const name = item?.name || 'Item';
@@ -1041,12 +1072,13 @@ function installRealtimeSyncListeners() {
       if (
         sheetType === 'pc' ||
         sheetType === 'npc' ||
+        sheetType === 'creature' ||
         sheetType === 'character'
       ) {
         const payload = {
           character_name: entry.name || 'Character',
           description,
-          type: sheetType === 'npc' ? 'NPC' : 'PC',
+          type: sheetType === 'creature' ? 'Creature' : sheetType === 'npc' ? 'NPC' : 'PC',
           campaign_id: worldId,
         };
         res = await archivistApi.createCharacter(apiKey, payload);
@@ -1073,6 +1105,17 @@ function installRealtimeSyncListeners() {
           description,
           ...(image ? { image } : {}),
           campaign_id: worldId,
+        });
+      } else if (sheetType === 'quest') {
+        res = await archivistApi.createQuest(apiKey, {
+          worldId,
+          questName: entry.name || 'Quest',
+        });
+      } else if (sheetType === 'journal') {
+        res = await archivistApi.createJournal(apiKey, {
+          world_id: worldId,
+          title: entry.name || 'Journal',
+          content: description,
         });
       }
 
@@ -1193,12 +1236,14 @@ function installRealtimeSyncListeners() {
       const flags = parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
       const sheetType = String(flags?.sheetType || '').toLowerCase();
       if (!sheetType || !flags.archivistId) return;
+
       const html = Utils.extractPageHtml(page);
       const payload = { description: Utils.toMarkdownIfHtml?.(html) || html };
 
       if (
         sheetType === 'pc' ||
         sheetType === 'npc' ||
+        sheetType === 'creature' ||
         sheetType === 'character'
       ) {
         res = await archivistApi.updateCharacter(
@@ -1224,6 +1269,19 @@ function installRealtimeSyncListeners() {
         await archivistApi.updateSession(apiKey, flags.archivistId, {
           title: parent?.name || page.name,
           summary: payload.description,
+        });
+        return;
+      } else if (sheetType === 'quest') {
+        // Quest page content is not a synced API field (quests use structured
+        // fields like successDefinition, not a free description), and name
+        // changes are handled by the updateJournalEntry title-sync hook. So a
+        // page-content edit has nothing to push — skip the redundant PATCH.
+        return;
+      } else if (sheetType === 'journal') {
+        res = await archivistApi.updateJournal(apiKey, {
+          id: flags.archivistId,
+          title: parent?.name || page.name,
+          content: Utils.toMarkdownIfHtml?.(html) || html,
         });
         return;
       }
@@ -1257,7 +1315,7 @@ function installRealtimeSyncListeners() {
       const st = String(flags?.sheetType || '');
       if (!id || !diff?.name) return;
       const name = String(diff.name);
-      const isCharacter = st === 'pc' || st === 'npc' || st === 'character';
+      const isCharacter = st === 'pc' || st === 'npc' || st === 'creature' || st === 'character';
       if (isCharacter) {
         await archivistApi.updateCharacter(apiKey, id, {
           character_name: name,
@@ -1268,6 +1326,10 @@ function installRealtimeSyncListeners() {
         await archivistApi.updateLocation(apiKey, id, { name });
       } else if (st === 'faction') {
         await archivistApi.updateFaction(apiKey, id, { name });
+      } else if (st === 'quest') {
+        await archivistApi.updateQuest(apiKey, id, { questName: name });
+      } else if (st === 'journal') {
+        await archivistApi.updateJournal(apiKey, { id, title: name });
       }
     } catch (e) {
       console.warn('[RTS] updateJournalEntry (title sync) failed', e);
@@ -1324,8 +1386,81 @@ function installRealtimeSyncListeners() {
     }
   });
 
-  // Delete custom sheets when the JournalEntry itself is deleted
-  Hooks.on('preDeleteJournalEntry', async (entry) => {
+  // Delete custom sheets when the JournalEntry itself is deleted.
+  // Defer the Archivist-side decision until every preDelete in this turn has
+  // registered. A bulk delete of duplicate sheets otherwise sees each sibling
+  // still in game.journal and skips the remote delete for all of them.
+  const pendingSheetDeletes = new Map();
+  let flushChain = Promise.resolve();
+
+  const flushArchivistSheetDelete = async (archivistId, bucket) => {
+    const survivors = (game.journal?.contents || []).filter((j) => {
+      if (bucket.ids.has(String(j.id))) return false;
+      return Utils.journalReferencesArchivistId(j, archivistId);
+    });
+    // World Setup can give a linked Actor, Item, or Scene the same
+    // archivistId as this journal sheet. That core document isn't in
+    // game.journal, so it wouldn't show up as a survivor above — check it
+    // separately before treating this as the last Foundry sheet.
+    const hasLinkedCoreDocument =
+      Utils.coreDocumentReferencesArchivistId(archivistId);
+    if (survivors.length || hasLinkedCoreDocument) {
+      console.log(
+        '[RTS] Skipping Archivist delete: other sheets still reference this record',
+        { archivistId, remaining: survivors.length, hasLinkedCoreDocument }
+      );
+      ui.notifications?.info?.(
+        survivors.length
+          ? `Removed the duplicate sheet. "${bucket.name}" is still in Archivist — ${survivors.length} other sheet${survivors.length > 1 ? 's' : ''} still reference${survivors.length > 1 ? '' : 's'} it.`
+          : `Removed the duplicate sheet. "${bucket.name}" is still in Archivist — a linked Actor, Item, or Scene still references it.`
+      );
+      return;
+    }
+
+    const confirmed = await foundry.applications.api.DialogV2.confirm({
+      window: { title: 'Delete from Archivist?' },
+      content:
+        `<p>This is the only Foundry sheet for <strong>${foundry.utils.escapeHTML(bucket.name || 'this record')}</strong>.</p>` +
+        `<p>Deleting it here also <strong>permanently deletes it from Archivist</strong> for everyone in the campaign. This cannot be undone.</p>` +
+        `<p>Delete from Archivist too, or keep the Archivist record and only remove the Foundry sheet?</p>`,
+      yes: { label: 'Delete from Archivist', icon: 'fa-solid fa-trash' },
+      no: { label: 'Keep in Archivist', icon: 'fa-solid fa-cloud' },
+      defaultYes: false,
+      rejectClose: false,
+    });
+    if (!confirmed) {
+      console.log('[RTS] GM kept the Archivist record; only the Foundry sheet is removed', {
+        archivistId,
+      });
+      return;
+    }
+
+    // The dialog can stay open while the key is cleared or replaced, so
+    // resolve it again before the destructive call.
+    const currentKey = settingsManager.getApiKey();
+    if (!currentKey) return;
+    apiKey = currentKey;
+
+    const st = bucket.sheetType;
+    if (
+      (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character') &&
+      archivistApi.deleteCharacter
+    ) {
+      await archivistApi.deleteCharacter(apiKey, archivistId);
+    } else if (st === 'item' && archivistApi.deleteItem) {
+      await archivistApi.deleteItem(apiKey, archivistId);
+    } else if (st === 'location' && archivistApi.deleteLocation) {
+      await archivistApi.deleteLocation(apiKey, archivistId);
+    } else if (st === 'faction' && archivistApi.deleteFaction) {
+      await archivistApi.deleteFaction(apiKey, archivistId);
+    } else if (st === 'quest') {
+      await archivistApi.deleteQuest(apiKey, archivistId);
+    } else if (st === 'journal') {
+      await archivistApi.deleteJournal(apiKey, archivistId);
+    }
+  };
+
+  Hooks.on('preDeleteJournalEntry', (entry) => {
     try {
       if (
         !settingsManager.isRealtimeSyncEnabled?.() ||
@@ -1336,19 +1471,29 @@ function installRealtimeSyncListeners() {
       const id = flags?.archivistId;
       const st = String(flags?.sheetType || '').toLowerCase();
       if (!id) return;
-      if (st === 'recap') return; // Never create/delete recaps
-      if (
-        (st === 'pc' || st === 'npc' || st === 'character') &&
-        archivistApi.deleteCharacter
-      ) {
-        await archivistApi.deleteCharacter(apiKey, id);
-      } else if (st === 'item' && archivistApi.deleteItem) {
-        await archivistApi.deleteItem(apiKey, id);
-      } else if (st === 'location' && archivistApi.deleteLocation) {
-        await archivistApi.deleteLocation(apiKey, id);
-      } else if (st === 'faction' && archivistApi.deleteFaction) {
-        await archivistApi.deleteFaction(apiKey, id);
+      if (st === 'recap' || st === 'session') return; // Never create/delete recaps
+
+      let bucket = pendingSheetDeletes.get(id);
+      if (!bucket) {
+        bucket = {
+          ids: new Set(),
+          sheetType: st,
+          name: entry.name || 'this record',
+        };
+        pendingSheetDeletes.set(id, bucket);
+        queueMicrotask(() => {
+          pendingSheetDeletes.delete(id);
+          // Distinct records each get their own bucket; run their confirms
+          // one after another so a multi-select delete does not open a
+          // stack of destructive DialogV2 windows at once.
+          flushChain = flushChain
+            .catch(() => {})
+            .then(() => flushArchivistSheetDelete(id, bucket))
+            .catch((e) => console.warn('[RTS] preDeleteJournalEntry failed', e));
+        });
       }
+      bucket.ids.add(String(entry.id));
+      if (entry.name) bucket.name = entry.name;
     } catch (e) {
       console.warn('[RTS] preDeleteJournalEntry failed', e);
     }
@@ -1405,6 +1550,8 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
             journal = await Utils.createPcJournal({ name, worldId });
           else if (key === 'npc')
             journal = await Utils.createNpcJournal({ name, worldId });
+          else if (key === 'creature')
+            journal = await Utils.createCreatureJournal({ name, worldId });
           else if (key === 'item')
             journal = await Utils.createItemJournal({ name, worldId });
           else if (key === 'location')
@@ -1427,6 +1574,7 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
     buttons.unshift(make('location', 'Location', 'fas fa-location-dot'));
     buttons.unshift(make('item', 'Item', 'fas fa-gem'));
     buttons.unshift(make('npc', 'NPC', 'fas fa-user-ninja'));
+    buttons.unshift(make('creature', 'Creature', 'fas fa-paw'));
     buttons.unshift(make('pc', 'PC', 'fas fa-user'));
   } catch (e) {
     console.warn('[Archivist Sync] getJournalDirectoryHeaderButtons failed', e);
@@ -1437,57 +1585,82 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
 Hooks.on('renderJournalDirectory', (app, html) => {
   try {
     if (!game.user?.isGM) return;
-    const root = html instanceof jQuery ? html[0] : html?.element || html;
+    if (!settingsManager.isWorldInitialized?.()) return;
+    
+    // V13 ApplicationV2: app.element is the root, fallback to html for compatibility
+    const root = app?.element || (html instanceof jQuery ? html[0] : html?.element || html);
     if (!root) return;
-    const list =
-      root.querySelector('ol.directory-list') ||
-      root.querySelector('.directory-list') ||
-      root;
-    const items = list.querySelectorAll(
-      'li[data-document-id], li.directory-item, li.document, li.journal-entry'
-    );
-    const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
-    const NON = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
-    items.forEach((li) => {
-      try {
-        const id =
-          li.getAttribute('data-document-id') ||
-          li.getAttribute('data-entry-id');
-        if (!id) return;
-        if (li.querySelector('.archivist-eye')) return;
-        const j = game.journal?.get?.(id);
-        if (!j) return;
-        // Only render for Archivist custom sheets (identified by our flags)
-        let isCustom = false;
-        try {
-          const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
-          isCustom = !!(f.archivistId || f.sheetType);
-        } catch (_) {
-          isCustom = false;
-        }
-        if (!isCustom) return;
-        const cur = Number(j?.ownership?.default ?? NON);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'archivist-eye';
-        const icon = document.createElement('i');
-        icon.className = cur >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
-        btn.title = cur >= OBS ? 'Hide from Players' : 'Show to Players';
-        btn.appendChild(icon);
-        btn.addEventListener('click', async (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          try {
-            const now = Number(j?.ownership?.default ?? NON);
-            const next = now >= OBS ? NON : OBS;
-            await j.update({ ownership: { default: next } });
-            icon.className = next >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
-            btn.title = next >= OBS ? 'Hide from Players' : 'Show to Players';
-          } catch (_) {}
-        });
-        // Append to the end of the row
-        li.appendChild(btn);
-      } catch (_) {}
-    });
-  } catch (_) {}
+    
+    // Retry mechanism: try multiple times with increasing delays to handle async rendering
+    const injectEyeButtons = (attempt = 0) => {
+      const maxAttempts = 5;
+      const delay = attempt * 100; // 0ms, 100ms, 200ms, 300ms, 400ms
+      
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const list =
+            root.querySelector('ol.directory-list') ||
+            root.querySelector('.directory-list') ||
+            root;
+          const items = list.querySelectorAll(
+            'li[data-document-id], li.directory-item, li.document, li.journal-entry'
+          );
+          
+          // If no items found and we haven't exhausted retries, try again
+          if (items.length === 0 && attempt < maxAttempts) {
+            injectEyeButtons(attempt + 1);
+            return;
+          }
+          
+          const OBS = CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+          const NON = CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE;
+          items.forEach((li) => {
+            try {
+              const id =
+                li.getAttribute('data-document-id') ||
+                li.getAttribute('data-entry-id');
+              if (!id) return;
+              if (li.querySelector('.archivist-eye')) return;
+              const j = game.journal?.get?.(id);
+              if (!j) return;
+              // Only render for Archivist custom sheets (identified by our flags)
+              let isCustom = false;
+              try {
+                const f = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+                isCustom = !!(f.archivistId || f.sheetType);
+              } catch (_) {
+                isCustom = false;
+              }
+              if (!isCustom) return;
+              const cur = Number(j?.ownership?.default ?? NON);
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'archivist-eye';
+              const icon = document.createElement('i');
+              icon.className = cur >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+              btn.title = cur >= OBS ? 'Hide from Players' : 'Show to Players';
+              btn.appendChild(icon);
+              btn.addEventListener('click', async (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                try {
+                  const now = Number(j?.ownership?.default ?? NON);
+                  const next = now >= OBS ? NON : OBS;
+                  await j.update({ ownership: { default: next } });
+                  icon.className = next >= OBS ? 'fas fa-eye' : 'fas fa-eye-slash';
+                  btn.title = next >= OBS ? 'Hide from Players' : 'Show to Players';
+                } catch (_) {}
+              });
+              // Append to the end of the row
+              li.appendChild(btn);
+            } catch (_) {}
+          });
+        }, delay);
+      });
+    };
+    
+    injectEyeButtons();
+  } catch (e) {
+    console.warn('[Archivist Sync] Failed to inject eye buttons', e);
+  }
 });

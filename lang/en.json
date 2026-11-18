@@ -3,7 +3,7 @@
     "Settings": {
       "ApiKey": {
         "Name": "API Key",
-        "Hint": "Enter your API key to authenticate with the Archivist API service"
+        "Hint": "Enter your API key to authenticate with the Archivist API service. It is saved for this world and remembered in this browser for other worlds."
       },
       "SemanticMappingEnabled": {
         "Name": "Enable semantic field mapping",
@@ -33,6 +33,10 @@
           "GMOnly": "GM Only",
           "None": "None"
         }
+      },
+      "ChatGmPermissions": {
+        "Name": "Allow GM private journal context in chat",
+        "Hint": "When enabled, GM chat requests include private journal context during retrieval. Non-GM users never send private context."
       },
       "MappingOverride": {
         "Name": "Mapping Override (JSON)",
@@ -105,6 +109,7 @@
         "Update": "Update",
         "Cancel": "Cancel",
         "Success": "API key updated successfully",
+        "Cleared": "API key cleared",
         "Empty": "API key cannot be empty"
       },
       "RunSetup": {
@@ -166,6 +171,8 @@
       "locations": "Locations",
       "items": "Items",
       "recaps": "Recaps",
+      "journals": "Journals",
+      "quests": "Quests",
       "mappingOverride": "Mapping Override (JSON)",
       "importProgress": "Import Progress"
     },
@@ -225,7 +232,9 @@
       "locationsPulled": "Locations pulled successfully",
       "charactersPulled": "Characters pulled successfully",
       "worldInitialized": "Foundry world has been initialized with Archivist for the first time",
-      "worldInitializedReset": "World initialization reset. Reloading to run setup again..."
+      "worldInitializedReset": "World initialization reset. Reloading to run setup again...",
+      "journalImportNotice": "Journal content syncs with Archivist. Folder structure is a point-in-time snapshot and not kept in sync.",
+      "questSynced": "Quest synced with Archivist."
     },
     "errors": {
       "fetchFailed": "Failed to fetch worlds from Archivist API",
@@ -308,6 +317,35 @@
         "description": "We will create and link journal entries in the Archivist directory and perform the selected operations.",
         "placeholder": "Summary UI coming next with counts and details.",
         "beginSync": "Begin Sync"
+      }
+    },
+    "quest": {
+      "status": {
+        "planned": "Planned",
+        "inProgress": "In Progress",
+        "blocked": "Blocked",
+        "failed": "Failed",
+        "done": "Done"
+      },
+      "category": {
+        "main": "Main",
+        "side": "Side",
+        "faction": "Faction",
+        "personal": "Personal"
+      },
+      "objectiveStatus": {
+        "pending": "Pending",
+        "inProgress": "In Progress",
+        "completed": "Completed",
+        "failed": "Failed",
+        "blocked": "Blocked"
+      },
+      "fields": {
+        "questGiver": "Quest Giver",
+        "successDefinition": "Success Definition",
+        "failureConditions": "Failure Conditions",
+        "nextAction": "Next Action",
+        "resolution": "Resolution"
       }
     },
     "settings": {

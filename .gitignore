@@ -63,3 +63,6 @@ module.zip
 # Temporary files
 tmp/
 temp/
+
+# Claude Code
+.claude/

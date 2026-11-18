@@ -1,6 +1,6 @@
 ---
 description: Rules and examples for DocumentSheetV2-based sheets (Actors, Items, Journals, custom)
-globs: "src/**"
+globs: "scripts/**"
 alwaysApply: true
 ---
 
@@ -9,43 +9,36 @@ alwaysApply: true
 ## Sheet base
 Extend `DocumentSheetV2` directly (or a project `BaseSheet` that extends it). Use V2 accessors (`this.document`, `this.form`) and lifecycle:
 
-```ts
-import { HandlebarsApplicationMixin } from "foundry/applications/api.mjs";
-
-export class FactionSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
-  static override DEFAULT_OPTIONS = {
-    id: "archivist-faction-sheet",
-    window: { title: "Faction" },
-    classes: ["archivist", "sheet", "faction"],
-    position: { width: 600, height: "auto" },
-    form: { handler: FactionSheet.prototype._onSubmit },
+```js
+class ArchivistBasePageSheetV2 extends foundry.applications.api.HandlebarsApplicationMixin(
+  foundry.applications.api.DocumentSheetV2
+) {
+  static DEFAULT_OPTIONS = {
+    id: "archivist-page-sheet-{id}",
+    classes: ["archivist-sync", "archivist-v2-sheet"],
+    sheetConfig: true,
+    window: { icon: "fa-solid fa-book", resizable: true },
+    position: { width: 800, height: 700 },
   };
 
-  get title() { return `Faction: ${this.document?.name ?? "Untitled"}`; }
+  static PARTS = {
+    form: { template: "modules/archivist-sync/templates/sheets/base.hbs" },
+  };
 
-  override async _prepareContext(_options) {
+  get title() { return this.document?.name ?? "Untitled"; }
+
+  async _prepareContext(_options) {
     return {
-      faction: this.document,
-      links: this.document.getFlag("archivist-sync", "links") ?? [],
+      entry: this.document,
+      flags: this.document?.getFlag?.("archivist-sync", "archivist") || {},
     };
   }
 
-  override async _renderHTML(context, _options) {
-    return await renderTemplate("modules/archivist-sync/templates/faction.hbs", context);
-  }
-
-  protected async _onSubmit(ev: SubmitEvent) {
-    ev.preventDefault();
-    const data = this._prepareSubmitData(new FormData(this.form!));
-    await this.document.update(data);
-  }
-
-  protected override _prepareSubmitData(form: FormData) {
-    // Map HBS form fields to the document schema (v13).
-    return {
-      "system.description": form.get("description") ?? this.document.system?.description ?? "",
-      img: (form.get("img") as string) || this.document.img,
-    } as any;
+  _onRender(context, options) {
+    super._onRender(context, options);
+    const root = this.element;
+    root.addEventListener("drop", (ev) => this._onArchivistDrop(ev));
+    root.addEventListener("dragover", (ev) => ev.preventDefault());
   }
 }
 ```
@@ -54,16 +47,14 @@ export class FactionSheet extends HandlebarsApplicationMixin(DocumentSheetV2) {
 - Rendering & context: `_prepareContext`, `_renderHTML`, `_onFirstRender`, `_onRender`, `_postRender`.
 - Forms: `_onChangeForm`, `submit()`, `_prepareSubmitData`, `_processSubmitData`.
 - Accessors: `document`, `form`, `title`, `element`, `classList`.
-All are described in `DocumentSheetV2`.  [oai_citation:1‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.DocumentSheetV2.html)
+
+API docs: https://foundryvtt.com/api/v14/classes/foundry.applications.api.DocumentSheetV2.html
 
 ## Images & assets
-Bind image fields to `document.img` (or relevant system path) and update via `this.document.update({ img })` in submit handlers—do **not** rely on V1 jQuery form traversal.
+Bind image fields to `document.img` and update via `this.document.update({ img })` in submit handlers. Do not rely on V1 jQuery form traversal.
 
 ## Tabs and header controls
-Reuse `ApplicationV2` mechanisms from the window base: `TABS`, `_getTabsConfig`, `_getHeaderControls`.  [oai_citation:11‡Foundry Virtual Tabletop](https://foundryvtt.com/api/classes/foundry.applications.api.ApplicationV2.html)
+Reuse `ApplicationV2` mechanisms: `TABS`, `_getTabsConfig`, `_getHeaderControls`.
 
 ## Journal-like content
-For rich text, prefer v13 editors or ProseMirror-based editors exposed by the system. Avoid direct DOM HTML scraping; persist via `update` on the document.
----
-alwaysApply: true
----
+For rich text, use ProseMirror-based editors exposed by Foundry. Avoid direct DOM HTML scraping; persist via `update` on the document.

@@ -17,6 +17,7 @@ export class SettingsManager {
    * Register all module settings
    */
   registerSettings() {
+    if (this._settingsRegistered) return;
     this._registerApiKey();
     this._registerSelectedWorldId();
     this._registerSelectedWorldName();
@@ -27,10 +28,12 @@ export class SettingsManager {
     this._registerRealtimeSync();
     this._registerChatHistory();
     this._registerChatVisibility();
+    this._registerChatGmPermissions();
     this._registerUpdateApiKeyMenu();
     this._registerRunSetupAgainMenu();
     this._registerDocumentationMenu();
     this._registerProjectionSettings();
+    this._settingsRegistered = true;
   }
 
   /**
@@ -47,8 +50,29 @@ export class SettingsManager {
       type: setting.type,
       default: setting.default,
       secret: true,
-      onChange: (value) => {
+      onChange: () => {
         console.log(`${this.moduleTitle} | API Key updated`);
+        this._onChatAvailabilityChange();
+      },
+    });
+
+    const clearedSetting = SETTINGS.API_KEY_CLEARED;
+    game.settings.register(this.moduleId, clearedSetting.key, {
+      scope: clearedSetting.scope,
+      config: clearedSetting.config,
+      type: clearedSetting.type,
+      default: clearedSetting.default,
+    });
+
+    const clientSetting = SETTINGS.API_KEY_CLIENT;
+    game.settings.register(this.moduleId, clientSetting.key, {
+      name: game.i18n.localize(clientSetting.name),
+      hint: game.i18n.localize(clientSetting.hint),
+      scope: clientSetting.scope,
+      config: clientSetting.config,
+      type: clientSetting.type,
+      default: clientSetting.default,
+      onChange: () => {
         this._onChatAvailabilityChange();
       },
     });
@@ -196,28 +220,34 @@ export class SettingsManager {
             rejectClose: false,
           });
 
-          if (result) {
+          if (result != null) {
             const newApiKey = String(result).trim();
-            if (!newApiKey) {
-              ui.notifications.error(
-                game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Empty')
+            try {
+              const { settingsManager } = await import(
+                './settings-manager.js'
               );
-            } else {
-              try {
-                const { settingsManager } = await import(
-                  './settings-manager.js'
-                );
-                const MODULE_ID =
-                  settingsManager.moduleId ||
-                  (await import('./config.js')).CONFIG.MODULE_ID;
-                await game.settings.set(MODULE_ID, 'apiKey', newApiKey);
-                ui.notifications.info(
-                  game.i18n.localize('ARCHIVIST_SYNC.Menu.UpdateApiKey.Success')
-                );
-              } catch (e) {
-                console.error('[Archivist Sync] Failed to update API key', e);
-                ui.notifications.error('Failed to update API key');
+              const hadKey = !!settingsManager.getApiKey();
+              await settingsManager.setApiKey(newApiKey);
+              if (newApiKey && !hadKey) {
+                try {
+                  if (
+                    settingsManager.isWorldSelected?.() &&
+                    settingsManager.isRealtimeSyncEnabled?.()
+                  ) {
+                    window.ARCHIVIST_SYNC?.installRealtimeSyncListeners?.();
+                  }
+                } catch (_) {}
               }
+              ui.notifications.info(
+                game.i18n.localize(
+                  newApiKey
+                    ? 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Success'
+                    : 'ARCHIVIST_SYNC.Menu.UpdateApiKey.Cleared'
+                )
+              );
+            } catch (e) {
+              console.error('[Archivist Sync] Failed to update API key', e);
+              ui.notifications.error('Failed to update API key');
             }
           }
           return this;
@@ -339,6 +369,7 @@ export class SettingsManager {
                   if (
                     st === 'pc' ||
                     st === 'npc' ||
+                    st === 'creature' ||
                     st === 'character' ||
                     st === 'item' ||
                     st === 'location' ||
@@ -364,7 +395,10 @@ export class SettingsManager {
               try {
                 const actors = game.actors?.contents || [];
                 await Promise.allSettled(
-                  actors.map((a) => a?.unsetFlag?.(MODULE_ID, 'archivistId'))
+                  actors.map(async (a) => {
+                    await a?.unsetFlag?.(MODULE_ID, 'archivistId');
+                    await a?.unsetFlag?.(MODULE_ID, 'archivistType');
+                  })
                 );
               } catch (e) {
                 console.warn(
@@ -453,11 +487,96 @@ export class SettingsManager {
   }
 
   /**
-   * Get API key
+   * Read a stored API key, treating missing and blank values as empty.
+   * @param {string} key
+   * @returns {string}
+   * @private
+   */
+  _readApiKey(key) {
+    try {
+      const value = this.getSetting(key);
+      return typeof value === 'string' ? value.trim() : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * True when this user may write world-scoped settings.
+   * @returns {boolean}
+   * @private
+   */
+  _canModifyWorldSettings() {
+    try {
+      return !!game.user?.can?.('SETTINGS_MODIFY');
+    } catch (_) {
+      return !!game.user?.isGM;
+    }
+  }
+
+  /**
+   * Save the API key to this world and to this browser.
+   * An empty value clears both. World writes are skipped when this user
+   * cannot modify world settings; the browser copy is still saved.
+   * @param {string} value
+   * @returns {Promise<void>}
+   */
+  async setApiKey(value) {
+    const key = typeof value === 'string' ? value.trim() : '';
+    if (this._canModifyWorldSettings()) {
+      await this.setSetting(SETTINGS.API_KEY_CLEARED.key, !key);
+      await this.setSetting(SETTINGS.API_KEY.key, key);
+    }
+    await this.setSetting(SETTINGS.API_KEY_CLIENT.key, key);
+  }
+
+  /**
+   * True when a GM explicitly cleared the key for this world.
+   * @returns {boolean}
+   * @private
+   */
+  _isApiKeyCleared() {
+    try {
+      return !!this.getSetting(SETTINGS.API_KEY_CLEARED.key);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Fill an empty API key store from the one that has a value.
+   * Only users who can modify world settings persist the cross-world copy.
+   * When both are set, leave them unchanged even if they differ.
+   * @returns {Promise<void>}
+   */
+  async syncApiKeyStores() {
+    const world = this._readApiKey(SETTINGS.API_KEY.key);
+    const client = this._readApiKey(SETTINGS.API_KEY_CLIENT.key);
+
+    if (!client && world && this._canModifyWorldSettings()) {
+      await this.setSetting(SETTINGS.API_KEY_CLIENT.key, world);
+      return;
+    }
+
+    if (
+      !world &&
+      client &&
+      !this._isApiKeyCleared() &&
+      this._canModifyWorldSettings()
+    ) {
+      await this.setSetting(SETTINGS.API_KEY.key, client);
+    }
+  }
+
+  /**
+   * Get API key. Prefers the world value, then the browser copy.
    * @returns {string} The API key
    */
   getApiKey() {
-    return this.getSetting(SETTINGS.API_KEY.key);
+    const world = this._readApiKey(SETTINGS.API_KEY.key);
+    if (world) return world;
+    if (this._isApiKeyCleared()) return '';
+    return this._readApiKey(SETTINGS.API_KEY_CLIENT.key);
   }
 
   // AI settings and mapping override getters removed
@@ -535,6 +654,18 @@ export class SettingsManager {
   }
 
   /**
+   * Check if GM-only private journal context is enabled for chat
+   * @returns {boolean}
+   */
+  getChatGmPermissionsEnabled() {
+    try {
+      return !!this.getSetting(SETTINGS.CHAT_GM_PERMISSIONS.key);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  /**
    * Check if world is initialized with Archivist
    * @returns {boolean} True if world has been initialized
    */
@@ -602,13 +733,14 @@ export class SettingsManager {
 
   /**
    * Get journal folder destinations for organizing Archivist journals
-   * @returns {{ pc: string, npc: string, item: string, location: string, faction: string }}
+   * @returns {{ pc: string, npc: string, creature: string, item: string, location: string, faction: string }}
    */
   getJournalDestinations() {
     return (
       this.getSetting(SETTINGS.JOURNAL_DESTINATIONS.key) || {
         pc: '',
         npc: '',
+        creature: '',
         item: '',
         location: '',
         faction: '',
@@ -618,7 +750,7 @@ export class SettingsManager {
 
   /**
    * Set journal folder destinations
-   * @param {{ pc?: string, npc?: string, item?: string, location?: string, faction?: string }} destinations
+   * @param {{ pc?: string, npc?: string, creature?: string, item?: string, location?: string, faction?: string }} destinations
    * @returns {Promise<void>}
    */
   async setJournalDestinations(destinations) {
@@ -647,6 +779,9 @@ export class SettingsManager {
       type: setting.type,
       default: setting.default,
     });
+
+    const { key, ...userHistory } = SETTINGS.USER_CHAT_HISTORY;
+    game.settings.register(this.moduleId, key, userHistory);
 
     const enabled = SETTINGS.CHAT_HISTORY_ENABLED;
     game.settings.register(this.moduleId, enabled.key, {
@@ -683,6 +818,18 @@ export class SettingsManager {
     });
   }
 
+  _registerChatGmPermissions() {
+    const setting = SETTINGS.CHAT_GM_PERMISSIONS;
+    game.settings.register(this.moduleId, setting.key, {
+      name: game.i18n.localize(setting.name),
+      hint: game.i18n.localize(setting.hint),
+      scope: setting.scope,
+      config: setting.config,
+      type: setting.type,
+      default: setting.default,
+    });
+  }
+
   /**
    * Handle changes that affect chat availability
    * @private
@@ -715,6 +862,18 @@ export class SettingsManager {
       onChange: (value) => {
         console.log(`${this.moduleTitle} | World initialized: ${value}`);
         this._onChatAvailabilityChange();
+        // Trigger Journal Directory re-render when world initialization changes
+        // This ensures custom elements mount immediately after setup
+        if (value) {
+          setTimeout(async () => {
+            try {
+              await ui?.journal?.render?.({ force: true });
+              console.log('[Archivist Sync] Journal Directory re-rendered after world initialization change');
+            } catch (e) {
+              console.warn('[Archivist Sync] Failed to re-render Journal Directory on setting change', e);
+            }
+          }, 100);
+        }
       },
     });
   }

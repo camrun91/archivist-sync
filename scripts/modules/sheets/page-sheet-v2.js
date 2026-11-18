@@ -93,7 +93,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         const flagImg = String(f.image || '').trim();
         if (flagImg) image = flagImg;
       }
-      if (!image && (st === 'pc' || st === 'npc' || st === 'character')) {
+      if (!image && (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character')) {
         const actorId = (f.foundryRefs?.actors || [])[0];
         const actor = actorId ? game.actors?.get?.(actorId) : null;
         if (actor?.img) image = String(actor.img).trim();
@@ -110,7 +110,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       // Hub fallback removed
       // Final fallback: Foundry default icons per sheet type
       if (!image) {
-        if (st === 'pc' || st === 'npc' || st === 'character')
+        if (st === 'creature') image = 'modules/archivist-sync/assets/icons/creature.svg';
+        else if (st === 'pc' || st === 'npc' || st === 'character')
           image = 'icons/svg/mystery-man.svg';
         else if (st === 'item') image = 'icons/svg/item-bag.svg';
         else if (st === 'location') image = 'icons/svg/mountain.svg';
@@ -171,8 +172,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
     return result;
   }
 
-  _onRender(context, options) {
-    super._onRender(context, options);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
     try {
       const root = this.element;
       const content = root.querySelector('.archivist-content') || root;
@@ -268,6 +269,17 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
               visBtn.style.width = '16px';
               visBtn.style.height = '16px';
             } catch (_) {}
+          }
+          const uploadBtn = root.querySelector(
+            '[data-action="upload-local-image"]'
+          );
+          if (uploadBtn && !uploadBtn.dataset.bound) {
+            uploadBtn.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              this._onUploadLocalImage();
+            });
+            uploadBtn.dataset.bound = 'true';
           }
         } catch (_) {}
       }
@@ -603,12 +615,27 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
                   scenes: [],
                   journals: [],
                 };
+                const previousActorId = flags.foundryRefs.actors?.[0];
                 flags.foundryRefs.actors = [doc.id];
                 await this.document.setFlag(
                   CONFIG.MODULE_ID,
                   'archivist',
                   flags
                 );
+                const actorType = {
+                  pc: 'PC',
+                  npc: 'NPC',
+                  creature: 'Creature',
+                }[String(flags.sheetType || '').toLowerCase()];
+                if (actorType) {
+                  await doc.setFlag(CONFIG.MODULE_ID, 'archivistType', actorType);
+                  if (flags.archivistId)
+                    await doc.setFlag(CONFIG.MODULE_ID, 'archivistId', flags.archivistId);
+                }
+                if (previousActorId && previousActorId !== doc.id) {
+                  const previousActor = game.actors?.get?.(previousActorId);
+                  await Utils.clearActorArchivistLink(previousActor, flags.archivistId);
+                }
                 ui.notifications?.info?.('Linked actor to character');
                 this.render(false);
               } catch (e) {
@@ -660,11 +687,126 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       console.warn('[Archivist Sync][PageV2] _onRender failed', e);
     }
     try {
+      // Awaited so Foundry's render pipeline (which awaits _onRender) doesn't
+      // consider the sheet "done" until tab counts/cards are actually set.
+      // Previously these were fire-and-forget: opening a sheet by clicking a
+      // card in another custom sheet (vs. opening it fresh from the Journal
+      // Directory) could resolve .render()'s promise — and any .then() chained
+      // on it, e.g. bringToFront() — before this finished, leaving some tabs
+      // populated with cards but never getting their (N) count set.
       if (typeof this._renderLinkedGrids === 'function')
-        this._renderLinkedGrids();
+        await this._renderLinkedGrids();
       if (typeof this._renderActorItemCards === 'function')
-        this._renderActorItemCards();
+        await this._renderActorItemCards();
+      if (typeof this._renderRelatedQuests === 'function')
+        await this._renderRelatedQuests();
     } catch (_) {}
+  }
+
+  /**
+   * Populate a read-only "Quests" tab with quests that reference this entity.
+   * The Archivist API has no reverse-lookup endpoint for "quests referencing X",
+   * so this fetches the quest list and filters client-side by relatedEntityRefs.
+   * Quest is the source of truth for the relationship; edit/unlink from the
+   * Quest sheet itself, not from here.
+   */
+  async _renderRelatedQuests() {
+    const grid = this.element?.querySelector?.(
+      '.tab[data-tab="quests"] .archivist-grid'
+    );
+    if (!grid) return;
+    const flags = this._getArchivistFlags();
+    const sheetType = String(flags.sheetType || '').toLowerCase();
+    const entityType = { pc: 'character', npc: 'character', creature: 'character', character: 'character', faction: 'faction', location: 'location', item: 'item' }[sheetType];
+    const archivistId = String(flags.archivistId || '');
+    if (!entityType || !archivistId) {
+      grid.innerHTML = '<span class="quest-empty-state">None</span>';
+      return;
+    }
+    const seq = (this._rqSeq = (this._rqSeq || 0) + 1);
+    let quests = [];
+    try {
+      quests = await ArchivistBasePageSheetV2._loadQuestsCached();
+    } catch (_) {
+      quests = [];
+    }
+    if (this._rqSeq !== seq) return; // superseded by a later render
+    const hideByOwnership = settingsManager.getHideByOwnership?.();
+    const canSee = (doc) =>
+      !hideByOwnership ||
+      game.user?.isGM ||
+      doc?.testUserPermission?.(game.user, 'OBSERVED');
+    const matches = quests.filter((q) =>
+      (Array.isArray(q.relatedEntityRefs) ? q.relatedEntityRefs : []).some(
+        (r) =>
+          String(r.entityType).toLowerCase() === entityType &&
+          String(r.entityId) === archivistId
+      )
+    );
+    const visibleMatches = matches.filter((q) => {
+      const questJournal = this._findPageOrEntryByArchivistId(String(q.id));
+      if (!questJournal) return !hideByOwnership || game.user?.isGM;
+      const doc =
+        questJournal.documentName === 'JournalEntryPage'
+          ? questJournal.parent
+          : questJournal;
+      return canSee(doc);
+    });
+    grid.innerHTML = '';
+    if (!visibleMatches.length) {
+      grid.innerHTML = '<span class="quest-empty-state">None</span>';
+      return;
+    }
+    for (const q of visibleMatches) {
+      const questJournal = this._findPageOrEntryByArchivistId(String(q.id));
+      const name = q.questName || 'Quest';
+      const card = document.createElement('div');
+      card.className = 'archivist-card';
+      card.dataset.archivistId = String(q.id);
+      card.innerHTML = `<img src="icons/svg/scroll.svg" alt=""/><span class="name">${foundry.utils.escapeHTML(name)}</span>`;
+      if (questJournal) {
+        card.addEventListener('click', () => {
+          const doc =
+            questJournal.documentName === 'JournalEntryPage'
+              ? questJournal.parent
+              : questJournal;
+          doc?.sheet?.render?.(true);
+        });
+      }
+      grid.appendChild(card);
+    }
+    const nav = this.element?.querySelector?.(
+      '.archivist-nav [data-tab="quests"]'
+    );
+    if (nav) {
+      const base = nav.dataset._label || nav.textContent || 'Quests';
+      if (!nav.dataset._label) nav.dataset._label = base;
+      nav.textContent =
+        visibleMatches.length > 0 ? `${base} (${visibleMatches.length})` : base;
+    }
+  }
+
+  /** Drop cached quest list after any local quest mutation. */
+  static _invalidateQuestsCache() {
+    ArchivistBasePageSheetV2._questsCache = null;
+  }
+
+  /** Short-lived cache so opening several sheets at once doesn't re-fetch listQuests repeatedly. */
+  static async _loadQuestsCached() {
+    const now = Date.now();
+    const cache = ArchivistBasePageSheetV2._questsCache;
+    if (cache && now - cache.at < 5000) return cache.data;
+    const apiKey = settingsManager.getApiKey?.();
+    const campaignId = settingsManager.getSelectedWorldId?.();
+    if (!apiKey || !campaignId) return [];
+    const result = await archivistApi.listQuests(apiKey, campaignId);
+    const raw = result?.success ? result.data || [] : [];
+    // listQuests() doesn't normalize each row; the API's casing for quest
+    // fields is inconsistent between endpoints, so route through the same
+    // camelCase/snake_case-tolerant normalizer used by get/create/updateQuest.
+    const data = raw.map((q) => archivistApi._normalizeQuestResponse(q));
+    ArchivistBasePageSheetV2._questsCache = { at: now, data };
+    return data;
   }
 
   async _toggleEditMode() {
@@ -859,6 +1001,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       if (
         sheetType === 'pc' ||
         sheetType === 'npc' ||
+        sheetType === 'creature' ||
         sheetType === 'character'
       ) {
         console.log('[Archivist V2 Sheet] Syncing Character to API');
@@ -916,7 +1059,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         console.log('[Archivist V2 Sheet] Syncing Recap/Session to API');
         const payload = { title: nameNow };
         // Only include summary if we actually read editor content this cycle
-        if (htmlRead) payload.summary = html;
+        if (htmlRead) payload.summary = Utils.toMarkdownIfHtml(String(html || ''));
         if (sessionDate) {
           // Send full ISO (with time) using flags value if available
           let fullIso = '';
@@ -930,6 +1073,81 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           payload.session_date = fullIso || `${sessionDate}T00:00:00`;
         }
         await archivistApi.updateSession(apiKey, archivistId, payload);
+      } else if (sheetType === 'quest') {
+        ArchivistBasePageSheetV2._invalidateQuestsCache();
+        console.log('[Archivist V2 Sheet] Syncing Quest to API');
+        const root = this.element;
+        const readVal = (sel) =>
+          String(root?.querySelector?.(sel)?.value ?? '').trim();
+        const readObjectives = () => {
+          const items = [];
+          root.querySelectorAll('[data-obj-index]').forEach((li) => {
+            const text = String(
+              li.querySelector('.quest-objective-text-input')?.value ?? ''
+            ).trim();
+            const status = String(
+              li.querySelector('.quest-objective-status-select')?.value ??
+                'pending'
+            );
+            items.push({ text, status });
+          });
+          return items;
+        };
+        const objectivesFromForm = readObjectives();
+        const payload = {
+          questName: nameNow,
+          questGiver: readVal('.quest-giver-input'),
+          questCategory: readVal('.quest-category-select') || 'n/a',
+          status: readVal('.quest-status-select') || 'planned',
+          successDefinition: readVal('.quest-success-input'),
+          failureConditions: readVal('.quest-failure-input'),
+          nextAction: readVal('.quest-next-action-input'),
+          resolution: readVal('.quest-resolution-input'),
+          objectives: objectivesFromForm,
+        };
+        result = await archivistApi.updateQuest(apiKey, archivistId, payload);
+        if (result?.success !== false) {
+          const data = result?.data || {};
+          const nextQuestData = {
+            ...(flags.questData || {}),
+            questName: data.questName || payload.questName || nameNow,
+            questGiver: data.questGiver ?? payload.questGiver ?? '',
+            questCategory: data.questCategory ?? payload.questCategory ?? 'n/a',
+            status: data.status ?? payload.status ?? 'planned',
+            successDefinition:
+              data.successDefinition ?? payload.successDefinition ?? '',
+            failureConditions:
+              data.failureConditions ?? payload.failureConditions ?? '',
+            nextAction: data.nextAction ?? payload.nextAction ?? '',
+            resolution: data.resolution ?? payload.resolution ?? '',
+            objectives: objectivesFromForm.length
+              ? objectivesFromForm
+              : Array.isArray(data.objectives)
+                ? data.objectives
+                : flags.questData?.objectives || [],
+          };
+          await entry.setFlag(CONFIG.MODULE_ID, 'archivist', {
+            ...flags,
+            questData: nextQuestData,
+          });
+        }
+      } else if (sheetType === 'journal') {
+        console.log('[Archivist V2 Sheet] Syncing Journal to API');
+        const payload = {
+          id: archivistId,
+          title: nameNow,
+        };
+        if (htmlRead) {
+          payload.content = Utils.toMarkdownIfHtml(String(html || ''));
+        }
+        result = await archivistApi.updateJournal(apiKey, payload);
+        if (result && !result.success && result.isDescriptionTooLong) {
+          ui.notifications?.error?.(
+            `Failed to save ${result.entityName || nameNow}: Content exceeds the maximum allowed length. Please shorten the content and try again.`,
+            { permanent: true }
+          );
+          return;
+        }
       }
     } catch (e) {
       console.warn('[Archivist Sync][V2] commit: remote sync failed', e);
@@ -959,6 +1177,51 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       const targetFlags = this._getArchivistFlags();
       const targetType = String(targetFlags.sheetType || '').toLowerCase();
       if (targetType === 'recap' || targetType === 'session') return;
+
+      // Quests can't participate in the generic /links API (the backend has no
+      // ENTITY_CONFIG entry for Quest), so their relationships persist via
+      // updateQuest's relatedEntityRefs instead. Quest is the single source of
+      // truth for its own relationships; dropping a Quest onto another sheet
+      // would create an orphaned/inconsistent write, so we block that instead.
+      if (droppedType === 'quest' && targetType !== 'quest') {
+        ui.notifications?.warn?.(
+          'Link quests from the Quest sheet itself (drag the Character/Faction/Location/Item onto the Quest).'
+        );
+        return;
+      }
+      if (targetType === 'quest') {
+        const bucket = this._bucketForDrop(dropped);
+        if (!bucket || typeof this._linkQuestEntity !== 'function') return;
+        if (!QuestPageSheetV2.BUCKET_TO_ENTITY_TYPE[bucket]) {
+          ui.notifications?.warn?.(
+            'Quests can only link to Characters, Factions, Locations, and Items.'
+          );
+          return;
+        }
+        if (dropped.documentName === 'Actor' || dropped.documentName === 'Item') {
+          const aid = dropped.getFlag(CONFIG.MODULE_ID, 'archivistId');
+          if (!aid) {
+            ui.notifications?.warn?.(
+              'Only Archivist-synced Actors/Items can be linked to a Quest.'
+            );
+            return;
+          }
+          await this._linkQuestEntity(bucket, String(aid), dropped.name);
+          return;
+        }
+        const toDoc =
+          dropped?.documentName === 'JournalEntryPage'
+            ? dropped.parent
+            : dropped?.documentName === 'JournalEntry'
+              ? dropped
+              : null;
+        if (!toDoc) return;
+        const toFlags = toDoc?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+        const toId = String(toFlags.archivistId || '');
+        if (!toId) return;
+        await this._linkQuestEntity(bucket, toId, toDoc.name);
+        return;
+      }
 
       const bucket = this._bucketForDrop(dropped);
       if (!bucket) return;
@@ -1037,7 +1300,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           if (apiKey && campaignId && toId && fromId) {
             const resolveType = (flags) => {
               const st = String(flags.sheetType || '').toLowerCase();
-              if (st === 'character' || st === 'pc' || st === 'npc')
+              if (st === 'character' || st === 'pc' || st === 'npc' || st === 'creature')
                 return 'Character';
               if (st === 'item') return 'Item';
               if (st === 'location') return 'Location';
@@ -1076,7 +1339,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         doc?.parent?.getFlag?.(CONFIG.MODULE_ID, 'archivist') ||
         {};
       const dType = String(dFlags.sheetType || '').toLowerCase();
-      if (dType === 'character' || dType === 'pc' || dType === 'npc')
+      if (dType === 'character' || dType === 'pc' || dType === 'npc' || dType === 'creature')
         return 'characters';
       if (dType === 'item') return 'items';
       if (dType === 'faction') return 'factions';
@@ -1182,7 +1445,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         if (flagImg) image = flagImg;
       }
       if (!image) {
-        if (st === 'pc' || st === 'npc' || st === 'character') {
+        if (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character') {
           const actorId = (f.foundryRefs?.actors || [])[0];
           const actor = actorId ? game.actors?.get?.(actorId) : null;
           if (actor?.img) image = String(actor.img).trim();
@@ -1199,6 +1462,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       }
       // Hub fallback removed
       if (!image) {
+        if (st === 'creature') return 'modules/archivist-sync/assets/icons/creature.svg';
         if (st === 'pc' || st === 'npc' || st === 'character')
           return 'icons/svg/mystery-man.svg';
         if (st === 'item') return 'icons/svg/item-bag.svg';
@@ -1243,9 +1507,12 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
               `.archivist-nav [data-tab="${tab}"]`
             ) || root.querySelector?.(`.archivist-nav [data-tab="${tab}"]`);
           if (!a) return;
-          const base = a.dataset._label || a.textContent || tab;
+          // Write only the label so an icon inside the tab link survives.
+          const label = a.querySelector?.('.archivist-tab-label') || a;
+          const base =
+            a.dataset._label || String(label.textContent || '').trim() || tab;
           if (!a.dataset._label) a.dataset._label = base;
-          a.textContent = count > 0 ? `${base} (${count})` : base;
+          label.textContent = count > 0 ? `${base} (${count})` : base;
         } catch (_) {}
       };
 
@@ -1296,7 +1563,8 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       const npcsEl = root.querySelector(
         '.tab[data-tab="npcs"] .archivist-grid, .tab[data-tab="npcs"] .npcs-grid'
       );
-      if (pcsEl || npcsEl) {
+      const creaturesEl = root.querySelector('.tab[data-tab="creatures"] .archivist-grid');
+      if (pcsEl || npcsEl || creaturesEl) {
         let allCharIds = [];
         try {
           const { linkIndexer } = await import(
@@ -1323,6 +1591,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
           ).toLowerCase();
           if (sheetType === 'pc' || sheetType === 'character') return 'pc';
           if (sheetType === 'npc') return 'npc';
+          if (sheetType === 'creature') return 'creature';
           const actor = byActorId(id);
           const t = String(actor?.type || '').toLowerCase();
           if (t === 'character') return 'pc';
@@ -1331,9 +1600,10 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         };
         if (pcsEl) pcsEl.innerHTML = '';
         if (npcsEl) npcsEl.innerHTML = '';
+        if (creaturesEl) creaturesEl.innerHTML = '';
         for (const id of allCharIds) {
           const bucket = classify(id);
-          const container = bucket === 'npc' ? npcsEl : pcsEl;
+          const container = bucket === 'creature' ? creaturesEl : bucket === 'npc' ? npcsEl : pcsEl;
           if (!container) continue;
           const actor = byActorId(id);
           const targetDoc = actor || byId(id);
@@ -1351,6 +1621,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
         }
         if (pcsEl) setCount('pcs', pcsEl.children.length);
         if (npcsEl) setCount('npcs', npcsEl.children.length);
+        if (creaturesEl) setCount('creatures', creaturesEl.children.length);
       }
 
       // Factions (outbound only)
@@ -1576,6 +1847,7 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
                   ...flags,
                   foundryRefs: next,
                 });
+                await Utils.clearActorArchivistLink(actor, flags.archivistId);
                 this.render(false);
               });
           }
@@ -1641,6 +1913,101 @@ class ArchivistBasePageSheetV2 extends V2.HandlebarsApplicationMixin(
       ) || null
     );
   }
+
+  static SHEET_TYPE_TO_IMAGE_ENTITY_TYPE = {
+    pc: 'character',
+    npc: 'character',
+    creature: 'character',
+    character: 'character',
+    item: 'item',
+    location: 'location',
+    faction: 'faction',
+  };
+
+  /**
+   * Resolve a genuinely local Foundry image path worth uploading to Archivist,
+   * mirroring _resolveSheetImage's fallback chain but stopping before the
+   * default-icon fallback (nothing useful to upload in that case).
+   */
+  _resolveLocalImageForUpload() {
+    const entry = this.document;
+    if (!entry) return null;
+    const f = entry?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const st = String(f.sheetType || '').toLowerCase();
+    const explicit = String(entry?.img || '').trim();
+    if (explicit) return explicit;
+    if (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character') {
+      const actorId = (f.foundryRefs?.actors || [])[0];
+      const actor = actorId ? game.actors?.get?.(actorId) : null;
+      if (actor?.img) return String(actor.img).trim();
+    } else if (st === 'item') {
+      const itemId = (f.foundryRefs?.items || [])[0];
+      const itm = itemId ? game.items?.get?.(itemId) : null;
+      if (itm?.img) return String(itm.img).trim();
+    } else if (st === 'location') {
+      const sceneId = (f.foundryRefs?.scenes || [])[0];
+      const scene = sceneId ? game.scenes?.get?.(sceneId) : null;
+      const sc = scene?.thumbnail || scene?.img || '';
+      if (sc) return String(sc).trim();
+    }
+    return null;
+  }
+
+  /**
+   * Upload the sheet's local Foundry image (Actor/Item/Scene/journal img) to
+   * Archivist via the presigned-URL flow, so it's visible outside Foundry.
+   * Not available for Quests — the API has no image support for that type.
+   */
+  async _onUploadLocalImage() {
+    const flags = this._getArchivistFlags();
+    const sheetType = String(flags.sheetType || '').toLowerCase();
+    const entityType =
+      ArchivistBasePageSheetV2.SHEET_TYPE_TO_IMAGE_ENTITY_TYPE[sheetType];
+    if (!entityType) return;
+    const archivistId = String(flags.archivistId || '');
+    const apiKey = settingsManager.getApiKey?.();
+    const campaignId = settingsManager.getSelectedWorldId?.();
+    if (!apiKey || !campaignId || !archivistId) {
+      ui.notifications?.warn?.('Archivist world not configured.');
+      return;
+    }
+    const src = this._resolveLocalImageForUpload();
+    if (!src) {
+      ui.notifications?.warn?.('No local image found to upload for this sheet.');
+      return;
+    }
+    if (/^https?:\/\//i.test(src)) {
+      ui.notifications?.info?.(
+        'This image is already hosted remotely; nothing to upload.'
+      );
+      return;
+    }
+    ui.notifications?.info?.('Uploading image to Archivist…');
+    try {
+      const res = await fetch(src);
+      if (!res.ok) throw new Error(`Could not read local image (HTTP ${res.status})`);
+      const blob = await res.blob();
+      const contentType = blob.type || 'image/png';
+      const fileName = src.split('/').pop() || 'image';
+      const result = await archivistApi.uploadEntityImage(apiKey, campaignId, {
+        entityType,
+        entityId: archivistId,
+        fileName,
+        contentType,
+        bytes: blob,
+      });
+      if (result.success) {
+        ui.notifications?.info?.('Image uploaded to Archivist.');
+      } else {
+        ui.notifications?.error?.(
+          `Image upload failed: ${result.message || 'unknown error'}`
+        );
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Local image upload failed', e);
+      ui.notifications?.error?.('Image upload failed. See console for details.');
+    }
+  }
 }
 
 export class EntryPageSheetV2 extends ArchivistBasePageSheetV2 {
@@ -1658,6 +2025,11 @@ export class NPCPageSheetV2 extends ArchivistBasePageSheetV2 {
     form: { template: 'modules/archivist-sync/templates/sheets/character.hbs' },
   };
 }
+export class CreaturePageSheetV2 extends ArchivistBasePageSheetV2 {
+  static PARTS = {
+    form: { template: 'modules/archivist-sync/templates/sheets/creature.hbs' },
+  };
+}
 export class CharacterPageSheetV2 extends PCPageSheetV2 {}
 export class ItemPageSheetV2 extends ArchivistBasePageSheetV2 {
   static PARTS = {
@@ -1670,8 +2042,8 @@ export class LocationPageSheetV2 extends ArchivistBasePageSheetV2 {
     form: { template: 'modules/archivist-sync/templates/sheets/location.hbs' },
   };
 
-  _onRender(context, options) {
-    super._onRender(context, options);
+  async _onRender(context, options) {
+    await super._onRender(context, options);
     try {
       const root = this.element;
       // Tab toggling
@@ -1944,6 +2316,480 @@ export class RecapPageSheetV2 extends ArchivistBasePageSheetV2 {
   static PARTS = {
     form: { template: 'modules/archivist-sync/templates/sheets/recap.hbs' },
   };
+}
+export class JournalPageSheetV2 extends ArchivistBasePageSheetV2 {
+  static PARTS = {
+    form: { template: 'modules/archivist-sync/templates/sheets/journal.hbs' },
+  };
+}
+export class QuestPageSheetV2 extends ArchivistBasePageSheetV2 {
+  static PARTS = {
+    form: { template: 'modules/archivist-sync/templates/sheets/quest.hbs' },
+  };
+
+  static TABS = {
+    archivist: {
+      navSelector: '.archivist-nav',
+      contentSelector: '.archivist-content',
+      initial: 'info',
+    },
+  };
+
+  /**
+   * Localize a key, returning null when i18n is unavailable or the key is
+   * missing (Foundry returns the key unchanged on a miss) so callers can fall
+   * back with `||`.
+   * @param {string|null} key
+   * @returns {string|null}
+   * @private
+   */
+  static _localize(key) {
+    if (!key) return null;
+    try {
+      const localized = game?.i18n?.localize?.(key);
+      if (localized && localized !== key) return localized;
+    } catch (_) {
+      /* i18n not ready */
+    }
+    return null;
+  }
+
+  async _prepareContext(_options) {
+    const ctx = await super._prepareContext(_options);
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const questName = qd.questName || qd.quest_name || '';
+    if (!ctx.setup.name || ctx.setup.name === 'Quest') {
+      ctx.setup.name = questName || ctx.setup.name;
+    }
+    ctx.quest = {
+      questGiver: qd.questGiver || qd.quest_giver || '',
+      questCategory: qd.questCategory || qd.quest_category || 'n/a',
+      status: qd.status || 'planned',
+      successDefinition: qd.successDefinition || qd.success_definition || '',
+      failureConditions: qd.failureConditions || qd.failure_conditions || '',
+      nextAction: qd.nextAction || qd.next_action || '',
+      resolution: qd.resolution || '',
+      objectives: Array.isArray(qd.objectives) ? qd.objectives : [],
+      progressLog: Array.isArray(qd.progressLog)
+        ? qd.progressLog
+        : Array.isArray(qd.progress_log)
+          ? qd.progress_log
+          : [],
+      relatedCharacters: Array.isArray(qd.relatedCharacters)
+        ? qd.relatedCharacters
+        : Array.isArray(qd.related_characters)
+          ? qd.related_characters
+        : [],
+      relatedFactions: Array.isArray(qd.relatedFactions)
+        ? qd.relatedFactions
+        : Array.isArray(qd.related_factions)
+          ? qd.related_factions
+        : [],
+      relatedLocations: Array.isArray(qd.relatedLocations)
+        ? qd.relatedLocations
+        : Array.isArray(qd.related_locations)
+          ? qd.related_locations
+        : [],
+      relatedItems: Array.isArray(qd.relatedItems)
+        ? qd.relatedItems
+        : Array.isArray(qd.related_items)
+          ? qd.related_items
+          : [],
+      relatedEntityRefs: Array.isArray(qd.relatedEntityRefs)
+        ? qd.relatedEntityRefs
+        : Array.isArray(qd.related_entity_refs)
+          ? qd.related_entity_refs
+          : [],
+      firstSession: qd.firstSession || qd.first_session || null,
+      lastSession: qd.lastSession || qd.last_session || null,
+    };
+    // Status/category labels come from lang/en.json when available, falling
+    // back to English defaults if i18n isn't ready or a key is missing. Status
+    // values use hyphens (e.g. 'in-progress') while lang keys are camelCase.
+    const statusKeyMap = {
+      planned: 'planned',
+      'in-progress': 'inProgress',
+      blocked: 'blocked',
+      failed: 'failed',
+      done: 'done',
+    };
+    const statusFallback = {
+      planned: 'Planned',
+      'in-progress': 'In Progress',
+      blocked: 'Blocked',
+      failed: 'Failed',
+      done: 'Done',
+      'n/a': 'N/A',
+    };
+    const categoryFallback = {
+      main: 'Main',
+      side: 'Side',
+      faction: 'Faction',
+      personal: 'Personal',
+      'n/a': '',
+    };
+    ctx.quest.statusLabel =
+      QuestPageSheetV2._localize(
+        statusKeyMap[ctx.quest.status]
+          ? `ARCHIVIST_SYNC.quest.status.${statusKeyMap[ctx.quest.status]}`
+          : null
+      ) ||
+      statusFallback[ctx.quest.status] ||
+      ctx.quest.status;
+    ctx.quest.statusIcon = {
+      planned: 'fa-compass',
+      'in-progress': 'fa-hourglass-half',
+      blocked: 'fa-ban',
+      failed: 'fa-skull-crossbones',
+      done: 'fa-check-circle',
+      'n/a': 'fa-question',
+    }[ctx.quest.status] || 'fa-question';
+    ctx.quest.categoryLabel =
+      QuestPageSheetV2._localize(
+        ctx.quest.questCategory && ctx.quest.questCategory !== 'n/a'
+          ? `ARCHIVIST_SYNC.quest.category.${ctx.quest.questCategory}`
+          : null
+      ) ||
+      categoryFallback[ctx.quest.questCategory] ||
+      '';
+    return ctx;
+  }
+
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    try {
+      const root = this.element;
+      if (!context.setup?.editingInfo) {
+        this._renderQuestObjectives(root, context);
+      }
+      this._renderQuestProgress(root, context);
+      this._renderQuestLinks(root, context);
+      this._wireQuestEditActions(root, context);
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Quest _onRender failed', e);
+    }
+  }
+
+  _renderQuestObjectives(root, context) {
+    const list = root.querySelector('.quest-objectives-list');
+    if (!list) return;
+    const objectives = context.quest?.objectives || [];
+    list.innerHTML = '';
+    if (!objectives.length) {
+      list.innerHTML = '<li class="quest-empty-state">No objectives</li>';
+      return;
+    }
+    const iconMap = {
+      pending: 'fa-circle',
+      'in-progress': 'fa-hourglass-half',
+      completed: 'fa-check-circle',
+      failed: 'fa-times-circle',
+      blocked: 'fa-ban',
+    };
+    for (const obj of objectives) {
+      const li = document.createElement('li');
+      li.className = `quest-objective quest-objective-${obj.status || 'pending'}`;
+      const icon = iconMap[obj.status] || 'fa-circle';
+      li.innerHTML = `<i class="fa-solid ${icon} quest-objective-icon"></i><span class="quest-objective-text">${foundry.utils.escapeHTML(obj.text || '')}</span>`;
+      list.appendChild(li);
+    }
+  }
+
+  _renderQuestProgress(root, context) {
+    const list = root.querySelector('.quest-progress-log');
+    if (!list) return;
+    const entries = context.quest?.progressLog || [];
+    list.innerHTML = '';
+    if (!entries.length) {
+      list.innerHTML =
+        '<li class="quest-empty-state">No progress entries</li>';
+      return;
+    }
+    for (const entry of entries) {
+      const li = document.createElement('li');
+      li.className = 'quest-progress-entry';
+      const text = typeof entry === 'string' ? entry : entry.text || '';
+      li.innerHTML = `<i class="fa-solid fa-caret-right quest-progress-icon"></i><span>${foundry.utils.escapeHTML(text)}</span>`;
+      list.appendChild(li);
+    }
+  }
+
+  /** Map an entityType (as stored in relatedEntityRefs) to its Links-tab grid selector. */
+  static ENTITY_TYPE_TO_SELECTOR = {
+    character: '.quest-related-characters',
+    faction: '.quest-related-factions',
+    location: '.quest-related-locations',
+    item: '.quest-related-items',
+  };
+
+  /** Map a generic drop bucket (from _bucketForDrop) to the entityType Archivist expects. */
+  static BUCKET_TO_ENTITY_TYPE = {
+    characters: 'character',
+    factions: 'faction',
+    locationsAssociative: 'location',
+    items: 'item',
+  };
+
+  _renderQuestLinks(root, context) {
+    const q = context.quest || {};
+    const refs = Array.isArray(q.relatedEntityRefs) ? q.relatedEntityRefs : [];
+    const byType = { character: [], faction: [], location: [], item: [] };
+    for (const ref of refs) {
+      const t = String(ref?.entityType || '').toLowerCase();
+      if (byType[t]) byType[t].push(ref);
+    }
+    // Legacy name-string fallbacks for quests that predate relatedEntityRefs
+    const legacyByType = {
+      character: q.relatedCharacters || [],
+      faction: q.relatedFactions || [],
+      location: q.relatedLocations || [],
+      item: q.relatedItems || [],
+    };
+
+    for (const [type, sel] of Object.entries(
+      QuestPageSheetV2.ENTITY_TYPE_TO_SELECTOR
+    )) {
+      const el = root.querySelector(sel);
+      if (!el) continue;
+      el.innerHTML = '';
+      const refsForType = byType[type];
+      if (!refsForType.length && !legacyByType[type]?.length) {
+        el.innerHTML = '<span class="quest-empty-state">None</span>';
+        continue;
+      }
+      for (const ref of refsForType) {
+        const entityId = String(ref.entityId || '');
+        const name = ref.label || ref.entityNameSnapshot || 'Unknown';
+        const targetDoc = entityId
+          ? this._findPageOrEntryByArchivistId(entityId)
+          : null;
+        const img = targetDoc
+          ? this._resolveSheetImage(targetDoc)
+          : 'icons/svg/mystery-man.svg';
+        const card = document.createElement('div');
+        card.className = 'archivist-card';
+        card.dataset.archivistId = entityId;
+        card.innerHTML = `<img src="${foundry.utils.escapeHTML(img)}" alt=""/><span class="name">${foundry.utils.escapeHTML(name)}</span>${game.user?.isGM ? `<div class="actions"><button type="button" data-action="unlink-quest-entity" data-entity-type="${type}" data-entity-id="${foundry.utils.escapeHTML(entityId)}" title="Unlink"><i class="fas fa-unlink"></i></button></div>` : ''}`;
+        if (targetDoc) {
+          card.addEventListener('click', (ev) => {
+            if (ev.target?.closest?.('.actions')) return;
+            const doc =
+              targetDoc.documentName === 'JournalEntryPage'
+                ? targetDoc.parent
+                : targetDoc;
+            doc?.sheet?.render?.(true);
+          });
+        }
+        el.appendChild(card);
+      }
+      // Names without a resolvable entityId (legacy data) render as plain, unlinkable chips
+      const linkedNames = new Set(
+        refsForType.map((r) => r.label || r.entityNameSnapshot)
+      );
+      for (const name of legacyByType[type] || []) {
+        if (linkedNames.has(name)) continue;
+        const chip = document.createElement('span');
+        chip.className = 'quest-link-chip';
+        chip.textContent = name;
+        el.appendChild(chip);
+      }
+    }
+  }
+
+  _wireQuestEditActions(root, context) {
+    const addBtn = root.querySelector('[data-action="add-objective"]');
+    if (addBtn) {
+      addBtn.addEventListener('click', () => this._addObjective());
+    }
+    root.querySelectorAll('[data-action="remove-objective"]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        const idx = Number(
+          ev.currentTarget.closest('[data-obj-index]')?.dataset.objIndex
+        );
+        if (Number.isFinite(idx)) this._removeObjective(idx);
+      });
+    });
+    root
+      .querySelectorAll('[data-action="unlink-quest-entity"]')
+      .forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (!game.user?.isGM) return;
+          const { entityType, entityId } = ev.currentTarget.dataset;
+          if (entityType && entityId)
+            this._unlinkQuestEntity(entityType, entityId);
+        });
+      });
+
+    // Seed select values (Handlebars has no per-option "selected" helper here)
+    if (context.setup?.editingInfo) {
+      const categorySelect = root.querySelector('.quest-category-select');
+      if (categorySelect) categorySelect.value = context.quest?.questCategory || 'n/a';
+      const statusSelect = root.querySelector('.quest-status-select');
+      if (statusSelect) statusSelect.value = context.quest?.status || 'planned';
+
+      root.querySelectorAll('[data-obj-index]').forEach((li) => {
+        const idx = Number(li.dataset.objIndex);
+        const obj = context.quest?.objectives?.[idx];
+        if (!obj) return;
+        const statusSel = li.querySelector('.quest-objective-status-select');
+        if (statusSel) {
+          statusSel.value = obj.status || 'pending';
+          statusSel.addEventListener('change', () =>
+            this._updateObjective(idx, { status: statusSel.value })
+          );
+        }
+        const textInput = li.querySelector('.quest-objective-text-input');
+        if (textInput) {
+          textInput.addEventListener('change', () =>
+            this._updateObjective(idx, { text: textInput.value })
+          );
+        }
+      });
+    }
+  }
+
+  /** Persist the current objectives array (local flags + remote PATCH). */
+  async _syncObjectives(objectives) {
+    ArchivistBasePageSheetV2._invalidateQuestsCache();
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = { ...(flags.questData || {}), objectives };
+    await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', {
+      ...flags,
+      questData: qd,
+    });
+    try {
+      const apiKey = settingsManager.getApiKey?.();
+      const archivistId = String(flags.archivistId || '');
+      if (apiKey && archivistId) {
+        await archivistApi.updateQuest(apiKey, archivistId, { objectives });
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Failed to sync quest objectives', e);
+    }
+    this.render(false);
+  }
+
+  async _addObjective() {
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const objectives = Array.isArray(qd.objectives)
+      ? [...qd.objectives]
+      : [];
+    objectives.push({ text: 'New Objective', status: 'pending' });
+    await this._syncObjectives(objectives);
+  }
+
+  async _removeObjective(idx) {
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const objectives = Array.isArray(qd.objectives)
+      ? [...qd.objectives]
+      : [];
+    objectives.splice(idx, 1);
+    await this._syncObjectives(objectives);
+  }
+
+  async _updateObjective(idx, patch) {
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const objectives = Array.isArray(qd.objectives)
+      ? [...qd.objectives]
+      : [];
+    if (!objectives[idx]) return;
+    objectives[idx] = { ...objectives[idx], ...patch };
+    // Skip the full re-render here (would drop focus mid-edit); commit silently.
+    const nextFlags = {
+      ...flags,
+      questData: { ...qd, objectives },
+    };
+    await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', nextFlags);
+    try {
+      const apiKey = settingsManager.getApiKey?.();
+      const archivistId = String(flags.archivistId || '');
+      if (apiKey && archivistId) {
+        await archivistApi.updateQuest(apiKey, archivistId, { objectives });
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Failed to sync quest objective', e);
+    }
+  }
+
+  /** Link an entity (Character/Item/Faction/Location) to this Quest via relatedEntityRefs. */
+  async _linkQuestEntity(bucket, entityId, entityName) {
+    const entityType = QuestPageSheetV2.BUCKET_TO_ENTITY_TYPE[bucket];
+    if (!entityType) return;
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const refs = Array.isArray(qd.relatedEntityRefs)
+      ? [...qd.relatedEntityRefs]
+      : [];
+    if (
+      refs.some(
+        (r) =>
+          String(r.entityId) === String(entityId) &&
+          String(r.entityType).toLowerCase() === entityType
+      )
+    ) {
+      return; // already linked
+    }
+    refs.push({
+      entityType,
+      entityId: String(entityId),
+      entityNameSnapshot: entityName,
+      label: entityName,
+    });
+    await this._commitQuestLinks(refs);
+  }
+
+  /** Unlink an entity from this Quest's relatedEntityRefs. */
+  async _unlinkQuestEntity(entityType, entityId) {
+    if (!game.user?.isGM) return;
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = flags.questData || {};
+    const refs = (
+      Array.isArray(qd.relatedEntityRefs) ? qd.relatedEntityRefs : []
+    ).filter(
+      (r) =>
+        !(
+          String(r.entityId) === String(entityId) &&
+          String(r.entityType).toLowerCase() === String(entityType).toLowerCase()
+        )
+    );
+    await this._commitQuestLinks(refs);
+  }
+
+  async _commitQuestLinks(relatedEntityRefs) {
+    ArchivistBasePageSheetV2._invalidateQuestsCache();
+    const flags =
+      this.document?.getFlag?.(CONFIG.MODULE_ID, 'archivist') || {};
+    const qd = { ...(flags.questData || {}), relatedEntityRefs };
+    await this.document.setFlag(CONFIG.MODULE_ID, 'archivist', {
+      ...flags,
+      questData: qd,
+    });
+    try {
+      const apiKey = settingsManager.getApiKey?.();
+      const archivistId = String(flags.archivistId || '');
+      if (apiKey && archivistId) {
+        await archivistApi.updateQuest(apiKey, archivistId, {
+          relatedEntityRefs,
+        });
+      }
+    } catch (e) {
+      console.warn('[Archivist Sync][V2] Failed to sync quest links', e);
+    }
+    this.render(false);
+  }
 }
 
 export function sheetClassId(Cls) {

@@ -7,8 +7,159 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-15
+
+### Added
+- Creature records (`type: "Creature"`) now import, export, and sync as their own Archivist sheets, with a dedicated Creatures folder and a paw icon matching the web app.
+- World Setup can classify an unmatched Foundry NPC Actor as a Creature before export. Imported Creatures use an NPC Actor when an Actor is requested, and their Archivist subtype is retained.
+- Creature links appear in a separate sheet tab, and linked sheets reclassify when their Archivist Character subtype changes.
+
 ### Fixed
-- Restored compatibility with PopOut! by cloning sidebar base options before overriding defaults so Combat Tracker and other stock tabs keep their pop-out buttons when realtime sync is enabled.
+- World Setup no longer automatically matches a Creature to an unrelated NPC Actor with the same name.
+
+## [2.0.7] - 2026-11-09
+
+### Fixed
+- The sync dialog no longer keeps offering an update for a journal whose
+  content has not changed. Foundry's editor can save apostrophes, quotes and
+  other characters as plain text while Archivist renders them as entities
+  (`&#39;`, `&apos;`, `&quot;`, `&#8217;`). Journal comparison now treats a
+  character and its entity as the same, while `&`, `<` and `>` stay escaped.
+  Real text and formatting changes still appear in Review Changes.
+
+## [2.0.6] - 2026-11-09
+
+### Fixed
+- Quest imports and syncs now keep each quest's objectives and progress log.
+  The paginated quest list only returns summaries, so quests are now filled in
+  from their detail record. Progress that the API returns as entry objects is
+  kept as well, and a full reconcile makes one detail request per quest.
+- Foundry players without the Configure Settings permission can again send
+  Ask Archivist messages, receive responses, and clear chat history. History is
+  now stored per user and keyed by Archivist campaign; existing history is read
+  until the user saves or clears it.
+
+### Changed
+- `npm test` now runs the quest hydration tests together with the sync table
+  sorter tests.
+
+## [2.0.5] - 2026-10-07
+
+### Added
+- The Archivist API key is saved for the current world and remembered in this
+  browser. When one copy is missing, it is filled from the other on load.
+  Clearing the key removes both copies, so the next world does not restore it.
+
+## [2.0.4] - 2026-09-29
+
+### Added
+- Sync dialog Review Changes and Import New tables can be sorted by Type or
+  Name. Click a header to cycle ascending, descending, then natural load
+  order. Sort prefs last for the dialog session and re-apply after Refresh
+  without a full data reload. Apply uses the same order as the visible rows.
+
+## [2.0.3] - 2026-09-09
+
+### Fixed
+- Imported Journal sheets rendered their body squeezed into the narrow left
+  column instead of the page area. `journal.hbs` has no `<aside>`, but the base
+  `.archivist-sheet` grid (`180px 1fr`) still applied, so its lone `<main>` was
+  placed in the sidebar track. Recap escaped this via a
+  `.archivist-sheet-recap-simple` override that the journal sheet never got.
+  Both templates now carry a shared `.archivist-sheet-full` modifier, so any
+  future sidebar-less sheet gets the single-column layout by construction.
+- Re-running World Setup created a second JournalEntry for every Archivist
+  record it had already imported. `createCustomJournalForImport` now adopts an
+  existing sheet with the same `archivistId` instead of creating a rival, which
+  covers every caller (world setup, sync dialog) at once.
+- Deleting a Foundry sheet no longer silently hard-deletes the Archivist record
+  it points at. When other sheets still reference the same `archivistId` — the
+  duplicate case above — only the local copy is removed. When it is the last
+  sheet for that record, the GM is asked first and can keep the Archivist copy.
+  Previously, deleting a duplicate destroyed the shared upstream record, and
+  the next sync then deleted the surviving sheet as an orphan.
+- "Select All" in the sync dialog no longer arms deletion rows; deletions stay
+  an explicit per-row choice. Declining the deletion confirmation now applies
+  the rest of the sync instead of abandoning the whole run.
+- Journal bodies imported as one run-on paragraph with headings and bullets
+  lost. The module now requests `format=markdown` from `/journals`, and the
+  built-in markdown renderer (used when no `markdown-it` global is present)
+  understands headings, ordered/unordered/nested lists, blockquotes, fenced
+  code and horizontal rules rather than only paragraphs.
+- A Journal's body is read from `content`; the previous
+  `description || summary || content` order imported its short `summary` blurb
+  as the whole entry.
+
+## [2.0.2] - 2026-09-08
+
+### Fixed
+- Description projection now resolves a slot on systems other than dnd5e and
+  pf2e. The adapter registry only knew those two, and the fallback heuristics
+  were themselves dnd5e-shaped, so on any other system every candidate path
+  failed `hasProperty()` and projection silently wrote nothing. Adds a
+  Daggerheart adapter (`system.biography.background` for PCs, bare
+  `system.description` for the isNPC actor types and for items) plus a
+  schema-probing fallback tier that walks the document's own DataModel instead
+  of guessing paths. Generic leaves (`value`, `public`) are only accepted
+  inside a known prose container, so a root-level mechanical `system.value`
+  is never treated as a description. The probe also descends into
+  `EmbeddedDataField` models when the field itself is a prose container.
+  Slot selection for dnd5e and pf2e is unchanged.
+- Projection no longer fails silently: when no slot resolves, the GM gets one
+  notification per system and document type instead of a lone `console.warn`
+  swallowed by the caller's `catch`.
+- `Utils.getActorDescriptionReadPaths()` / `getActorDescriptionWritePath()` know
+  about Daggerheart, so a projected description is read back from the same field
+  it was written to. Companion actors, which have no prose field, now return
+  no path instead of writing to a non-existent `system.description`.
+
+### Removed
+- Dead `SystemAdapter` module (`scripts/modules/adapters/system-adapter.js`) and
+  its `esmodules` entry. Nothing imported it, and it held a third divergent copy
+  of the per-system description path guesses.
+
+## [2.0.1] - 2026-08-05
+
+### Added
+- Quest sync parity with the v13 line: full Quests feature, local image upload, and related API augments.
+- Dual-track release infrastructure: v14 stable publishes from `main`; manifest URL uses `v14-latest`.
+
+### Changed
+- Dual-track release model: v14 stable publishes from `main`; manifest URL uses `v14-latest`.
+
+### Fixed
+- Quest ownership leak (F1): related quests filtered by ownership for tab count and empty state.
+- Fail closed when a related quest has no local journal (security hardening).
+- Release workflow guards and beta CI version detection for Foundry update checks.
+
+## [2.0.0] - 2026-04-05
+
+### Changed
+- **Foundry V14 migration**: Module now targets Foundry VTT v14 (minimum 14.359, verified 14.359).
+- Updated `module.json` for v14 manifest expectations, including `type: "module"` and v14 compatibility metadata.
+- Kept the existing Archivist Chat sidebar implementation, but updated its runtime wiring so the chat button and panel continue to render correctly on v14.
+- Updated startup and sidebar initialization logic for v14 while preserving the existing Journals tab controls and chat behavior.
+- Updated all Cursor rules from v13 to v14 references with corrected file globs.
+
+### Added
+- New Cursor rules for v14 sidebar/pop-out patterns and manifest/public API guidance.
+- Migration documentation at `docs/foundry-v14-migration.md`.
+
+## [1.3.12] - 2026-01-12
+
+### Added
+- New GM-only setting to allow private journal context in Archivist Chat; GM requests now send `gm_permissions` to `/v1/ask` when enabled.
+
+## [1.3.11] - 2025-01-15
+
+### Fixed
+- When syncing existing Session Recaps via the "Sync with Archivist" button, the `sessionDate` flag is now properly detected and updated when the `session_date` changes in Archivist, ensuring correct date display and chronological sorting in the Recaps folder.
+
+## [1.3.10] - 2025-01-15
+
+### Fixed
+- Custom elements (sync button, create buttons, eye toggle buttons) in the Journals tab now mount immediately after world setup completes, without requiring a manual refresh. Fixed V13 ApplicationV2 element access and added automatic re-render triggers when world initialization completes.
+- Improved robustness of Journal Directory hooks with retry mechanisms to handle asynchronous DOM rendering.
 
 ### Changed
 - Recap custom sheet now displays the session date as MM/DD/YYYY.

@@ -67,6 +67,9 @@ export class ArchivistApiService {
     if ('summary' in p) {
       p.summary = this._sanitizeText(p.summary);
     }
+    if ('content' in p) {
+      p.content = this._sanitizeText(p.content);
+    }
     if ('title' in p && typeof p.title === 'string') {
       p.title = String(p.title);
     }
@@ -77,6 +80,127 @@ export class ArchivistApiService {
       p.character_name = String(p.character_name);
     }
     return p;
+  }
+
+  /**
+   * Normalize Quest API payloads from snake_case to the camelCase shape used in the module.
+   * Preserve original keys as well so older call sites continue to work.
+   * @param {object} quest
+   * @returns {object}
+   */
+  _normalizeQuestResponse(quest) {
+    const q = quest ? { ...quest } : {};
+    q.questName = q.questName ?? q.quest_name ?? '';
+    q.questGiver = q.questGiver ?? q.quest_giver ?? '';
+    q.questGiverId = q.questGiverId ?? q.quest_giver_id ?? null;
+    q.questCategory = q.questCategory ?? q.quest_category ?? 'n/a';
+    q.successDefinition =
+      q.successDefinition ?? q.success_definition ?? '';
+    q.failureConditions =
+      q.failureConditions ?? q.failure_conditions ?? '';
+    q.nextAction = q.nextAction ?? q.next_action ?? '';
+    q.progressLogEntries =
+      q.progressLogEntries ?? q.progress_log_entries ?? [];
+    // Detail responses may expose only the read-only entry shape. Promote those
+    // entries into progressLog (as text) rather than defaulting it to [], which
+    // downstream consumers would pick over the populated entries.
+    q.progressLog =
+      q.progressLog ??
+      q.progress_log ??
+      (q.progressLogEntries.length
+        ? q.progressLogEntries.map((e) =>
+            typeof e === 'string' ? e : e?.text || ''
+          )
+        : []);
+    q.relatedCharacters =
+      q.relatedCharacters ?? q.related_characters ?? [];
+    q.relatedFactions = q.relatedFactions ?? q.related_factions ?? [];
+    q.relatedLocations =
+      q.relatedLocations ?? q.related_locations ?? [];
+    q.relatedItems = q.relatedItems ?? q.related_items ?? [];
+    q.relatedEntityRefs =
+      q.relatedEntityRefs ?? q.related_entity_refs ?? [];
+    q.firstSession = q.firstSession ?? q.first_session ?? null;
+    q.lastSession = q.lastSession ?? q.last_session ?? null;
+    return q;
+  }
+
+  /**
+   * Normalize quest writes to the API's snake_case contract.
+   * @param {object} payload
+   * @returns {object}
+   */
+  _normalizeQuestPayload(payload) {
+    const p = payload ? { ...payload } : {};
+    const out = {};
+
+    // The API's QuestCreate/QuestUpdate schemas declare `extra="forbid"`, so
+    // any key they don't recognize rejects the whole request with a 422. Build
+    // a strict whitelist of writable fields only — read-only response fields
+    // (questGiverId, progressLogEntries, firstSession, lastSession, counts,
+    // orderIndex, timestamps) must never leak into a write payload.
+
+    // campaign/world id is accepted on create only (QuestUpdate has no such
+    // field); only forward it when a caller actually supplied one.
+    const campaignId = p.campaign_id ?? p.campaignId ?? p.worldId;
+    if (campaignId !== undefined) out.campaign_id = campaignId;
+
+    // Scalar text / enum fields.
+    const scalars = {
+      quest_name: p.quest_name ?? p.questName,
+      quest_giver: p.quest_giver ?? p.questGiver,
+      quest_category: p.quest_category ?? p.questCategory,
+      status: p.status,
+      success_definition: p.success_definition ?? p.successDefinition,
+      failure_conditions: p.failure_conditions ?? p.failureConditions,
+      next_action: p.next_action ?? p.nextAction,
+      resolution: p.resolution,
+    };
+    for (const [key, value] of Object.entries(scalars)) {
+      if (value !== undefined) out[key] = value;
+    }
+
+    // Objectives → [{ text, status }] (drop server-managed id/order). The
+    // API requires text with min_length=1 and rejects the whole request
+    // otherwise, so drop entries with empty text.
+    const objectives = p.objectives;
+    if (Array.isArray(objectives)) {
+      out.objectives = objectives
+        .map((o) =>
+          typeof o === 'string'
+            ? { text: o.trim(), status: 'pending' }
+            : {
+                text: String(o?.text ?? '').trim(),
+                status: o?.status ?? 'pending',
+              }
+        )
+        .filter((o) => o.text.length > 0);
+    }
+
+    // Progress log → [str].
+    const progressLog = p.progress_log ?? p.progressLog;
+    if (Array.isArray(progressLog)) {
+      out.progress_log = progressLog.map((e) =>
+        typeof e === 'string' ? e : e?.text ?? ''
+      );
+    }
+
+    // Related entity name lists → [str].
+    const relatedLists = {
+      related_characters: p.related_characters ?? p.relatedCharacters,
+      related_factions: p.related_factions ?? p.relatedFactions,
+      related_locations: p.related_locations ?? p.relatedLocations,
+      related_items: p.related_items ?? p.relatedItems,
+    };
+    for (const [key, value] of Object.entries(relatedLists)) {
+      if (Array.isArray(value)) out[key] = value;
+    }
+
+    // Structured related refs pass through untouched.
+    const refs = p.related_entity_refs ?? p.relatedEntityRefs;
+    if (Array.isArray(refs)) out.related_entity_refs = refs;
+
+    return out;
   }
 
   /**
@@ -136,21 +260,24 @@ export class ArchivistApiService {
       }
     }
 
+    // keepalive lets in-flight writes survive page unload, but Chromium
+    // rejects keepalive requests whose body exceeds 64 KiB — skip it for
+    // large payloads (e.g. long journal content) so they still send.
+    const bodySize =
+      typeof options?.body === 'string'
+        ? new TextEncoder().encode(options.body).length
+        : 0;
+    const useKeepalive = isWrite && bodySize < 60000;
+
     while (attempt <= maxRetries) {
       try {
-        const method = String(options?.method || 'GET').toUpperCase();
-        const isWrite =
-          method === 'POST' ||
-          method === 'PUT' ||
-          method === 'PATCH' ||
-          method === 'DELETE';
         const fetchOptions = {
           ...options,
           headers,
           mode: 'cors',
           cache: 'no-store',
         };
-        if (isWrite) fetchOptions.keepalive = true;
+        if (useKeepalive) fetchOptions.keepalive = true;
         const response = await fetch(url, fetchOptions);
 
         // Handle successful responses (non-429)
@@ -467,7 +594,7 @@ export class ArchivistApiService {
           : Array.isArray(data.data)
             ? data.data
             : [];
-        all.push(...items);
+        all.push(...items.map((quest) => this._normalizeQuestResponse(quest)));
         const totalPages =
           typeof data.pages === 'number'
             ? data.pages
@@ -490,6 +617,7 @@ export class ArchivistApiService {
     }
   }
 
+
   /**
    * Create a character
    * @param {string} apiKey
@@ -504,7 +632,7 @@ export class ArchivistApiService {
         method: 'POST',
         body: JSON.stringify(norm),
       });
-      return { success: true, data };
+      return { success: true, data: this._normalizeQuestResponse(data) };
     } catch (error) {
       const isRateLimited =
         error.message?.includes('429') ||
@@ -1061,6 +1189,415 @@ export class ArchivistApiService {
   }
 
   /**
+   * List all journals for a campaign (auto-paginate)
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @returns {Promise<{success:boolean,data:Array}>}
+   */
+  // `format=markdown` keeps headings, lists and paragraph breaks in `content`.
+  // The default `text` form flattens the Lexical document to bare lines and
+  // concatenates list items with no separator, so an imported journal arrived
+  // in Foundry as one run-on paragraph. Older API builds ignore the unknown
+  // query param and simply return the flattened form as before.
+  async listJournals(apiKey, campaignId) {
+    try {
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(
+          apiKey,
+          `/journals?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}&format=markdown`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+        all.push(...items);
+        if (items.length < size) break;
+        page += 1;
+      }
+      return { success: true, data: all };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to list journals:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to list journals',
+      };
+    }
+  }
+
+  /**
+   * Get a single journal entry by ID
+   * @param {string} apiKey
+   * @param {string} journalId
+   * @returns {Promise<{success:boolean,data?:object}>}
+   */
+  async getJournal(apiKey, journalId) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/journals/${encodeURIComponent(journalId)}?format=markdown`,
+        { method: 'GET' }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to get journal:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to get journal',
+      };
+    }
+  }
+
+  /**
+   * Create a journal entry
+   * @param {string} apiKey
+   * @param {object} payload - { world_id, title, content?, ... }
+   */
+  async createJournal(apiKey, payload) {
+    const entityName = payload?.title || 'Unknown Journal';
+    try {
+      const norm = this._normalizePayload(payload);
+      const data = await this._request(apiKey, `/journals`, {
+        method: 'POST',
+        body: JSON.stringify(norm),
+      });
+      return { success: true, data };
+    } catch (error) {
+      const isRateLimited =
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
+      const isNetworkError =
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create journal:`, {
+        error: error.message,
+        payload: entityName,
+        isRateLimited,
+        isNetworkError,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to create journal',
+        retryable: isRateLimited || isNetworkError,
+        entityName,
+        entityType: 'Journal',
+      };
+    }
+  }
+
+  /**
+   * Update a journal entry (PUT — full replace)
+   * @param {string} apiKey
+   * @param {object} payload - { id, title?, content?, ... }
+   */
+  async updateJournal(apiKey, payload) {
+    const entityName = payload?.title || 'Unknown Journal';
+    try {
+      const norm = this._normalizePayload(payload);
+      const data = await this._request(apiKey, `/journals`, {
+        method: 'PUT',
+        body: JSON.stringify(norm),
+      });
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update journal:`, {
+        error: error.message,
+        entityName,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to update journal',
+        entityName,
+        entityType: 'Journal',
+      };
+    }
+  }
+
+  /**
+   * Delete a journal entry
+   * @param {string} apiKey
+   * @param {string} journalId
+   */
+  async deleteJournal(apiKey, journalId) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/journals?id=${encodeURIComponent(journalId)}`,
+        { method: 'DELETE' }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to delete journal:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to delete journal',
+      };
+    }
+  }
+
+  /**
+   * List all journal folders for a campaign (no pagination — returns all)
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @returns {Promise<{success:boolean,data:Array}>}
+   */
+  async listJournalFolders(apiKey, campaignId) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/journal-folders?campaign_id=${encodeURIComponent(campaignId)}`,
+        { method: 'GET' }
+      );
+      const items = Array.isArray(data)
+        ? data
+        : Array.isArray(data.data)
+          ? data.data
+          : [];
+      return { success: true, data: items };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to list journal folders:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to list journal folders',
+      };
+    }
+  }
+
+  /**
+   * List all quests for a campaign (auto-paginate)
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @returns {Promise<{success:boolean,data:Array}>}
+   */
+  async listQuests(apiKey, campaignId) {
+    try {
+      let page = 1;
+      const size = 100;
+      const all = [];
+      while (true) {
+        const data = await this._request(
+          apiKey,
+          `/quests?campaign_id=${encodeURIComponent(campaignId)}&page=${page}&size=${size}`,
+          { method: 'GET' }
+        );
+        const items = Array.isArray(data)
+          ? data
+          : Array.isArray(data.data)
+            ? data.data
+            : [];
+        all.push(...items);
+        const totalPages =
+          typeof data.pages === 'number'
+            ? data.pages
+            : items.length < size
+              ? page
+              : page + 1;
+        if (page >= totalPages || items.length < size) break;
+        page += 1;
+      }
+      // The paginated endpoint returns QuestSummary rows. Structured quest data
+      // (objectives and progress logs) only exists on the detail endpoint, but
+      // every Foundry sync consumer needs those fields when creating or diffing
+      // quest sheets. Hydrate summaries here so callers cannot accidentally
+      // interpret omitted fields as empty arrays and erase/hide quest details.
+      const hydrated = await this._hydrateQuestDetails(apiKey, all);
+      return { success: true, data: hydrated };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to list quests:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to list quests',
+      };
+    }
+  }
+
+  /**
+   * Expand quest summary rows into full QuestRead payloads.
+   *
+   * Detail requests are processed by a small worker pool to avoid a large quest
+   * log overwhelming the API. If one detail request fails, retain the summary;
+   * sync can still import the quest rather than failing the entire campaign.
+   * @param {string} apiKey
+   * @param {Array<object>} quests
+   * @returns {Promise<Array<object>>}
+   */
+  async _hydrateQuestDetails(apiKey, quests) {
+    const rows = Array.isArray(quests) ? quests : [];
+    const results = new Array(rows.length);
+    let nextIndex = 0;
+    const workerCount = Math.min(4, rows.length);
+
+    const worker = async () => {
+      while (nextIndex < rows.length) {
+        const index = nextIndex++;
+        const row = rows[index] || {};
+        const hasStructuredDetails =
+          Object.hasOwn(row, 'objectives') &&
+          (Object.hasOwn(row, 'progressLog') ||
+            Object.hasOwn(row, 'progress_log') ||
+            Object.hasOwn(row, 'progressLogEntries') ||
+            Object.hasOwn(row, 'progress_log_entries'));
+
+        if (hasStructuredDetails || !row.id) {
+          results[index] = this._normalizeQuestResponse(row);
+          continue;
+        }
+
+        try {
+          const detail = await this._request(
+            apiKey,
+            `/quests/${encodeURIComponent(row.id)}`,
+            { method: 'GET' }
+          );
+          results[index] = this._normalizeQuestResponse({ ...row, ...detail });
+        } catch (error) {
+          console.warn(
+            `${CONFIG.MODULE_TITLE} | Failed to hydrate quest ${row.id}; using summary`,
+            error
+          );
+          results[index] = this._normalizeQuestResponse(row);
+        }
+      }
+    };
+
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
+
+  /**
+   * Get a single quest by ID (full QuestRead with objectives, progress, etc.)
+   * @param {string} apiKey
+   * @param {string} questId
+   * @returns {Promise<{success:boolean,data?:object}>}
+   */
+  async getQuest(apiKey, questId) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/quests/${encodeURIComponent(questId)}`,
+        { method: 'GET' }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to get quest:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to get quest',
+      };
+    }
+  }
+
+  /**
+   * Create a quest
+   * @param {string} apiKey
+   * @param {object} payload - { worldId, questName, ... }
+   */
+  async createQuest(apiKey, payload) {
+    const normalized = this._normalizeQuestPayload(payload);
+    const entityName =
+      normalized?.quest_name || payload?.questName || 'Unknown Quest';
+    try {
+      const data = await this._request(apiKey, `/quests`, {
+        method: 'POST',
+        body: JSON.stringify(normalized),
+      });
+      return { success: true, data: this._normalizeQuestResponse(data) };
+    } catch (error) {
+      const isRateLimited =
+        error.message?.includes('429') ||
+        error.message?.includes('rate limited');
+      const isNetworkError =
+        error.message?.includes('Network error') ||
+        error.message?.includes('Failed to fetch');
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to create quest:`, {
+        error: error.message,
+        payload: entityName,
+        isRateLimited,
+        isNetworkError,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to create quest',
+        retryable: isRateLimited || isNetworkError,
+        entityName,
+        entityType: 'Quest',
+      };
+    }
+  }
+
+  /**
+   * Update a quest (PATCH)
+   * @param {string} apiKey
+   * @param {string} questId
+   * @param {object} payload
+   */
+  async updateQuest(apiKey, questId, payload) {
+    const normalized = this._normalizeQuestPayload(payload);
+    const entityName =
+      normalized?.quest_name || payload?.questName || 'Unknown Quest';
+    try {
+      const data = await this._request(
+        apiKey,
+        `/quests/${encodeURIComponent(questId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(normalized),
+        }
+      );
+      return { success: true, data: this._normalizeQuestResponse(data) };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update quest:`, {
+        error: error.message,
+        entityName,
+      });
+      return {
+        success: false,
+        message: error.message || 'Failed to update quest',
+        entityName,
+        entityType: 'Quest',
+      };
+    }
+  }
+
+  /**
+   * Delete a quest
+   * @param {string} apiKey
+   * @param {string} questId
+   */
+  async deleteQuest(apiKey, questId) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/quests/${encodeURIComponent(questId)}`,
+        { method: 'DELETE' }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to delete quest:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to delete quest',
+      };
+    }
+  }
+
+  /**
    * List Links for a campaign
    * @param {string} apiKey
    * @param {string} campaignId
@@ -1213,13 +1750,185 @@ export class ArchivistApiService {
   }
 
   /**
+   * Update a Link's alias in a campaign (PATCH).
+   * Prefer this over delete+recreate when only the alias/label changes and the
+   * from/to endpoints stay the same.
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {string} linkId
+   * @param {{alias?: string}} payload
+   */
+  async updateLink(apiKey, campaignId, linkId, payload) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}/links/${encodeURIComponent(linkId)}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(`${CONFIG.MODULE_TITLE} | Failed to update link:`, error);
+      return {
+        success: false,
+        message: error.message || 'Failed to update link',
+      };
+    }
+  }
+
+  /**
+   * Step 1 of the local-image-upload flow: request a presigned upload URL.
+   * Supported entity types: character, faction, location, item (NOT quest —
+   * the API has no image support for Quest).
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {{entityType:string, entityId:string, fileName:string, contentType:string}} params
+   * @returns {Promise<{success:boolean, data?:{object_key:string, upload_url:string, public_url:string, expires_in_seconds:number}}>}
+   */
+  async initImageUpload(
+    apiKey,
+    campaignId,
+    { entityType, entityId, fileName, contentType }
+  ) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}/images/init`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            entity_type: entityType,
+            entity_id: entityId,
+            file_name: fileName,
+            content_type: contentType,
+          }),
+        }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to init image upload:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to init image upload',
+      };
+    }
+  }
+
+  /**
+   * Step 2: PUT the raw image bytes directly to the presigned R2 URL from initImageUpload.
+   * This does NOT go through _request (no api key / json headers — the presigned
+   * URL carries its own auth).
+   * @param {string} uploadUrl
+   * @param {Blob|ArrayBuffer} bytes
+   * @param {string} contentType
+   */
+  async uploadImageBytes(uploadUrl, bytes, contentType) {
+    const res = await fetch(uploadUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType },
+      body: bytes,
+    });
+    if (!res.ok) {
+      throw new Error(`Image upload PUT failed: HTTP ${res.status}`);
+    }
+    return true;
+  }
+
+  /**
+   * Step 3: tell the API the upload finished so it can validate + attach the image.
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {{objectKey:string, entityType:string, entityId:string, attach?:boolean}} params
+   * @returns {Promise<{success:boolean, data?:{url:string, attached:boolean}}>}
+   */
+  async completeImageUpload(
+    apiKey,
+    campaignId,
+    { objectKey, entityType, entityId, attach = true }
+  ) {
+    try {
+      const data = await this._request(
+        apiKey,
+        `/campaigns/${encodeURIComponent(campaignId)}/images/complete`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            object_key: objectKey,
+            entity_type: entityType,
+            entity_id: entityId,
+            attach,
+          }),
+        }
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error(
+        `${CONFIG.MODULE_TITLE} | Failed to complete image upload:`,
+        error
+      );
+      return {
+        success: false,
+        message: error.message || 'Failed to complete image upload',
+      };
+    }
+  }
+
+  /**
+   * Convenience wrapper: run the full init -> PUT -> complete flow for a local
+   * Foundry image (read via Utils.fetchLocalImageBytes or similar).
+   * @param {string} apiKey
+   * @param {string} campaignId
+   * @param {{entityType:string, entityId:string, fileName:string, contentType:string, bytes:Blob|ArrayBuffer}} params
+   * @returns {Promise<{success:boolean, url?:string, message?:string}>}
+   */
+  async uploadEntityImage(
+    apiKey,
+    campaignId,
+    { entityType, entityId, fileName, contentType, bytes }
+  ) {
+    const init = await this.initImageUpload(apiKey, campaignId, {
+      entityType,
+      entityId,
+      fileName,
+      contentType,
+    });
+    if (!init.success) return init;
+    try {
+      await this.uploadImageBytes(
+        init.data.upload_url,
+        bytes,
+        contentType
+      );
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to upload image bytes',
+      };
+    }
+    const complete = await this.completeImageUpload(apiKey, campaignId, {
+      objectKey: init.data.object_key,
+      entityType,
+      entityId,
+      attach: true,
+    });
+    if (!complete.success) return complete;
+    return { success: true, url: complete.data?.url };
+  }
+
+  /**
    * Ask (RAG chat) — non-streaming
    * @param {string} apiKey
    * @param {string} campaignId
    * @param {Array<{role:'user'|'assistant',content:string}>} messages
+   * @param {boolean} gmPermissions
    * @returns {Promise<{success:boolean, answer?:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number, message?:string}>}
    */
-  async ask(apiKey, campaignId, messages) {
+  async ask(apiKey, campaignId, messages, gmPermissions = false) {
     try {
       const url = `${this._rootBase()}/v1/ask`;
       const headers = {
@@ -1228,7 +1937,11 @@ export class ArchivistApiService {
       const r = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ campaign_id: campaignId, messages }),
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          messages,
+          gm_permissions: !!gmPermissions,
+        }),
       });
       const data = await this._handleResponse(r);
       return {
@@ -1248,11 +1961,26 @@ export class ArchivistApiService {
    * @param {string} apiKey
    * @param {string} campaignId
    * @param {Array<{role:'user'|'assistant',content:string}>} messages
+   * @param {boolean} gmPermissions
    * @param {(chunk:string)=>void} onChunk
    * @param {(final:{text:string, monthlyTokensRemaining?:number, hourlyTokensRemaining?:number})=>void} onDone
    * @param {AbortSignal} [signal]
    */
-  async askStream(apiKey, campaignId, messages, onChunk, onDone, signal) {
+  async askStream(
+    apiKey,
+    campaignId,
+    messages,
+    gmPermissions,
+    onChunk,
+    onDone,
+    signal
+  ) {
+    if (typeof gmPermissions === 'function') {
+      signal = onDone;
+      onDone = onChunk;
+      onChunk = gmPermissions;
+      gmPermissions = false;
+    }
     const url = `${this._rootBase()}/v1/ask`;
     const headers = {
       ...this._createHeaders(apiKey, { method: 'POST', body: '1' }),
@@ -1263,6 +1991,7 @@ export class ArchivistApiService {
       campaign_id: campaignId,
       messages,
       stream: true,
+      gm_permissions: !!gmPermissions,
     });
     const resp = await fetch(url, { method: 'POST', headers, body, signal });
     if (!resp.ok) {

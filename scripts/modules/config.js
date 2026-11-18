@@ -21,6 +21,31 @@ export const SETTINGS = {
     default: '',
   },
 
+  // Set when a GM explicitly clears the key, so the browser copy is not
+  // restored into this world afterwards.
+  API_KEY_CLEARED: {
+    key: 'apiKeyCleared',
+    name: 'ARCHIVIST_SYNC.Settings.ApiKey.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ApiKey.Hint',
+    scope: 'world',
+    config: false,
+    type: Boolean,
+    default: false,
+  },
+
+  // Browser copy of the API key. Foundry allows one scope per key, so this
+  // client setting carries the key across worlds. The world setting above
+  // remains the secret value stored for the current world.
+  API_KEY_CLIENT: {
+    key: 'apiKeyClient',
+    name: 'ARCHIVIST_SYNC.Settings.ApiKey.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ApiKey.Hint',
+    scope: 'client',
+    config: false,
+    type: String,
+    default: '',
+  },
+
   SELECTED_WORLD_ID: {
     key: 'selectedWorldId',
     name: 'ARCHIVIST_SYNC.Settings.SelectedWorld.Name',
@@ -85,7 +110,7 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: Object,
-    default: { pc: '', npc: '', item: '', location: '', faction: '' },
+    default: { pc: '', npc: '', creature: '', item: '', location: '', faction: '', journal: '', quest: '' },
   },
 
   CHAT_HISTORY: {
@@ -96,6 +121,14 @@ export const SETTINGS = {
     config: false,
     type: String,
     default: '[]',
+  },
+
+  USER_CHAT_HISTORY: {
+    key: 'userChatHistory',
+    scope: 'user',
+    config: false,
+    type: Object,
+    default: {},
   },
 
   CHAT_HISTORY_ENABLED: {
@@ -116,6 +149,16 @@ export const SETTINGS = {
     config: true,
     type: String,
     default: 'all', // 'all' | 'gm' | 'none'
+  },
+
+  CHAT_GM_PERMISSIONS: {
+    key: 'chatGmPermissions',
+    name: 'ARCHIVIST_SYNC.Settings.ChatGmPermissions.Name',
+    hint: 'ARCHIVIST_SYNC.Settings.ChatGmPermissions.Hint',
+    scope: 'world',
+    config: true,
+    type: Boolean,
+    default: true,
   },
 
   PROJECT_DESCRIPTIONS: {

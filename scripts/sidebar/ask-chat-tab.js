@@ -110,7 +110,12 @@ export function registerArchivistSidebarTab(sidebarHtml) {
 
     li.appendChild(btn);
     const menu = tabsNav.querySelector('menu.flexcol') || tabsNav;
-    menu.appendChild(li);
+    const beforeNode = menu.lastElementChild;
+    if (beforeNode) {
+      menu.insertBefore(li, beforeNode);
+    } else {
+      menu.appendChild(li);
+    }
   }
 
   // Add content panel if missing

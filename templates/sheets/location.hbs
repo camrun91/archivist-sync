@@ -18,16 +18,22 @@
                 {{#if setup.editingInfo}}<i class="fa-solid fa-unlock"></i>{{else}}<i
                     class="fa-solid fa-lock"></i>{{/if}}
             </button>
+            <button type="button" class="archivist-edit-toggle archivist-upload-toggle" data-action="upload-local-image"
+                title="Upload this sheet's local image to Archivist">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+            </button>
             {{/if}}
         </header>
         <nav class="archivist-nav tabs" data-group="archivist">
             <a class="item" data-tab="info">{{localize 'Info'}}</a>
             <a class="item" data-tab="pcs">PCs</a>
             <a class="item" data-tab="npcs">NPCs</a>
+            <a class="item" data-tab="creatures"><img class="archivist-creature-icon" src="modules/archivist-sync/assets/icons/creature.svg" alt="" /> <span class="archivist-tab-label">Creatures</span></a>
             <a class="item" data-tab="items">Items</a>
             <a class="item" data-tab="locations">Locations</a>
             <a class="item" data-tab="factions">Factions</a>
             <a class="item" data-tab="journals">Journals</a>
+            <a class="item" data-tab="quests">Quests</a>
             <a class="item" data-tab="notes">GM Notes</a>
         </nav>
     </aside>
@@ -76,6 +82,8 @@
         <section class="tab" data-tab="npcs">
             <div class="archivist-grid npcs-grid"></div>
         </section>
+        <section class="tab" data-tab="creatures"><div class="archivist-grid creatures-grid"></div></section>
+
         <section class="tab" data-tab="factions">
             <div class="archivist-grid factions-grid"></div>
         </section>
@@ -95,6 +103,10 @@
         </section>
         <section class="tab" data-tab="journals">
             <div class="archivist-grid archivist-journals"></div>
+        </section>
+        <section class="tab" data-tab="quests">
+            <p class="hint">Quests are linked from the Quest sheet itself; this list is read-only here.</p>
+            <div class="archivist-grid quests-grid"></div>
         </section>
         <section class="tab" data-tab="notes">
             {{#if setup.isGM}}
