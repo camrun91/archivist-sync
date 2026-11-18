@@ -10,6 +10,7 @@ export class JournalManager {
     this.folderNames = {
       pc: 'Archivist - PCs',
       npc: 'Archivist - NPCs',
+      creature: 'Archivist - Creatures',
       item: 'Archivist - Items',
       location: 'Archivist - Locations',
       faction: 'Archivist - Factions',

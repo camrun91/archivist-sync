@@ -110,7 +110,7 @@ export const SETTINGS = {
     scope: 'world',
     config: false,
     type: Object,
-    default: { pc: '', npc: '', item: '', location: '', faction: '', journal: '', quest: '' },
+    default: { pc: '', npc: '', creature: '', item: '', location: '', faction: '', journal: '', quest: '' },
   },
 
   CHAT_HISTORY: {

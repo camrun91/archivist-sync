@@ -735,7 +735,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         const st = String(f.sheetType || '').toLowerCase();
         if (!archId) continue;
         const type =
-          st === 'pc' || st === 'npc' || st === 'character'
+          st === 'pc' || st === 'npc' || st === 'creature' || st === 'character'
             ? 'Character'
             : st === 'item'
               ? 'Item'
@@ -765,6 +765,14 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           continue;
         }
         const changes = {};
+        if (type === 'Character') {
+          const wanted = Utils.characterSheetType(
+            arch.type || arch.character_type || 'PC'
+          );
+          if (st !== wanted && !(st === 'character' && wanted === 'pc')) {
+            changes.sheetType = { from: st, to: wanted };
+          }
+        }
         // Name/title mapping per type
         const archName =
           type === 'Character'
@@ -886,6 +894,10 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         if (Object.keys(changes).length > 0) {
           diffs.push({
             type,
+            characterKind:
+              type === 'Character'
+                ? Utils.characterKindLabel(arch.type || arch.character_type)
+                : undefined,
             id: archId,
             name: archName || j.name,
             journalId: j.id,
@@ -953,7 +965,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           const raw = String(
             row.type || row.character_type || ''
           ).toUpperCase();
-          characterKind = raw === 'NPC' ? 'NPC' : 'PC';
+          characterKind = raw === 'CREATURE' ? 'Creature' : raw === 'NPC' ? 'NPC' : 'PC';
         }
         imports.push({
           type,
@@ -1008,6 +1020,13 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       return;
     }
     const changes = d.changes || {};
+    if (changes.sheetType) {
+      await Utils.reclassifyCharacterJournal(
+        j,
+        changes.sheetType.to,
+        settingsManager.getJournalDestinations?.() || {}
+      );
+    }
     if (changes.name) {
       await j.update({ name: changes.name.to });
     }
@@ -1021,7 +1040,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       const imageUrl = String(changes.image.to || '');
       await Utils.ensureJournalLeadImage(j, imageUrl);
       // Update the archivist.image flag so diff detection recognizes the change
-      const nextFlags = { ...(f || {}) };
+      const nextFlags = { ...(j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}) };
       nextFlags.image = imageUrl;
       await j.setFlag(CONFIG.MODULE_ID, 'archivist', nextFlags);
       // Hub image flag removed
@@ -1056,7 +1075,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       }
     }
     if (changes.questData) {
-      const nextFlags = { ...(f || {}) };
+      const nextFlags = { ...(j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}) };
       const qd = { ...(nextFlags.questData || {}) };
       for (const [key, diff] of Object.entries(changes.questData)) {
         qd[key] = diff.to;
@@ -1067,6 +1086,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
     if (changes.links) {
       const buckets = {
         character: 'characters',
+        creature: 'characters',
         item: 'items',
         location: 'locationsAssociative',
         faction: 'factions',
@@ -1074,7 +1094,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         journal: 'entries',
         journalentry: 'entries',
       };
-      const next = { ...(f || {}) };
+      const next = { ...(j.getFlag(CONFIG.MODULE_ID, 'archivist') || {}) };
       next.archivistRefs = next.archivistRefs || {
         characters: [],
         items: [],
@@ -1136,9 +1156,11 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
   async _applyImport(row, campaignId, apiKey) {
     const sheetType =
       row.type === 'Character'
-        ? String(row.characterKind || '').toUpperCase() === 'NPC'
-          ? 'npc'
-          : 'pc'
+        ? String(row.characterKind || '').toUpperCase() === 'CREATURE'
+          ? 'creature'
+          : String(row.characterKind || '').toUpperCase() === 'NPC'
+            ? 'npc'
+            : 'pc'
         : row.type === 'Item'
           ? 'item'
           : row.type === 'Location'
@@ -1168,6 +1190,8 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
         folderId = destinations.pc;
       } else if (sheetType === 'npc' && destinations.npc) {
         folderId = destinations.npc;
+      } else if (sheetType === 'creature' && destinations.creature) {
+        folderId = destinations.creature;
       } else if (sheetType === 'item' && destinations.item) {
         folderId = destinations.item;
       } else if (sheetType === 'location' && destinations.location) {
@@ -1352,7 +1376,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
       if (
         row.createCore &&
         row.coreType === 'actor' &&
-        (sheetType === 'pc' || sheetType === 'npc')
+        (sheetType === 'pc' || sheetType === 'npc' || sheetType === 'creature')
       ) {
         const img = String(row.image || '').trim();
         const actor = await Actor.create(
@@ -1363,7 +1387,12 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           },
           { render: false }
         );
-        if (actor?.id) flags.foundryRefs.actors = [actor.id];
+        if (actor?.id) {
+          flags.foundryRefs.actors = [actor.id];
+          await actor.setFlag(CONFIG.MODULE_ID, 'archivistId', row.id);
+          if (sheetType === 'creature')
+            await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', 'Creature');
+        }
       }
       if (row.createCore && row.coreType === 'item' && sheetType === 'item') {
         const img = String(row.image || '').trim();
@@ -1399,7 +1428,7 @@ export class SyncDialog extends foundry.applications.api.HandlebarsApplicationMi
           if (resp?.success) {
             const keyForType = (t) => {
               const s = String(t || '').toLowerCase();
-              if (s === 'character') return 'characters';
+              if (s === 'character' || s === 'creature') return 'characters';
               if (s === 'item') return 'items';
               if (s === 'location') return 'locationsAssociative';
               if (s === 'faction') return 'factions';

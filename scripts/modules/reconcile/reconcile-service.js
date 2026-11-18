@@ -133,7 +133,7 @@ export class ReconcileService {
           }
         } else {
           j = await journalManager.create({
-            name: entity.name || entity.title || sheetType,
+            name: entity.character_name || entity.name || entity.title || sheetType,
             sheetType,
             archivistId: id,
             worldId: campaignId,
@@ -156,6 +156,18 @@ export class ReconcileService {
         }
         byArchId.set(id, j);
       } else {
+        if (['pc', 'npc', 'creature'].includes(sheetType)) {
+          const current = j.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+          // Same rules as SyncDialog: legacy 'character' sheets already are PCs.
+          const isLegacyPc = current.sheetType === 'character' && sheetType === 'pc';
+          if (current.sheetType !== sheetType && !isLegacyPc) {
+            let destinations = {};
+            try {
+              destinations = settingsManager.getJournalDestinations?.() || {};
+            } catch (_) {}
+            await Utils.reclassifyCharacterJournal(j, sheetType, destinations);
+          }
+        }
         // Existing journal: backfill or update image from Archivist if missing/different
         try {
           const raw = String(entity?.image || '').trim();
@@ -167,7 +179,7 @@ export class ReconcileService {
         } catch (_) {}
       }
       // Title/description updates
-      const desiredName = entity.name || entity.title || j.name;
+      const desiredName = entity.character_name || entity.name || entity.title || j.name;
       if (desiredName && desiredName !== j.name)
         await j.update({ name: desiredName });
       // For brevity we do not overwrite page body here to avoid clobbering GM edits.
@@ -175,7 +187,9 @@ export class ReconcileService {
     };
 
     // Ensure sheets
-    for (const c of characters) await ensureSheet(c, 'character');
+    for (const c of characters) {
+      await ensureSheet(c, Utils.characterSheetType(c.type || c.character_type));
+    }
     for (const it of itemsData) await ensureSheet(it, 'item');
     for (const l of locations) await ensureSheet(l, 'location');
     for (const f of factions) await ensureSheet(f, 'faction');
@@ -258,6 +272,7 @@ export class ReconcileService {
     // Align link flags using Links table
     const keyMap = {
       Character: 'characters',
+      Creature: 'characters',
       Item: 'items',
       Location: 'locationsAssociative',
       Faction: 'factions',
@@ -337,19 +352,31 @@ export class ReconcileService {
   async _organizeFolders() {
     try {
       const nameFor = (st) => {
-        if (st === 'character') return 'Characters';
+        if (st === 'character' || st === 'pc') return 'Characters';
+        if (st === 'npc') return 'NPCs';
+        if (st === 'creature') return 'Creatures';
         if (st === 'item') return 'Items';
         if (st === 'location') return 'Locations';
         if (st === 'faction') return 'Factions';
         if (st === 'recap') return 'Recaps';
         return null;
       };
+      // Configured journal destinations win over the default Archivist
+      // folders, matching Utils.reclassifyCharacterJournal and imports.
+      let destinations = {};
+      try {
+        destinations = settingsManager.getJournalDestinations?.() || {};
+      } catch (_) {}
+      const destinationFor = (st) =>
+        destinations?.[st === 'character' ? 'pc' : st] || null;
       const cache = new Map();
       const ensureFolder = async (label) => {
         if (!label) return null;
         if (cache.has(label)) return cache.get(label);
         const organized = {
           Characters: 'Archivist - PCs',
+          NPCs: 'Archivist - NPCs',
+          Creatures: 'Archivist - Creatures',
           Items: 'Archivist - Items',
           Locations: 'Archivist - Locations',
           Factions: 'Archivist - Factions',
@@ -367,7 +394,7 @@ export class ReconcileService {
         if (!label) continue;
         // Keep Recaps container at root
         if (st === 'recap') continue;
-        const folderId = await ensureFolder(label);
+        const folderId = destinationFor(st) || (await ensureFolder(label));
         if (folderId && j.folder?.id !== folderId) {
           updates.push(j.update({ folder: folderId }, { render: false }));
         }
