@@ -33,6 +33,7 @@
             <a class="item" data-tab="info">Info</a>
             <a class="item" data-tab="pcs">PCs</a>
             <a class="item" data-tab="npcs">NPCs</a>
+            <a class="item" data-tab="creatures"><img class="archivist-creature-icon" src="modules/archivist-sync/assets/icons/creature.svg" alt="" /> <span class="archivist-tab-label">Creatures</span></a>
             <a class="item" data-tab="items">Items</a>
             <a class="item" data-tab="locations">Locations</a>
             <a class="item" data-tab="factions">Factions</a>
@@ -42,7 +43,7 @@
         </nav>
     </aside>
     <main class="archivist-content">
-        <section class="tab" data-tab="info" data-tab-active="{{#if (eq setup.sheetType 'character')}}true{{/if}}">
+        <section class="tab" data-tab="info" data-tab-active="true">
             <div class="archivist-info">
                 {{#if setup.editingInfo}}
                 <prose-mirror name="text.content" value="{{setup.rawContent}}" document-uuid="{{setup.pageUuid}}"
@@ -69,6 +70,8 @@
         <section class="tab" data-tab="npcs">
             <div class="archivist-grid npcs-grid"></div>
         </section>
+        <section class="tab" data-tab="creatures"><div class="archivist-grid creatures-grid"></div></section>
+
         <section class="tab" data-tab="items">
             <div class="archivist-grid items-grid"></div>
         </section>

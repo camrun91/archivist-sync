@@ -4,6 +4,65 @@ import { CONFIG } from './config.js';
  * Utility functions for Archivist Sync Module
  */
 export class Utils {
+  /** Normalize an Archivist character subtype to its sheet type. */
+  static characterSheetType(rawType) {
+    const t = String(rawType || '').toUpperCase();
+    return t === 'CREATURE' ? 'creature' : t === 'NPC' ? 'npc' : 'pc';
+  }
+
+  /** Normalize an Archivist character subtype to its display label. */
+  static characterKindLabel(rawType) {
+    return { pc: 'PC', npc: 'NPC', creature: 'Creature' }[
+      this.characterSheetType(rawType)
+    ];
+  }
+
+  /**
+   * Switch a PC/NPC/Creature journal to another character sheet type: sheet
+   * class, folder (configured destination first), flag, and linked Actors'
+   * archivistType.
+   */
+  static async reclassifyCharacterJournal(journal, sheetType, destinations = {}) {
+    const className = {
+      pc: 'PCPageSheetV2',
+      npc: 'NPCPageSheetV2',
+      creature: 'CreaturePageSheetV2',
+    }[sheetType];
+    if (!journal || !className) return false;
+    const folderName = {
+      pc: 'Archivist - PCs',
+      npc: 'Archivist - NPCs',
+      creature: 'Archivist - Creatures',
+    }[sheetType];
+    const folderId =
+      destinations?.[sheetType] || (await this.ensureJournalFolder(folderName));
+    await journal.update(
+      {
+        'flags.core.sheetClass': `archivist-sync.${className}`,
+        'flags.core.sheet': `archivist-sync.${className}`,
+        ...(folderId ? { folder: folderId } : {}),
+      },
+      { render: false }
+    );
+    const current = journal.getFlag(CONFIG.MODULE_ID, 'archivist') || {};
+    await journal.setFlag(CONFIG.MODULE_ID, 'archivist', { ...current, sheetType });
+    const archivistType = this.characterKindLabel(sheetType);
+    for (const actorId of current.foundryRefs?.actors || []) {
+      const actor = game.actors?.get?.(actorId);
+      if (actor) await actor.setFlag(CONFIG.MODULE_ID, 'archivistType', archivistType);
+    }
+    return true;
+  }
+
+  static async clearActorArchivistLink(actor, archivistId) {
+    if (!actor || !archivistId) return false;
+    const linkedId = actor.getFlag(CONFIG.MODULE_ID, 'archivistId');
+    if (String(linkedId || '') !== String(archivistId)) return false;
+    await actor.unsetFlag(CONFIG.MODULE_ID, 'archivistId');
+    await actor.unsetFlag(CONFIG.MODULE_ID, 'archivistType');
+    return true;
+  }
+
   /**
    * Return the current system id in lowercase (e.g., "dnd5e", "pf2e").
    */
@@ -1034,6 +1093,7 @@ export class Utils {
       const folders = {
         pc: 'Archivist - PCs',
         npc: 'Archivist - NPCs',
+        creature: 'Archivist - Creatures',
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
@@ -1063,6 +1123,7 @@ export class Utils {
       const map = {
         pc: 'Archivist - PCs',
         npc: 'Archivist - NPCs',
+        creature: 'Archivist - Creatures',
         item: 'Archivist - Items',
         location: 'Archivist - Locations',
         faction: 'Archivist - Factions',
@@ -1134,6 +1195,7 @@ export class Utils {
       const sheetClassMap = {
         pc: 'archivist-sync.PCPageSheetV2',
         npc: 'archivist-sync.NPCPageSheetV2',
+        creature: 'archivist-sync.CreaturePageSheetV2',
         item: 'archivist-sync.ItemPageSheetV2',
         location: 'archivist-sync.LocationPageSheetV2',
         faction: 'archivist-sync.FactionPageSheetV2',
@@ -1223,6 +1285,7 @@ export class Utils {
     const sheetClassMap = {
       pc: 'archivist-sync.PCPageSheetV2',
       npc: 'archivist-sync.NPCPageSheetV2',
+      creature: 'archivist-sync.CreaturePageSheetV2',
       item: 'archivist-sync.ItemPageSheetV2',
       location: 'archivist-sync.LocationPageSheetV2',
       faction: 'archivist-sync.FactionPageSheetV2',
@@ -1271,6 +1334,13 @@ export class Utils {
       ...opts,
       sheetType: 'npc',
       folderName: 'Archivist - NPCs',
+    });
+  }
+  static createCreatureJournal(opts) {
+    return this.createArchivistJournal({
+      ...opts,
+      sheetType: 'creature',
+      folderName: 'Archivist - Creatures',
     });
   }
   static createItemJournal(opts) {

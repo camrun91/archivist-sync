@@ -39,6 +39,7 @@
                         <th class="col-type">Type</th>
                         <th>Name</th>
                         <th class="col-indicator">Name</th>
+                        <th class="col-indicator">Subtype</th>
                         <th class="col-indicator">Description</th>
                         <th class="col-indicator">Image</th>
                         <th class="col-indicator">Date</th>
@@ -51,7 +52,7 @@
                         class="{{#if d.selected}}selected{{/if}} {{#if d.deleted}}sync-deleted-row{{/if}}"
                         {{#if d.deleted}}title="This entity was deleted in Archivist. Syncing will permanently remove the Foundry journal."{{/if}}>
                         <td><input type="checkbox" {{#if d.selected}}checked{{/if}} data-action="toggleRow" /></td>
-                        <td>{{d.type}}</td>
+                        <td>{{#if d.characterKind}}{{d.characterKind}}{{else}}{{d.type}}{{/if}}</td>
                         <td>
                             {{d.name}}
                             {{#if d.deleted}}
@@ -60,6 +61,9 @@
                         </td>
                         <td class="cell-center">
                             {{#if d.changes.name}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
+                        </td>
+                        <td class="cell-center">
+                            {{#if d.changes.sheetType}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
                         </td>
                         <td class="cell-center">
                             {{#if d.changes.description}}<i class="fas fa-check sync-check-icon"></i>{{/if}}
@@ -114,7 +118,7 @@
                     {{#each imports as |r|}}
                     <tr data-kind="import" data-id="{{r.id}}" class="{{#if r.selected}}selected{{/if}}">
                         <td><input type="checkbox" {{#if r.selected}}checked{{/if}} data-action="toggleRow" /></td>
-                        <td>{{r.type}}</td>
+                        <td>{{#if r.characterKind}}{{r.characterKind}}{{else}}{{r.type}}{{/if}}</td>
                         <td>{{r.name}}</td>
                         <td class="cell-center">
                             {{#if r.coreType}}
