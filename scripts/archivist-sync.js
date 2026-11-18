@@ -55,6 +55,7 @@ Hooks.once('init', async function () {
       EntryPageSheetV2,
       PCPageSheetV2,
       NPCPageSheetV2,
+      CreaturePageSheetV2,
       CharacterPageSheetV2,
       ItemPageSheetV2,
       LocationPageSheetV2,
@@ -80,6 +81,9 @@ Hooks.once('init', async function () {
       label: 'Archivist: NPC',
       types: ['base'],
       makeDefault: false,
+    });
+    DSC.registerSheet(JournalEntry, 'archivist-sync', CreaturePageSheetV2, {
+      label: 'Archivist: Creature', types: ['base'], makeDefault: false,
     });
     DSC.registerSheet(JournalEntry, 'archivist-sync', ItemPageSheetV2, {
       label: 'Archivist: Item',
@@ -537,6 +541,7 @@ Hooks.once('ready', async function () {
             icon: 'fa-user-ninja',
             tooltip: 'Create New NPC',
           },
+          { key: 'creature', label: 'Creature', icon: 'fa-paw', tooltip: 'Create New Creature' },
           {
             key: 'item',
             label: 'Item',
@@ -588,7 +593,9 @@ Hooks.once('ready', async function () {
           const b = document.createElement('button');
           b.type = 'button';
           b.className = 'archivist-create-btn';
-          b.innerHTML = `<i class="fas ${t.icon}"></i>`;
+          b.innerHTML = t.key === 'creature'
+            ? '<img class="archivist-creature-icon" src="modules/archivist-sync/assets/icons/creature.svg" alt="" />'
+            : `<i class="fas ${t.icon}"></i>`;
           b.title = t.tooltip;
           b.dataset.type = t.key;
           b.addEventListener('click', async (ev) => {
@@ -603,6 +610,8 @@ Hooks.once('ready', async function () {
                 journal = await Utils.createPcJournal({ name, worldId });
               else if (t.key === 'npc')
                 journal = await Utils.createNpcJournal({ name, worldId });
+              else if (t.key === 'creature')
+                journal = await Utils.createCreatureJournal({ name, worldId });
               else if (t.key === 'item')
                 journal = await Utils.createItemJournal({ name, worldId });
               else if (t.key === 'location')
@@ -650,6 +659,7 @@ Hooks.once('ready', async function () {
             <optgroup label="Archivist">
               <option value="pc">PC</option>
               <option value="npc">NPC</option>
+              <option value="creature">Creature</option>
               <option value="item">Item</option>
               <option value="location">Location</option>
               <option value="faction">Faction</option>
@@ -1089,12 +1099,13 @@ function installRealtimeSyncListeners() {
       if (
         sheetType === 'pc' ||
         sheetType === 'npc' ||
+        sheetType === 'creature' ||
         sheetType === 'character'
       ) {
         const payload = {
           character_name: entry.name || 'Character',
           description,
-          type: sheetType === 'npc' ? 'NPC' : 'PC',
+          type: sheetType === 'creature' ? 'Creature' : sheetType === 'npc' ? 'NPC' : 'PC',
           campaign_id: worldId,
         };
         res = await archivistApi.createCharacter(apiKey, payload);
@@ -1265,6 +1276,7 @@ function installRealtimeSyncListeners() {
       if (
         sheetType === 'pc' ||
         sheetType === 'npc' ||
+        sheetType === 'creature' ||
         sheetType === 'character'
       ) {
         res = await archivistApi.updateCharacter(
@@ -1336,7 +1348,7 @@ function installRealtimeSyncListeners() {
       const st = String(flags?.sheetType || '');
       if (!id || !diff?.name) return;
       const name = String(diff.name);
-      const isCharacter = st === 'pc' || st === 'npc' || st === 'character';
+      const isCharacter = st === 'pc' || st === 'npc' || st === 'creature' || st === 'character';
       if (isCharacter) {
         await archivistApi.updateCharacter(apiKey, id, {
           character_name: name,
@@ -1465,7 +1477,7 @@ function installRealtimeSyncListeners() {
 
     const st = bucket.sheetType;
     if (
-      (st === 'pc' || st === 'npc' || st === 'character') &&
+      (st === 'pc' || st === 'npc' || st === 'creature' || st === 'character') &&
       archivistApi.deleteCharacter
     ) {
       await archivistApi.deleteCharacter(apiKey, archivistId);
@@ -1572,6 +1584,8 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
             journal = await Utils.createPcJournal({ name, worldId });
           else if (key === 'npc')
             journal = await Utils.createNpcJournal({ name, worldId });
+          else if (key === 'creature')
+            journal = await Utils.createCreatureJournal({ name, worldId });
           else if (key === 'item')
             journal = await Utils.createItemJournal({ name, worldId });
           else if (key === 'location')
@@ -1594,6 +1608,7 @@ Hooks.on('getJournalDirectoryHeaderButtons', (app, buttons) => {
     buttons.unshift(make('location', 'Location', 'fas fa-location-dot'));
     buttons.unshift(make('item', 'Item', 'fas fa-gem'));
     buttons.unshift(make('npc', 'NPC', 'fas fa-user-ninja'));
+    buttons.unshift(make('creature', 'Creature', 'fas fa-paw'));
     buttons.unshift(make('pc', 'PC', 'fas fa-user'));
   } catch (e) {
     console.warn('[Archivist Sync] getJournalDirectoryHeaderButtons failed', e);
